@@ -14,6 +14,7 @@
 	import PlayOption from '$lib/components/PlayOption.svelte';
 	import AutoplayTesseract from '$lib/components/AutoplayTesseract.svelte';
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
+	import GithubLogoIcon from 'phosphor-svelte/lib/GithubLogoIcon';
 
 	let seat = $state<'white' | 'black'>('white'),
 		busy = $state(false),
@@ -141,11 +142,37 @@
 				</section>
 				<AutoplayTesseract />
 			</div>{/if}
+		<footer class="home-footer">
+			<a href="https://github.com/0xmiki/4dchess" target="_blank" rel="noopener noreferrer">
+				<GithubLogoIcon size={20} weight="fill" aria-hidden="true" />GitHub
+			</a>
+		</footer>
 	</main>{/if}
 
 <style>
 	.home-shell {
 		max-width: 1800px;
+		min-height: 100svh;
+		display: flex;
+		flex-direction: column;
+	}
+	.home-footer {
+		margin-top: auto;
+		padding-top: var(--space-2);
+	}
+	.home-footer a {
+		display: inline-flex;
+		align-items: center;
+		gap: var(--space-2);
+		min-height: 44px;
+		color: var(--muted);
+		font-size: 13px;
+		text-decoration: none;
+		border-radius: var(--radius-control);
+	}
+	.home-footer a:hover,
+	.home-footer a:focus-visible {
+		color: var(--text);
 	}
 	@media (max-width: 1000px) {
 		.home-play :global(.autoplay) {
@@ -164,7 +191,7 @@
 		width: calc(100% - var(--sidebar-width) - var(--sidebar-gap));
 		margin-inline: auto;
 		align-items: center;
-		min-height: calc(100svh - 48px);
+		min-height: calc(100svh - 100px);
 	}
 	.play-options {
 		display: grid;
