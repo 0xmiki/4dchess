@@ -98,232 +98,221 @@
 	}
 </script>
 
-<section class="guide" aria-label="Learn and practice">
-	<div class="lesson-top">
-		<BackToPlay />
-		<div class="mode-switch" aria-label="Learning mode">
-			<button
-				disabled={!ready}
-				class:chosen={!free}
-				aria-pressed={!free}
-				onclick={() => {
-					free = false;
-					reset();
-				}}>Lessons</button
-			><button
-				disabled={!ready}
-				class:chosen={free}
-				aria-pressed={free}
-				onclick={() => {
-					free = true;
-					reset();
-				}}>Free practice</button
-			>
-		</div>
-	</div>
-	<div class="lesson-heading">
-		<div>
-			<p class="muted">
-				{free
-					? 'Move either side. No turns or check restrictions.'
-					: `Lesson ${step + 1} of ${lessonOrder.length}`}
-			</p>
-			<h1>{free ? 'Free practice' : `${lesson.name}: try a move`}</h1>
-			<p>
-				{free ? 'Select a piece, then choose a marked square.' : descriptions[lessonOrder[step]]}
-			</p>
-		</div>
-		<div class="lesson-controls">
-			{#if free}<Button
+<section class="guide match-layout" aria-label="Learn and practice">
+	<aside class="game-info">
+		<div class="lesson-top">
+			<BackToPlay />
+			<div class="mode-switch" aria-label="Learning mode">
+				<button
+					disabled={!ready}
+					class:chosen={!free}
+					aria-pressed={!free}
 					onclick={() => {
-						placing = !placing;
-						feedback = '';
-					}}>Add piece</Button
-				><Button onclick={() => reset(true)}>Full position</Button>{:else}<label
-					class="lesson-picker"
-					>Lesson<select
-						aria-label="Lesson"
-						value={lessonOrder[step]}
-						onchange={(event) =>
-							chooseStep(lessonOrder.indexOf(event.currentTarget.value as PieceType))}
-						>{#each lessonOrder as type (type)}<option value={type}>{lessons[type].name}</option
-							>{/each}</select
-					></label
-				>{/if}
-			{#if history.length}<Button onclick={undo}>Undo</Button><Button onclick={() => reset()}
-					>Reset</Button
-				>{/if}
-		</div>
-	</div>
-	{#if !free}<div class="lesson-progress">
-			<p role="status">{feedback || 'Move the White piece to the outlined square.'}</p>
-			<div class="row">
-				<Button
-					onclick={() => {
+						free = false;
 						reset();
-						move({ from: squareIndex(lesson.from), to: target });
-					}}>Show move</Button
-				>{#if complete && step < lessonOrder.length - 1}<Button
-						variant="primary"
-						onclick={() => chooseStep(step + 1)}>Next lesson</Button
+					}}>Lessons</button
+				><button
+					disabled={!ready}
+					class:chosen={free}
+					aria-pressed={free}
+					onclick={() => {
+						free = true;
+						reset();
+					}}>Free practice</button
+				>
+			</div>
+		</div>
+		<div class="lesson-heading">
+			<div>
+				<p class="muted">
+					{free
+						? 'Move either side. No turns or check restrictions.'
+						: `Lesson ${step + 1} of ${lessonOrder.length}`}
+				</p>
+				<h1>{free ? 'Free practice' : `${lesson.name}: try a move`}</h1>
+				<p>
+					{free ? 'Select a piece, then choose a marked square.' : descriptions[lessonOrder[step]]}
+				</p>
+			</div>
+			<div class="lesson-controls">
+				{#if free}<Button
+						onclick={() => {
+							placing = !placing;
+							feedback = '';
+						}}>Add piece</Button
+					><Button onclick={() => reset(true)}>Full position</Button>{:else}<label
+						class="lesson-picker"
+						>Lesson<select
+							aria-label="Lesson"
+							value={lessonOrder[step]}
+							onchange={(event) =>
+								chooseStep(lessonOrder.indexOf(event.currentTarget.value as PieceType))}
+							>{#each lessonOrder as type (type)}<option value={type}>{lessons[type].name}</option
+								>{/each}</select
+						></label
+					>{/if}
+				{#if history.length}<Button onclick={undo}>Undo</Button><Button onclick={() => reset()}
+						>Reset</Button
 					>{/if}
 			</div>
-		</div>{:else}<p role="status" class="practice-feedback">{feedback}</p>{/if}
-	{#if free && placing}<div class="placement-tools">
-			<SelectField
-				label="Piece"
-				bind:value={piece}
-				options={lessonOrder.map((value) => ({ value, label: lessons[value].name }))}
-			/><SideToggle label="Piece color" bind:value={placementSide} /><Button
-				onclick={startingSquare}>Starting square</Button
-			><Button
-				onclick={() => {
-					placing = false;
-					feedback = '';
-				}}>Done placing</Button
-			>
-			<p>Click any square to place the piece. Undo restores anything replaced.</p>
-		</div>{/if}
-	<ChessBoard
-		{board}
-		turn="w"
-		seat="white"
-		enabled
-		practice
-		onplace={free && placing ? place : undefined}
-		goalSquare={free ? null : target}
-		{lastMove}
-		onmove={move}
-	/>
-	<details class="extra-rules">
-		<summary>How do I win? What are the special rules?</summary>
-		<p>
-			Checkmate the other king: attack it so it has no safe escape. In a match, take turns and keep
-			your own king safe.
-		</p>
-		<p>
-			Pawns promote to queens at the far edge. There is no castling, en passant, or opening
-			two-square pawn move. Draws include stalemate, three repetitions, 100 halfmoves without a pawn
-			move or capture, and only two kings remaining.
-		</p>
-	</details>
+		</div>
+		{#if !free}<div class="lesson-progress">
+				<p role="status">{feedback || 'Move the White piece to the outlined square.'}</p>
+				<div class="row">
+					<Button
+						onclick={() => {
+							reset();
+							move({ from: squareIndex(lesson.from), to: target });
+						}}>Show move</Button
+					>{#if complete && step < lessonOrder.length - 1}<Button
+							variant="primary"
+							onclick={() => chooseStep(step + 1)}>Next lesson</Button
+						>{/if}
+				</div>
+			</div>{:else}<p role="status" class="practice-feedback">{feedback}</p>{/if}
+		{#if free && placing}<div class="placement-tools">
+				<SelectField
+					label="Piece"
+					bind:value={piece}
+					options={lessonOrder.map((value) => ({ value, label: lessons[value].name }))}
+				/><SideToggle label="Piece color" bind:value={placementSide} /><Button
+					onclick={startingSquare}>Starting square</Button
+				><Button
+					onclick={() => {
+						placing = false;
+						feedback = '';
+					}}>Done placing</Button
+				>
+				<p>Click any square to place the piece. Undo restores anything replaced.</p>
+			</div>{/if}
+
+		<details class="extra-rules">
+			<summary>How do I win? What are the special rules?</summary>
+			<p>
+				Checkmate the other king: attack it so it has no safe escape. In a match, take turns and
+				keep your own king safe.
+			</p>
+			<p>
+				Pawns promote to queens at the far edge. There is no castling, en passant, or opening
+				two-square pawn move. Draws include stalemate, three repetitions, 100 halfmoves without a
+				pawn move or capture, and only two kings remaining.
+			</p>
+		</details>
+	</aside>
+	<div class="match-position">
+		<ChessBoard
+			{board}
+			turn="w"
+			seat="white"
+			enabled
+			practice
+			onplace={free && placing ? place : undefined}
+			goalSquare={free ? null : target}
+			{lastMove}
+			onmove={move}
+		/>
+	</div>
 </section>
 
 <style>
-	.placement-tools :global(.side-toggle) {
-		display: block;
-	}
-	.placement-tools :global(legend) {
-		float: none;
-		margin-bottom: var(--space-2);
-	}
-
-	.placement-tools {
+	.guide .game-info {
+		grid-column: 2;
+		grid-row: 1;
 		position: sticky;
-		top: var(--space-2);
-		z-index: 5;
-		display: flex;
-		gap: var(--space-4);
-		align-items: end;
-		flex-wrap: wrap;
-		margin-bottom: var(--space-4);
-		padding: var(--space-4);
-		background: var(--surface);
-		border-radius: var(--radius-control);
+		top: var(--play-space);
+		max-height: calc(100svh - 2 * var(--play-space));
+		overflow: auto;
+		padding: 2px;
 	}
-	.placement-tools p {
-		width: 100%;
-		font-size: 14px;
-		color: var(--muted);
-	}
-	.lesson-progress :global(button) {
-		min-height: 36px;
-		padding: 8px 12px;
-		box-shadow: none;
-		white-space: nowrap;
-	}
-	.lesson-picker {
-		display: grid;
-		gap: 6px;
-		font-size: 14px;
-	}
-	.lesson-picker select {
-		min-height: 48px;
-		background: var(--surface);
-		color: var(--text);
-		border: 1px solid var(--line-strong);
-		border-radius: var(--radius-control);
-		padding: 8px 32px 8px 12px;
+	.guide .match-position {
+		grid-column: 1;
+		grid-row: 1;
 	}
 	.lesson-top,
 	.lesson-heading,
-	.lesson-progress {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
+	.lesson-controls,
+	.lesson-progress,
+	.placement-tools {
+		display: grid;
+		gap: var(--space-3);
+	}
+	.lesson-heading {
 		gap: var(--space-5);
-		margin-bottom: var(--space-5);
+	}
+	h1 {
+		font-size: 24px;
+		line-height: 1.2;
+		margin: var(--space-2) 0;
+	}
+	p {
+		font-size: 14px;
 	}
 	.mode-switch {
 		display: flex;
-		padding: var(--space-1);
+		padding: 4px;
 		background: var(--surface);
 		border-radius: var(--radius-control);
 	}
 	.mode-switch button {
-		padding: var(--space-2) var(--space-4);
+		flex: 1;
 		min-height: 40px;
-		border-radius: 8px;
-		cursor: pointer;
+		padding: 8px;
 		color: var(--muted);
+		cursor: pointer;
+		border-radius: 8px;
 	}
 	.mode-switch .chosen {
 		background: var(--line);
 		color: var(--text);
 	}
-	h1 {
-		font-size: 26px;
-		margin: var(--space-1) 0;
+	.lesson-picker {
+		display: grid;
+		gap: 8px;
+		font-size: 14px;
 	}
-	.lesson-heading p {
-		max-width: 580px;
+	.lesson-picker select {
+		min-height: 44px;
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-control);
+		padding: 8px 12px;
+		color: var(--text);
 	}
-	.lesson-controls {
-		display: flex;
-		align-items: end;
-		gap: var(--space-3);
-		flex-wrap: wrap;
+	.placement-tools {
+		padding: var(--space-3);
+		background: var(--surface);
+		border-radius: var(--radius-control);
 	}
-	.lesson-progress {
-		padding: var(--space-3) 0;
-		border-top: 1px solid var(--line);
+	.placement-tools :global(.side-toggle) {
+		display: block;
 	}
-	.practice-feedback {
-		min-height: 24px;
-		margin-bottom: var(--space-3);
+	.placement-tools :global(legend) {
+		float: none;
+		margin-bottom: 8px;
 	}
 	.extra-rules {
-		margin-top: var(--space-5);
-		max-width: 680px;
+		font-size: 14px;
 		color: var(--muted);
 	}
 	.extra-rules summary {
 		cursor: pointer;
-		padding: var(--space-3) 0;
 	}
 	.extra-rules p {
-		margin-bottom: var(--space-3);
+		margin-top: var(--space-3);
 	}
-	@media (max-width: 800px) {
+	@media (max-width: 850px) {
+		.guide .game-info {
+			position: static;
+			max-height: none;
+			overflow: visible;
+		}
+		.lesson-controls {
+			display: flex;
+			flex-wrap: wrap;
+			align-items: end;
+		}
 		.lesson-heading {
-			align-items: flex-start;
-			flex-direction: column;
-		}
-		.lesson-top {
-			gap: var(--space-2);
-		}
-		.mode-switch button {
-			padding: var(--space-2);
+			gap: var(--space-3);
 		}
 	}
 </style>

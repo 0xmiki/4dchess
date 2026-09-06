@@ -57,4 +57,5 @@
 	--motion-press: 100ms;
 	--threat-white: #91aaa2;
 	--threat-black: #b29099;
+	--play-space: clamp(32px, 6svh, 72px);
 }

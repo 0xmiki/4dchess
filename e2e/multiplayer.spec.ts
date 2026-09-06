@@ -122,7 +122,9 @@ test('friends synchronize, recover a lost acknowledgement, reconnect, and finish
 		}
 		await black.getByLabel('Game options', { exact: true }).click();
 		await black.getByRole('button', { name: 'Move history' }).click();
-		await expect(black.locator('.moves li')).toHaveCount(8);
+		await expect(
+			black.getByRole('dialog', { name: 'Move history', exact: true }).locator('.moves li')
+		).toHaveCount(8);
 		await black.getByRole('button', { name: 'Close history' }).click();
 		await black.getByLabel('Game options', { exact: true }).click();
 		await black.getByRole('button', { name: 'Export game', exact: true }).click();

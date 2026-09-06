@@ -8,8 +8,8 @@ Values live in `src/lib/design.css`. Import this file directly from the root lay
 
 - Home: two stacked play cards on the left, a learn link beneath, an optional return-to-match link, and the tesseract on the right.
 - Side selection lives on home. Friend play creates an invitation directly with a stable request ID; `/friend` redirects home. Computer play starts or restores a game directly. Further computer settings remain in the new-game dialog.
-- Match: turn or result above the position. Status and invitation controls occupy a separate side column, leaving the board position independent of waiting, active, and finished states. On narrow screens the information follows the board. A contextual footer holds Back to play, New game, and Options. Dropdown actions are flat rows; Escape, outside click, and arrow keys work. No global navbar.
-- How to play: one piece and one target move at a time, using the real board. Show move demonstrates the task; Next lesson appears after success. A lesson selector allows jumping between pieces. Free practice permits either color with movement rules but no turns or king-safety restrictions, with a full position, undo, and reset. Add piece reveals a piece/color picker and click-to-place mode; Starting square uses the first vacant original starting square for that piece. Undo restores replaced pieces. No guest session is needed.
+- Match: turn or result above the position. Status and invitation controls occupy a separate side column, leaving the board position independent of waiting, active, and finished states. On narrow screens the information follows the board. The sidebar holds Back to play, New game, Options, and recent moves. Dropdown actions are flat rows; Escape, outside click, and arrow keys work. No global navbar.
+- How to play: one piece and one target move at a time, using the real board. Controls and explanations occupy a sidebar, following the same board-first layout as matches. Show move demonstrates the task; Next lesson appears after success. A lesson selector allows jumping between pieces. Free practice permits either color with movement rules but no turns or king-safety restrictions, with a full position, undo, and reset. Add piece reveals a piece/color picker and click-to-place mode; Starting square uses the first vacant original starting square for that piece. Undo restores replaced pieces. No guest session is needed.
 
 ## Color
 
@@ -50,17 +50,17 @@ Pointer interaction never draws a ring around the tesseract. Keyboard focus chan
 
 ## Geometry and teaching
 
-Use actual game coordinates. The nested cubes represent equally sized W layers; projection makes one appear smaller. The camera uses a fixed enlarged projection scale. Do not refit or normalize its bounds during rotation: this introduces a visible zoom as corners change position.
+Use actual game coordinates. The nested cubes represent equally sized W layers; projection makes one appear smaller. The camera uses one fixed scale for both screen axes and retains the original centered projection. Do not refit or normalize its bounds during rotation: this introduces a visible zoom as corners change position.
 
 The lesson board and tesseract show the same move together. Learners can compare directly rather than remember a previous screen. [Recognition and recall guidance](https://www.nngroup.com/articles/recognition-and-recall/).
 
-Learners make moves themselves or play the example. Invalid destinations cannot be played. Rotation changes presentation only. The home demo uses the Easy search worker for both sides, animates moves and camera turns, then restarts after an actual result. It pauses offscreen, when the tab is hidden, or on manual orbit; a pause/play control is available. Reduced motion skips travel and orbit. Search workers and timers are cleaned up on navigation. Special rules remain expandable. [Progressive disclosure guidance](https://www.nngroup.com/articles/progressive-disclosure/).
+Learners make moves themselves or play the example. Invalid destinations cannot be played. Rotation changes presentation only. The home demo uses the Easy search worker for both sides, chooses a camera angle from the move path and nearby piece occlusion, turns first, and then animates the piece, then restarts after an actual result. It pauses offscreen, when the tab is hidden, or on manual orbit; a pause/play control is available. Reduced motion skips travel and orbit. Search workers and timers are cleaned up on navigation. Special rules remain expandable. [Progressive disclosure guidance](https://www.nngroup.com/articles/progressive-disclosure/).
 
 ## Results and loading
 
 Wins, losses, and draws have an explicit result card. Fresh wins briefly show confetti unless reduced motion is requested. Fresh checkmates play a short synthesized cue after the browser has received a user gesture; restored results do not replay effects. No external audio asset is loaded.
 
-Friend creation replaces the play-card arrow with a spinner while keeping the card size unchanged. Back links share a chevron component.
+Friend creation replaces the play-card arrow with a spinner while keeping the card size unchanged. Route loading uses a full-viewport centered loading screen. Play and learning layouts share `--play-space` for balanced top and bottom gutters. Back links share a chevron component.
 
 ## References and review
 

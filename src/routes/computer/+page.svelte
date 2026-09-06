@@ -1,6 +1,6 @@
 <script lang="ts">
 	import GameOutcome from '$lib/components/GameOutcome.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
+	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import BackToPlay from '$lib/components/BackToPlay.svelte';
 	import { onMount, untrack } from 'svelte';
 	import {
@@ -228,7 +228,7 @@
 
 <svelte:head><title>Play computer · 4D chess</title></svelte:head>
 <main class="shell match-shell">
-	{#if !ready}<p role="status"><Spinner label="Loading computer game" /></p>
+	{#if !ready}<LoadingScreen label="Loading computer game" />
 	{:else if !game}<section class="flow" aria-label="Computer game settings">
 			<h1>Play computer</h1>
 			<SelectField label="Your side" bind:value={setupSide} options={sideOptions} /><SelectField
@@ -272,31 +272,35 @@
 							>{/if}
 					</div>{/if}
 				<GameOutcome result={game.result} side={player === 'w' ? 'white' : 'black'} />
+				<footer class="game-tools">
+					<BackToPlay />{#if game}<Button onclick={newGame}>New game</Button
+						>{/if}{#if game}<GameMenu bind:this={menu}
+							><Button
+								onclick={() => {
+									menu?.close();
+									rules.showModal();
+								}}>Rules</Button
+							>{#if history.length}<Button
+									onclick={() => {
+										menu?.close();
+										historyDialog.showModal();
+									}}>Move history</Button
+								>{/if}<Button
+								onclick={() => {
+									menu?.close();
+									showExport = true;
+									exportDialog.showModal();
+								}}>Export game</Button
+							></GameMenu
+						>{/if}
+				</footer>
+				{#if history.length}<section class="side-moves" aria-label="Recent moves">
+						<h2>Moves</h2>
+						<MoveList moves={[...history].reverse().slice(0, 8)} />
+					</section>{/if}
 			</aside>
 		</div>
 	{/if}
-	<footer class="game-tools">
-		<BackToPlay />{#if game}<Button onclick={newGame}>New game</Button>{/if}{#if game}<GameMenu
-				bind:this={menu}
-				><Button
-					onclick={() => {
-						menu?.close();
-						rules.showModal();
-					}}>Rules</Button
-				>{#if history.length}<Button
-						onclick={() => {
-							menu?.close();
-							historyDialog.showModal();
-						}}>Move history</Button
-					>{/if}<Button
-					onclick={() => {
-						menu?.close();
-						showExport = true;
-						exportDialog.showModal();
-					}}>Export game</Button
-				></GameMenu
-			>{/if}
-	</footer>
 </main>
 <RulesDialog bind:this={rules} onclose={() => menu?.focus()} />
 <Modal bind:this={newDialog} title="Start a new computer game?"

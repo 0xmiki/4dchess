@@ -8,7 +8,7 @@
 		content="Learn the four dimensions and try each chess piece's moves with interactive diagrams."
 	/></svelte:head
 >
-<main class="shell">
+<main class="shell match-shell">
 	<HowToPlay />
 </main>
 

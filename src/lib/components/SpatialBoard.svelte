@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
+	import { projectCoordinate } from '$lib/visuals/projection';
 	import {
 		squareCoordinates,
 		squareIndex,
@@ -15,7 +16,6 @@
 	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
 		annotations = true,
-		centerY = 195,
 		onclear = () => {},
 		yaw = $bindable(-0.48),
 		pitch = $bindable(0.26),
@@ -30,7 +30,6 @@
 		inspections = []
 	}: {
 		annotations?: boolean;
-		centerY?: number;
 		onclear?: () => void;
 		yaw?: number;
 		pitch?: number;
@@ -59,18 +58,8 @@
 	onDestroy(() => clearTimeout(holdTimer));
 	const componentId = $props.id();
 	const arrowId = componentId + '-spatial-threat';
-	// Keep the original fixed camera scale: fitting per angle causes visible zoom while orbiting.
-	function project([x, y, z, w]: Coordinates) {
-		const wScale = 2.05 / (2.7 - (w * 2 - 1));
-		const px = (x / 1.5 - 1) * wScale,
-			py = (y / 1.5 - 1) * wScale,
-			pz = (z * 2 - 1) * wScale;
-		const rx = px * Math.cos(yaw) + pz * Math.sin(yaw),
-			rz = -px * Math.sin(yaw) + pz * Math.cos(yaw);
-		const ry = py * Math.cos(pitch) - rz * Math.sin(pitch),
-			depth = py * Math.sin(pitch) + rz * Math.cos(pitch);
-		const scale = 5.5 / (5.5 - depth);
-		return { x: 220 + rx * 101 * scale, y: centerY - ry * 86 * scale, depth, scale };
+	function project(coordinate: Coordinates) {
+		return projectCoordinate(coordinate, { yaw, pitch });
 	}
 	const points = $derived(Array.from({ length: 64 }, (_, i) => project(squareCoordinates(i))));
 	const orientation = $derived.by(() => {

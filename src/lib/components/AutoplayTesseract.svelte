@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { cameraForMove } from '$lib/visuals/projection';
 	import { createInitialState, applyMove, type Board, type Move } from '$lib/chess';
 	import ComputerWorker from '$lib/chess/computer.worker.ts?worker&inline';
 	import SpatialBoard from './SpatialBoard.svelte';
@@ -83,14 +84,15 @@
 				const start = performance.now(),
 					fromYaw = yaw,
 					fromPitch = pitch,
-					toYaw = yaw + 0.25,
-					toPitch = 0.24 + Math.sin(game.ply * 0.6) * 0.15;
+					targetCamera = cameraForMove(before, move, { yaw, pitch });
 				const animate = (now: number) => {
-					const t = Math.min(1, (now - start) / 900),
+					const orbit = Math.min(1, (now - start) / 650),
+						orbitEase = orbit * orbit * (3 - 2 * orbit);
+					const t = Math.max(0, Math.min(1, (now - start - 650) / 900)),
 						ease = t * t * (3 - 2 * t);
 					motion = { ...move, piece, captured, progress: ease };
-					yaw = fromYaw + (toYaw - fromYaw) * ease;
-					pitch = fromPitch + (toPitch - fromPitch) * ease;
+					yaw = fromYaw + (targetCamera.yaw - fromYaw) * orbitEase;
+					pitch = fromPitch + (targetCamera.pitch - fromPitch) * orbitEase;
 					if (t < 1) frame = requestAnimationFrame(animate);
 					else {
 						motion = null;
@@ -150,7 +152,6 @@
 <div class="autoplay" bind:this={root} data-demo-ply={game.ply} onpointerdown={interact}>
 	<SpatialBoard
 		annotations={false}
-		centerY={220}
 		board={shown}
 		selected={null}
 		moves={[]}

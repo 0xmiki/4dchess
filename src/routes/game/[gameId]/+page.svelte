@@ -1,6 +1,6 @@
 <script lang="ts">
 	import GameOutcome from '$lib/components/GameOutcome.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
+	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import BackToPlay from '$lib/components/BackToPlay.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -65,7 +65,7 @@
 			throw new Error('Incomplete history');
 		return { moves, result: snapshot.result, date: snapshot._creationTime };
 	}
-	let optionsMenu: ReturnType<typeof GameMenu>;
+	let optionsMenu = $state<ReturnType<typeof GameMenu>>();
 	type Pending = {
 		gameId: Id<'games'>;
 		participantId: Id<'participants'>;
@@ -237,9 +237,9 @@
 
 <svelte:head><title>{status || 'Match'} · 4D chess</title></svelte:head>
 <main class="shell match-shell">
-	{#if !mounted || auth.isLoading || (auth.isAuthenticated && match.isLoading)}<p role="status">
-			<Spinner label="Loading match" />
-		</p>
+	{#if !mounted || auth.isLoading || (auth.isAuthenticated && match.isLoading)}<LoadingScreen
+			label="Loading match"
+		/>
 	{:else if !auth.isAuthenticated}<section class="flow">
 			<p>
 				This browser has no active guest session. Reopen the match in the browser where you joined.
@@ -300,52 +300,56 @@
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
 				<GameOutcome result={game.result} side={match.data.seat} />
+				<footer class="game-tools">
+					<BackToPlay /><a class="button" href={resolve('/')}>New game</a>
+					<GameMenu bind:this={optionsMenu}>
+						{#if game}<Button
+								onclick={() => {
+									optionsMenu?.close();
+									showExport = true;
+									exportDialog.showModal();
+								}}>Export game</Button
+							>{/if}
+						<Button
+							disabled={!mounted}
+							onclick={() => {
+								optionsMenu?.close();
+								rulesDialog.showModal();
+							}}>Rules</Button
+						>
+						{#if game && game.ply > 0}<Button
+								onclick={() => {
+									optionsMenu?.close();
+									showHistory = true;
+									historyDialog.showModal();
+								}}>Move history</Button
+							>{/if}
+						{#if game?.status === 'active'}<Button
+								disabled={sending || !!pending}
+								onclick={() => {
+									optionsMenu?.close();
+									resignRequest = null;
+									resignDialog.showModal();
+								}}>Resign</Button
+							>{/if}
+					</GameMenu>
+				</footer>
+				{#if game.ply > 0}<section class="side-moves" aria-label="Recent moves">
+						<h2>Moves</h2>
+						<MoveHistory {gameId} />
+					</section>{/if}
 			</aside>
 		</div>
 	{/if}
-	<footer class="game-tools">
-		<BackToPlay /><a class="button" href={resolve('/')}>New game</a>
-		<GameMenu bind:this={optionsMenu}>
-			{#if game}<Button
-					onclick={() => {
-						optionsMenu.close();
-						showExport = true;
-						exportDialog.showModal();
-					}}>Export game</Button
-				>{/if}
-			<Button
-				disabled={!mounted}
-				onclick={() => {
-					optionsMenu.close();
-					rulesDialog.showModal();
-				}}>Rules</Button
-			>
-			{#if game && game.ply > 0}<Button
-					onclick={() => {
-						optionsMenu.close();
-						showHistory = true;
-						historyDialog.showModal();
-					}}>Move history</Button
-				>{/if}
-			{#if game?.status === 'active'}<Button
-					disabled={sending || !!pending}
-					onclick={() => {
-						optionsMenu.close();
-						resignRequest = null;
-						resignDialog.showModal();
-					}}>Resign</Button
-				>{/if}
-		</GameMenu>
-	</footer>
 </main>
 
-<RulesDialog bind:this={rulesDialog} onclose={() => optionsMenu.focus()} />
+<RulesDialog bind:this={rulesDialog} onclose={() => optionsMenu?.focus()} />
 <Modal
 	bind:this={exportDialog}
 	title="Export game"
 	onclose={() => {
 		showExport = false;
-		optionsMenu.focus();
+		optionsMenu?.focus();
 	}}
 	>{#if showExport}<ExportGame load={exportSnapshot} />{/if}<Button
 		class="close-dialog"
@@ -357,7 +361,7 @@
 	title="Move history"
 	onclose={() => {
 		showHistory = false;
-		optionsMenu.focus();
+		optionsMenu?.focus();
 	}}
 >
 	{#if showHistory}<MoveHistory {gameId} />{/if}<Button
@@ -365,7 +369,7 @@
 		onclick={() => historyDialog.close()}>Close history</Button
 	>
 </Modal>
-<Modal bind:this={resignDialog} title="Resign this match?" onclose={() => optionsMenu.focus()}>
+<Modal bind:this={resignDialog} title="Resign this match?" onclose={() => optionsMenu?.focus()}>
 	<p>Your opponent will win. This cannot be undone.</p>
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 	<div class="row">

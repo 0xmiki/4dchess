@@ -145,7 +145,13 @@ select:focus {
 }
 
 .match-shell {
+	min-height: 100svh;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
 	max-width: 1800px;
+	padding-top: var(--play-space);
+	padding-bottom: var(--play-space);
 }
 .match-layout {
 	display: grid;
@@ -157,6 +163,7 @@ select:focus {
 	min-width: 0;
 }
 .game-info {
+	align-self: start;
 	display: grid;
 	gap: var(--space-5);
 	min-width: 0;
@@ -189,5 +196,31 @@ select:focus {
 	}
 	.game-tools {
 		flex-wrap: wrap;
+	}
+}
+
+.game-info .game-tools {
+	display: grid;
+	gap: var(--space-3);
+	margin: 0;
+	padding: 0;
+	justify-content: stretch;
+}
+.side-moves {
+	max-height: 260px;
+	overflow: auto;
+	font-size: 13px;
+}
+.side-moves h2 {
+	font-size: 15px;
+	margin-bottom: var(--space-3);
+}
+@media (max-width: 850px) {
+	.game-info .game-tools {
+		display: flex;
+		justify-content: space-between;
+	}
+	.side-moves {
+		max-height: 180px;
 	}
 }
