@@ -7,7 +7,7 @@
 		"allowSyntheticDefaultImports": true,
 		"target": "ESNext",
 		"lib": ["ES2023", "DOM"],
-		"types": [],
+		"types": ["node"],
 		"forceConsistentCasingInFileNames": true,
 		"module": "ESNext",
 		"isolatedModules": true,

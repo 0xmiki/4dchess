@@ -57,6 +57,7 @@ bun run gen
 bun run check
 bun run check:backend
 bun run test:rules
+bun run test:backend
 bun run lint
 bun run build
 ```
@@ -67,6 +68,49 @@ Wrangler currently has a [SvelteKit type-generation issue](https://github.com/cl
 
 ## Current scope
 
-Convex setup includes the Svelte client, an empty schema, generated types, and a health query. The shared `fourfold-v1` rules engine is implemented in `src/lib/chess/` with movement, king safety, state transitions, and automatic outcomes. See its [API notes](src/lib/chess/README.md).
+The shared `fourfold-v1` rules engine is implemented in `src/lib/chess/` with movement, king safety, state transitions, and automatic outcomes. See its [API notes](src/lib/chess/README.md).
 
-Guest authentication, match tables, and multiplayer UI are still to be implemented.
+Guest authentication and the match lobby backend are implemented. Better Auth runs as a Convex component, and SvelteKit proxies `/api/auth/*` so browser sessions use cookies on the app's own domain. The client integration is configured in the root layout. Opening a page does not automatically create a guest.
+
+The homepage is still the starter. Multiplayer screens and authoritative move submission are the next checkpoints.
+
+## Guest and lobby API
+
+Use `authClient.signIn.anonymous()` from `src/lib/auth-client.ts` when a player chooses to create or join a match and has no existing session. Wait for Convex authentication to settle before calling a mutation. Reuse a current guest session rather than signing in anonymously again. Sessions expire after 30 days of inactivity, with daily renewal on use.
+
+| Function              | Behavior                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `participants.ensure` | Resolve or create one stable participant for the verified session.                                                                   |
+| `participants.me`     | Return only the caller's participant ID and guest status.                                                                            |
+| `games.create`        | Reserve the requested seat, create an invitation, and schedule 24-hour expiry. Pass a UUID v4 request ID and reuse it when retrying. |
+| `games.previewInvite` | Return a limited invitation preview without claiming a seat or requiring a session.                                                  |
+| `games.join`          | Atomically claim the remaining seat or return the caller's existing seat.                                                            |
+| `games.get`           | Return the stored match and the caller's seat, for members only.                                                                     |
+| `games.getInvitation` | Recover an open invitation token, for its creator only.                                                                              |
+| `games.cancel`        | Cancel a waiting match, for its creator only, with a revision check.                                                                 |
+
+Joining increments the revision from 0 to 1 while keeping `ply` at 0. Repeated requests do not increment it. Expiry only affects waiting matches; active matches remain intact when clients disconnect. The seven-day cleanup retention proposal is not implemented yet.
+
+The backend derives each invitation token using HMAC-SHA-256 with `INVITE_SECRET`, the participant ID, and the creation request ID. It stores only a SHA-256 hash of the token in `invites`. This allows retry and creator recovery without storing the raw token. Keep the invitation secret stable while invitations are open. Account linking is not enabled yet.
+
+Set these values in the Convex deployment, never in public frontend variables:
+
+- `BETTER_AUTH_SECRET`: a cryptographically random secret of at least 32 bytes.
+- `INVITE_SECRET`: a separate cryptographically random secret of at least 32 bytes.
+- `SITE_URL`: `https://4dchess.justglow.dev` for the current development site.
+- `TRUSTED_ORIGINS`: the site origin and explicitly permitted local development origins, separated by commas.
+
+This workspace's values are saved in the ignored `.env.convex.local`. Upload that file with `bunx convex env set --from-file .env.convex.local`; the command refuses conflicting existing values by default. Do not copy actual secrets into documentation or commit them.
+
+## Development site
+
+The Cloudflare Worker uses the custom domain [4dchess.justglow.dev](https://4dchess.justglow.dev). It currently connects to the Convex development deployment. Set up a separate production backend before treating this as the public game service.
+
+The custom-domain route is in `wrangler.jsonc`. Build with the intended Convex public URLs, then deploy:
+
+```sh
+bun run build
+bun run deploy:frontend
+```
+
+The Worker only needs the asset binding. Authentication and invitation secrets live in Convex. `.env*` files, `.dev.vars*`, private keys, and logs are ignored by Git; only `.env.example` is tracked. Local checkpoint commits use a GitHub noreply address.

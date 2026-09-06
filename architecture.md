@@ -104,7 +104,7 @@ Guests still have authenticated sessions. Convex resolves the caller's participa
 
 Refreshing restores access while that guest session remains valid. Losing an unlinked guest session means losing access to its seat in the initial release. The invitation cannot be used to impersonate an existing participant or recover a consumed seat.
 
-The authentication provider is not yet selected. Better Auth with anonymous authentication and the documented Convex SvelteKit integration is the first candidate to evaluate.
+The implementation uses Better Auth anonymous sessions through its Convex component and SvelteKit integration. Authenticated guests map to stable participant records. Session recovery and concurrent joining have been verified against the development deployment.
 
 Later account linking must also handle signing into an account that already has a participant. An alias between participants is a possible approach, but ownership conflicts require a policy before implementation. Account linking must preserve existing seat access without rewriting matches.
 
@@ -197,9 +197,9 @@ A stale request is rejected with `STALE_REVISION`. If the same request already s
 
 ### Create
 
-Resolve the authenticated guest participant, reserve the creator's chosen seat, initialize the position and rules version, and create a 24-hour invitation. Use a cryptographically random invitation token and store its hash. The default color selection remains a product decision.
+Resolve the authenticated guest participant, reserve the creator's chosen seat, initialize the position and rules version, and create a 24-hour invitation. Use an unguessable invitation token and store its hash. The default color selection remains a product decision.
 
-Creation should also tolerate retries without creating multiple matches. The exact creation receipt and secure invitation recovery mechanism will be defined with the authentication implementation.
+Creation accepts a UUID v4 request ID, scoped to its creator. A retry returns the original match and invitation; changing the requested seat under the same request ID fails. The implementation derives the invitation token with HMAC-SHA-256 over a version label, participant ID, and request ID, using a separate server-held invitation secret. Only the token hash is stored. The creator can recover the token while the invitation is open. Keep the secret stable while invitations are open.
 
 ### Join
 
