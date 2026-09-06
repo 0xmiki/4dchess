@@ -6,9 +6,12 @@
 	let {
 		root,
 		motion,
-		inspection
-	}: { root: HTMLElement; motion: PieceMotion | null; inspection: ThreatInspection | null } =
-		$props();
+		inspections = []
+	}: {
+		root: HTMLElement;
+		motion: PieceMotion | null;
+		inspections?: ThreatInspection[];
+	} = $props();
 	let boxes = $state<{ x: number; y: number; size: number }[]>([]),
 		width = $state(0),
 		height = $state(0);
@@ -58,19 +61,19 @@
 				><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker
 			></defs
 		>
-		{#if inspection}{#each inspection.attackers as from (from)}<line
-					x1={boxes[from].x}
-					y1={boxes[from].y}
-					x2={boxes[inspection.target].x}
-					y2={boxes[inspection.target].y}
-					stroke={inspection.position[from]?.c === inspection.color
-						? 'var(--threat-defend)'
-						: 'var(--threat-attack)'}
-					stroke-dasharray={inspection.position[from]?.c === inspection.color ? '6 4' : undefined}
-					class="threat-arrow"
-					stroke-width="3"
-					marker-end="url(#flat-threat-arrow)"
-				/>{/each}{/if}
+		{#if inspections.length}{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}<line
+						x1={boxes[from].x}
+						y1={boxes[from].y}
+						x2={boxes[marked.target].x}
+						y2={boxes[marked.target].y}
+						stroke={marked.position[from]?.c === 'w'
+							? 'var(--threat-white)'
+							: 'var(--threat-black)'}
+						stroke-dasharray={marked.position[from]?.c === marked.color ? '6 4' : undefined}
+						class="threat-arrow"
+						stroke-width="3"
+						marker-end="url(#flat-threat-arrow)"
+					/>{/each}{/each}{/if}
 		{#if motion && point}<g data-animation="piece"
 				><Piece
 					onDark

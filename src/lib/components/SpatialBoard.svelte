@@ -15,6 +15,10 @@
 	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
 		annotations = true,
+		centerY = 195,
+		onclear = () => {},
+		yaw = $bindable(-0.48),
+		pitch = $bindable(0.26),
 		board,
 		selected,
 		moves,
@@ -22,9 +26,14 @@
 		onselect,
 		oninspect,
 		motion,
-		inspection
+		inspection,
+		inspections = []
 	}: {
 		annotations?: boolean;
+		centerY?: number;
+		onclear?: () => void;
+		yaw?: number;
+		pitch?: number;
 		board: Board;
 		selected: number | null;
 		moves: Move[];
@@ -33,9 +42,9 @@
 		oninspect: (square: number) => void;
 		motion: PieceMotion | null;
 		inspection: ThreatInspection | null;
+		inspections?: ThreatInspection[];
 	} = $props();
-	let yaw = $state(-0.48),
-		pitch = $state(0.26);
+
 	let gesture: {
 		id: number;
 		x: number;
@@ -61,7 +70,7 @@
 		const ry = py * Math.cos(pitch) - rz * Math.sin(pitch),
 			depth = py * Math.sin(pitch) + rz * Math.cos(pitch);
 		const scale = 5.5 / (5.5 - depth);
-		return { x: 220 + rx * 86 * scale, y: 220 - ry * 86 * scale, depth, scale };
+		return { x: 220 + rx * 101 * scale, y: centerY - ry * 86 * scale, depth, scale };
 	}
 	const points = $derived(Array.from({ length: 64 }, (_, i) => project(squareCoordinates(i))));
 	const orientation = $derived.by(() => {
@@ -190,7 +199,10 @@
 		role="application"
 		tabindex="0"
 		aria-label="Rotatable tesseract. Drag or use arrow keys to rotate. Home resets the view."
-		onpointerdown={down}
+		onpointerdown={(event) => {
+			if (event.button === 0) onclear();
+			down(event);
+		}}
 		oncontextmenu={(event) => {
 			event.preventDefault();
 			clearTimeout(holdTimer);
@@ -265,19 +277,19 @@
 						stroke-dasharray="4 4"
 					/>
 				{/each}{/each}{/each}
-		{#if inspection}{#each inspection.attackers as from (from)}<line
-					x1={points[from].x}
-					y1={points[from].y}
-					x2={points[inspection.target].x}
-					y2={points[inspection.target].y}
-					stroke={inspection.position[from]?.c === inspection.color
-						? 'var(--threat-defend)'
-						: 'var(--threat-attack)'}
-					stroke-dasharray={inspection.position[from]?.c === inspection.color ? '6 4' : undefined}
-					class="threat-arrow"
-					stroke-width="3"
-					marker-end={`url(#${arrowId})`}
-				/>{/each}
+		{#if inspections.length}{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}<line
+						x1={points[from].x}
+						y1={points[from].y}
+						x2={points[marked.target].x}
+						y2={points[marked.target].y}
+						stroke={marked.position[from]?.c === 'w'
+							? 'var(--threat-white)'
+							: 'var(--threat-black)'}
+						stroke-dasharray={marked.position[from]?.c === marked.color ? '6 4' : undefined}
+						class="threat-arrow"
+						stroke-width="3"
+						marker-end={`url(#${arrowId})`}
+					/>{/each}{/each}
 		{:else if selected !== null}
 			{#each moves as move (move.to)}<line
 					x1={points[selected].x}
@@ -384,6 +396,7 @@
 		min-width: 0;
 	}
 	.space-svg {
+		overflow: visible;
 		display: block;
 		width: 100%;
 		touch-action: none;

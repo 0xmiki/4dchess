@@ -2,6 +2,8 @@
 
 Both friend and computer games use the same board, artwork, menus, dialogs, and export interface.
 
+`AutoplayTesseract` runs local Easy self-play in a worker, with camera/move animation and pause cleanup. `GameOutcome` presents results and fresh win/checkmate effects. `Spinner` and `BackToPlay` standardize loading and back navigation.
+
 `SideToggle` is the shared White/Black radio group. `ChessBoard` defaults to match rules; its explicit `practice` mode uses movement geometry for either color without turn or king-safety restrictions. Practice never changes saved matches.
 
 `AxisGizmo` shows XYZ orientation using the same camera as its parent projection. W remains a labelled, dashed connection between cubes.

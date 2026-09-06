@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import GameOutcome from '$lib/components/GameOutcome.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import BackToPlay from '$lib/components/BackToPlay.svelte';
 	import { onMount, untrack } from 'svelte';
 	import {
 		applyMove,
@@ -225,8 +227,8 @@
 </script>
 
 <svelte:head><title>Play computer · 4D chess</title></svelte:head>
-<main class="shell">
-	{#if !ready}<p role="status">Loading computer game…</p>
+<main class="shell match-shell">
+	{#if !ready}<p role="status"><Spinner label="Loading computer game" /></p>
 	{:else if !game}<section class="flow" aria-label="Computer game settings">
 			<h1>Play computer</h1>
 			<SelectField label="Your side" bind:value={setupSide} options={sideOptions} /><SelectField
@@ -240,34 +242,42 @@
 					{error}
 				</p>{/if}
 		</section>
-	{:else}<div class="computer-status row">
-			<GameStatus
-				board={game.board}
-				turn={game.turn}
-				result={game.result}
-				{thinking}
-				subtitle={`You are ${player === 'w' ? 'White' : 'Black'} · ${difficulties[difficulty].label}`}
-			/>{#if game.result}<Button onclick={newGame}>New game</Button>{/if}
+	{:else}<div class="match-layout">
+			<div class="match-position">
+				<ChessBoard
+					board={game.board}
+					turn={game.turn}
+					seat={player === 'w' ? 'white' : 'black'}
+					enabled={!thinking && game.turn === player && !game.result}
+					lastMove={history.at(-1) ?? null}
+					onmove={move}
+				/>
+			</div>
+			<aside class="game-info">
+				<div class="computer-status row">
+					<GameStatus
+						board={game.board}
+						turn={game.turn}
+						result={game.result}
+						{thinking}
+						subtitle={`You are ${player === 'w' ? 'White' : 'Black'} · ${difficulties[difficulty].label}`}
+					/>
+				</div>
+				{#if error}<div class="notice row" role="alert">
+						<p class="error">{error}</p>
+						{#if game.turn !== player && !game.result && !thinking}<Button
+								onclick={() => {
+									retry++;
+								}}>Retry computer</Button
+							>{/if}
+					</div>{/if}
+				<GameOutcome result={game.result} side={player === 'w' ? 'white' : 'black'} />
+			</aside>
 		</div>
-		{#if error}<div class="notice row" role="alert">
-				<p class="error">{error}</p>
-				{#if game.turn !== player && !game.result && !thinking}<Button
-						onclick={() => {
-							retry++;
-						}}>Retry computer</Button
-					>{/if}
-			</div>{/if}
-		<ChessBoard
-			board={game.board}
-			turn={game.turn}
-			seat={player === 'w' ? 'white' : 'black'}
-			enabled={!thinking && game.turn === player && !game.result}
-			lastMove={history.at(-1) ?? null}
-			onmove={move}
-		/>
 	{/if}
 	<footer class="game-tools">
-		<a href={resolve('/')}>Back to play</a>{#if game}<GameMenu bind:this={menu}
+		<BackToPlay />{#if game}<Button onclick={newGame}>New game</Button>{/if}{#if game}<GameMenu
+				bind:this={menu}
 				><Button
 					onclick={() => {
 						menu?.close();
@@ -284,12 +294,12 @@
 						showExport = true;
 						exportDialog.showModal();
 					}}>Export game</Button
-				><Button onclick={newGame}>New game</Button></GameMenu
+				></GameMenu
 			>{/if}
 	</footer>
 </main>
 <RulesDialog bind:this={rules} onclose={() => menu?.focus()} />
-<Modal bind:this={newDialog} title="Start a new computer game?" onclose={() => menu?.focus()}
+<Modal bind:this={newDialog} title="Start a new computer game?"
 	><div class="stack">
 		<p>The current game will be replaced.</p>
 		<SelectField label="Your side" bind:value={setupSide} options={sideOptions} /><SelectField

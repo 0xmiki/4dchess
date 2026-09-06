@@ -25,6 +25,7 @@
 			onclick={onclear}>Clear inspection</Button
 		>
 	</div>
+	<p class="arrow-legend"><span>White arrows</span><span>Black arrows</span></p>
 	{#if inspection.preview}<p>
 			{squareAddress(inspection.from!)} → {squareAddress(inspection.target)}{inspection.legalMove
 				? ''
@@ -35,6 +36,16 @@
 </section>
 
 <style>
+	.arrow-legend {
+		display: flex;
+		gap: 16px;
+	}
+	.arrow-legend span:first-child {
+		color: var(--threat-white);
+	}
+	.arrow-legend span:last-child {
+		color: var(--threat-black);
+	}
 	.threat-summary {
 		margin-top: 16px;
 		border-top: 1px solid var(--line);

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+	import { prepareEndSound } from '$lib/end-sound';
+	onMount(prepareEndSound);
 	import './layout.css';
 	import '$lib/design.css';
 	import favicon from '$lib/assets/favicon.svg';

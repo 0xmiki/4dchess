@@ -33,6 +33,15 @@ describe('computer search', () => {
 	});
 });
 describe('threat inspection', () => {
+	it('shows attacks from both colors on empty squares even without kings', () => {
+		const board: (Piece | null)[] = Array(64).fill(null);
+		board[0] = { t: 'r', c: 'w' };
+		board[3] = { t: 'r', c: 'b' };
+		expect(analyzeThreats(board, 'w', 1).attackers).toEqual([0, 3]);
+		expect(analyzeThreats(board, 'b', 1).attackers).toEqual([0, 3]);
+		board[2] = { t: 'p', c: 'w' };
+		expect(analyzeThreats(board, 'b', 1).attackers).toEqual([0]);
+	});
 	it('previews a move without modifying the actual position', () => {
 		const state = createInitialState(),
 			before = JSON.stringify(state);

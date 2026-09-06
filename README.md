@@ -78,7 +78,7 @@ Invitation tokens travel in the URL fragment rather than the request path. The b
 
 The start screen offers **Play with friend** followed by **Play computer**. Friend settings live at `/friend`; computer settings and play live at `/computer`.
 
-The home page offers a side toggle and stacked friend and computer play options beside the tesseract. Friend play creates an invitation directly; computer play starts or restores a game. The separate `/how-to-play` page includes an interactive guide adapted from the original prototype: one move at a time for all six pieces, an example move, and a free-practice board with undo and reset. Learning does not create a guest session or change a game.
+The home page offers a side toggle and stacked friend and computer play options beside a live Easy-versus-Easy tesseract demo. Friend play creates an invitation directly; computer play starts or restores a game. The separate `/how-to-play` page includes an interactive guide adapted from the original prototype: one move at a time for all six pieces, an example move, and a free-practice board with piece placement, undo, and reset. Learning does not create a guest session or change a game.
 
 The shared visual foundation is documented in [design-language.md](docs/design-language.md). Colors, typography stacks, and shape tokens live in `src/lib/design.css`. The tesseract mark, dashed W links, coordinate labels, and state colors have consistent meanings across the guide and game. Automated checks cover the primary text/graphic contrast pairs and the legality of the teaching examples.
 

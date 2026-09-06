@@ -33,8 +33,8 @@ it.each([
 it.each([
 	['line-strong', 'surface'],
 	['grid', 'surface'],
-	['threat-attack', 'threat-outline'],
-	['threat-defend', 'threat-outline'],
+	['threat-white', 'threat-outline'],
+	['threat-black', 'threat-outline'],
 	['threat-outline', 'board-light'],
 	['threat-outline', 'board-dark'],
 	['piece-black', 'board-dark'],

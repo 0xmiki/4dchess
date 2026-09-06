@@ -26,8 +26,8 @@ export function analyzeThreats(
 	for (let from = 0; from < 64; from++) {
 		const piece = probe[from];
 		if (!piece || !canReach(probe, from, target, true)) continue;
-		if (kingSquare || !inCheck(simulateMove(probe, { from, to: target }), piece.c))
-			attackers.push(from);
+		// Attack maps include both colors and pinned pieces; this is not a legal-move list.
+		attackers.push(from);
 	}
 	return {
 		target,

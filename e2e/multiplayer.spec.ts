@@ -222,6 +222,8 @@ test('resignation requires confirmation and updates both players', async ({ brow
 		await white.getByRole('button', { name: 'Resign match', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'Black wins' })).toBeVisible();
 		await expect(black.getByRole('heading', { name: 'Black wins' })).toBeVisible();
+		await expect(black.getByRole('region', { name: 'Game over' })).toContainText('You won!');
+		await expect(white.getByRole('region', { name: 'Game over' })).toContainText('You lost');
 		await expect(white.getByText('White resigned.')).toBeVisible();
 	} finally {
 		await whiteContext.close();
@@ -242,4 +244,55 @@ test('home creates an invitation directly for the selected Black side', async ({
 	await expect(page.getByRole('textbox', { name: 'Invitation link' })).not.toHaveValue('');
 	await page.getByRole('button', { name: 'Cancel match', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'Match cancelled' })).toBeVisible();
+});
+
+test('practice places either color and keeps both-color threat arrows until a board click', async ({
+	page
+}) => {
+	await page.goto(new URL('/how-to-play', process.env.E2E_BASE_URL!).href);
+	await expect(page.getByRole('button', { name: 'Show move', exact: true })).toBeEnabled();
+	await page.getByRole('button', { name: 'Free practice', exact: true }).click();
+	await page.getByRole('button', { name: 'Add piece', exact: true }).click();
+	const white = page.getByRole('radio', { name: 'White', exact: true });
+	await white.focus();
+	await white.press('ArrowRight');
+	await page.locator('[data-square="3"]').click();
+	await expect(page.locator('[data-square="3"]')).toHaveAttribute('aria-label', /Black rook/);
+	await page.getByRole('button', { name: 'Done placing', exact: true }).click();
+	await page.locator('[data-square="1"]').click({ button: 'right' });
+	await expect(page.locator('.overlay .threat-arrow')).toHaveCount(2);
+	const colors = await page
+		.locator('.overlay .threat-arrow')
+		.evaluateAll((lines) => lines.map((line) => getComputedStyle(line).stroke));
+	expect(new Set(colors).size).toBe(2);
+	await page.locator('[data-square="2"]').click({ button: 'right' });
+	await expect(page.locator('.cell.threat-target')).toHaveCount(2);
+	await expect(page.locator('.overlay .threat-arrow')).toHaveCount(4);
+	await expect(page.locator('.space-svg .threat-arrow')).toHaveCount(4);
+	await page.locator('[data-square="17"]').click();
+	await expect(page.locator('.threat-arrow')).toHaveCount(0);
+	await page.getByRole('button', { name: 'Add piece', exact: true }).click();
+	await page.getByRole('combobox', { name: 'Piece', exact: true }).selectOption('n');
+	await page.getByRole('button', { name: 'Starting square', exact: true }).click();
+	await expect(page.locator('[data-square="62"]')).toHaveAttribute('aria-label', /Black knight/);
+	await page.locator('[data-square="17"]').click();
+	await expect(page.locator('[data-square="17"]')).toHaveAttribute('aria-label', /Black knight/);
+	await page.getByRole('button', { name: 'Undo', exact: true }).click();
+	await expect(page.locator('[data-square="17"]')).toHaveAttribute('aria-label', /empty/);
+});
+
+test('the landing demo searches live moves and can be paused', async ({ page }) => {
+	await page.goto(process.env.E2E_BASE_URL!);
+	const demo = page.locator('[data-demo-ply]');
+	await expect
+		.poll(async () => Number(await demo.getAttribute('data-demo-ply')))
+		.toBeGreaterThanOrEqual(2);
+	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
+	const ply = await demo.getAttribute('data-demo-ply');
+	await page.waitForTimeout(2500);
+	await expect(demo).toHaveAttribute('data-demo-ply', ply!);
+	await page.getByRole('button', { name: 'Play demo', exact: true }).click();
+	await expect
+		.poll(async () => Number(await demo.getAttribute('data-demo-ply')))
+		.toBeGreaterThan(Number(ply));
 });

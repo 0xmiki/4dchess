@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { resolve } from '$app/paths';
+	import { onMount } from 'svelte';
+	let ready = $state(false);
+	onMount(() => {
+		ready = true;
+	});
+	import BackToPlay from './BackToPlay.svelte';
+	import SideToggle from './SideToggle.svelte';
 	import {
 		createInitialState,
 		squareIndex,
@@ -13,6 +19,8 @@
 	import ChessBoard from './ChessBoard.svelte';
 	import Button from './Button.svelte';
 	import SelectField from './SelectField.svelte';
+	let placing = $state(false),
+		placementSide = $state<'white' | 'black'>('white');
 	let step = $state(0),
 		free = $state(false),
 		piece = $state<PieceType>('r');
@@ -39,6 +47,7 @@
 	const target = $derived(squareIndex(lesson.four));
 	const complete = $derived(!free && !!board[target] && board[target]?.c === 'w');
 	function reset(full = false) {
+		placing = false;
 		board = full ? createInitialState().board : example(free ? piece : lessonOrder[step]);
 		history = [];
 		lastMove = null;
@@ -67,13 +76,34 @@
 			feedback = '';
 		}
 	}
+	function place(square: number) {
+		history = [...history, board];
+		const next = board.slice();
+		next[square] = { t: piece, c: placementSide === 'white' ? 'w' : 'b' };
+		board = next;
+		lastMove = null;
+		feedback = 'Piece placed. Choose another square or finish placing.';
+	}
+	function startingSquare() {
+		const color = placementSide === 'white' ? 'w' : 'b';
+		const start = createInitialState().board.findIndex(
+			(p, i) => p?.t === piece && p.c === color && !board[i]
+		);
+		if (start < 0) {
+			feedback =
+				'The starting squares for that piece are occupied. Choose any square on the board.';
+			return;
+		}
+		place(start);
+	}
 </script>
 
 <section class="guide" aria-label="Learn and practice">
 	<div class="lesson-top">
-		<a href={resolve('/')}>Back to play</a>
+		<BackToPlay />
 		<div class="mode-switch" aria-label="Learning mode">
 			<button
+				disabled={!ready}
 				class:chosen={!free}
 				aria-pressed={!free}
 				onclick={() => {
@@ -81,6 +111,7 @@
 					reset();
 				}}>Lessons</button
 			><button
+				disabled={!ready}
 				class:chosen={free}
 				aria-pressed={free}
 				onclick={() => {
@@ -103,12 +134,12 @@
 			</p>
 		</div>
 		<div class="lesson-controls">
-			{#if free}<SelectField
-					label="Piece"
-					bind:value={piece}
-					options={lessonOrder.map((value) => ({ value, label: lessons[value].name }))}
-					onchange={() => reset()}
-				/><Button onclick={() => reset(true)}>Full position</Button>{:else}<label
+			{#if free}<Button
+					onclick={() => {
+						placing = !placing;
+						feedback = '';
+					}}>Add piece</Button
+				><Button onclick={() => reset(true)}>Full position</Button>{:else}<label
 					class="lesson-picker"
 					>Lesson<select
 						aria-label="Lesson"
@@ -138,12 +169,28 @@
 					>{/if}
 			</div>
 		</div>{:else}<p role="status" class="practice-feedback">{feedback}</p>{/if}
+	{#if free && placing}<div class="placement-tools">
+			<SelectField
+				label="Piece"
+				bind:value={piece}
+				options={lessonOrder.map((value) => ({ value, label: lessons[value].name }))}
+			/><SideToggle label="Piece color" bind:value={placementSide} /><Button
+				onclick={startingSquare}>Starting square</Button
+			><Button
+				onclick={() => {
+					placing = false;
+					feedback = '';
+				}}>Done placing</Button
+			>
+			<p>Click any square to place the piece. Undo restores anything replaced.</p>
+		</div>{/if}
 	<ChessBoard
 		{board}
 		turn="w"
 		seat="white"
 		enabled
 		practice
+		onplace={free && placing ? place : undefined}
 		goalSquare={free ? null : target}
 		{lastMove}
 		onmove={move}
@@ -163,6 +210,32 @@
 </section>
 
 <style>
+	.placement-tools :global(.side-toggle) {
+		display: block;
+	}
+	.placement-tools :global(legend) {
+		float: none;
+		margin-bottom: var(--space-2);
+	}
+
+	.placement-tools {
+		position: sticky;
+		top: var(--space-2);
+		z-index: 5;
+		display: flex;
+		gap: var(--space-4);
+		align-items: end;
+		flex-wrap: wrap;
+		margin-bottom: var(--space-4);
+		padding: var(--space-4);
+		background: var(--surface);
+		border-radius: var(--radius-control);
+	}
+	.placement-tools p {
+		width: 100%;
+		font-size: 14px;
+		color: var(--muted);
+	}
 	.lesson-progress :global(button) {
 		min-height: 36px;
 		padding: 8px 12px;
@@ -190,10 +263,6 @@
 		justify-content: space-between;
 		gap: var(--space-5);
 		margin-bottom: var(--space-5);
-	}
-	.lesson-top > a {
-		color: var(--muted);
-		font-size: 14px;
 	}
 	.mode-switch {
 		display: flex;

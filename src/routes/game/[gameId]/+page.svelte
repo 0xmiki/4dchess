@@ -1,4 +1,7 @@
 <script lang="ts">
+	import GameOutcome from '$lib/components/GameOutcome.svelte';
+	import Spinner from '$lib/components/Spinner.svelte';
+	import BackToPlay from '$lib/components/BackToPlay.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
 	import { onMount, untrack } from 'svelte';
@@ -233,9 +236,9 @@
 </script>
 
 <svelte:head><title>{status || 'Match'} · 4D chess</title></svelte:head>
-<main class="shell">
+<main class="shell match-shell">
 	{#if !mounted || auth.isLoading || (auth.isAuthenticated && match.isLoading)}<p role="status">
-			Loading match…
+			<Spinner label="Loading match" />
 		</p>
 	{:else if !auth.isAuthenticated}<section class="flow">
 			<p>
@@ -248,54 +251,60 @@
 			<a href={resolve('/')}>Return home</a>
 		</section>
 	{:else if game && match.data}
-		<div class="match-topbar">
-			<GameStatus
-				heading={status}
-				board={game.board}
-				turn={game.turn}
-				result={game.result}
-				subtitle={game.result
-					? resultDetail
-					: `You are ${match.data.seat}. ${game.status === 'active' ? (ownTurn ? 'Your turn.' : 'Your friend’s turn.') : 'Untimed.'}`}
-			/>
-			{#if game.status === 'finished'}<a class="button" href={resolve('/')}>New match</a>{/if}
-		</div>
-		{#if game.status === 'waiting'}<div class="invite-panel stack">
-				{#if invitationUrl}<div class="row">
-						<Button variant="primary" onclick={copy}
-							>{copied ? 'Link copied' : 'Copy invitation'}</Button
-						><Button onclick={cancel} disabled={sending}>Cancel match</Button>
-					</div>
-					<input
-						aria-label="Invitation link"
-						readonly
-						value={invitationUrl}
-						onclick={(e) => e.currentTarget.select()}
+		<div class="match-layout">
+			<div class="match-position">
+				<ChessBoard
+					board={game.board}
+					turn={game.turn}
+					seat={match.data.seat}
+					enabled={game.status === 'active' && ownTurn && !sending && !pending && online}
+					lastMove={latest.data ?? null}
+					onmove={move}
+				/>
+			</div>
+			<aside class="game-info">
+				<div class="match-topbar">
+					<GameStatus
+						heading={status}
+						board={game.board}
+						turn={game.turn}
+						result={game.result}
+						subtitle={game.result
+							? resultDetail
+							: `You are ${match.data.seat}. ${game.status === 'active' ? (ownTurn ? 'Your turn.' : 'Your friend’s turn.') : 'Untimed.'}`}
 					/>
-					<p class="muted">Invitation expires {new Date(game.expiresAt).toLocaleString()}.</p>
-				{:else if invitation.error}<p class="error" role="alert">
-						{errorMessage(invitation.error)}
+				</div>
+				{#if game.status === 'waiting'}<div class="invite-panel stack">
+						{#if invitationUrl}<div class="row">
+								<Button variant="primary" onclick={copy}
+									>{copied ? 'Link copied' : 'Copy invitation'}</Button
+								><Button onclick={cancel} disabled={sending}>Cancel match</Button>
+							</div>
+							<input
+								aria-label="Invitation link"
+								readonly
+								value={invitationUrl}
+								onclick={(e) => e.currentTarget.select()}
+							/>
+							<p class="muted">Invitation expires {new Date(game.expiresAt).toLocaleString()}.</p>
+						{:else if invitation.error}<p class="error" role="alert">
+								{errorMessage(invitation.error)}
+							</p>{/if}
+					</div>{/if}
+				{#if !online}<p class="notice" role="status">
+						Connection lost. Your match is saved. Reconnecting…
 					</p>{/if}
-			</div>{/if}
-		{#if !online}<p class="notice" role="status">
-				Connection lost. Your match is saved. Reconnecting…
-			</p>{/if}
-		{#if sending}<p class="notice" role="status">Waiting for server confirmation…</p>{/if}
-		{#if error}<div class="notice row" role="alert">
-				<p class="error">{error}</p>
-				{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
-			</div>{/if}
-		<ChessBoard
-			board={game.board}
-			turn={game.turn}
-			seat={match.data.seat}
-			enabled={game.status === 'active' && ownTurn && !sending && !pending && online}
-			lastMove={latest.data ?? null}
-			onmove={move}
-		/>
+				{#if sending}<p class="notice" role="status">Waiting for server confirmation…</p>{/if}
+				{#if error}<div class="notice row" role="alert">
+						<p class="error">{error}</p>
+						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
+					</div>{/if}
+				<GameOutcome result={game.result} side={match.data.seat} />
+			</aside>
+		</div>
 	{/if}
 	<footer class="game-tools">
-		<a href={resolve('/')}>Back to play</a>
+		<BackToPlay /><a class="button" href={resolve('/')}>New game</a>
 		<GameMenu bind:this={optionsMenu}>
 			{#if game}<Button
 					onclick={() => {

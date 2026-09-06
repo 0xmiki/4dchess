@@ -22,6 +22,7 @@
 	let {
 		practice = false,
 		goalSquare = null,
+		onplace,
 		board,
 		turn,
 		seat,
@@ -31,6 +32,7 @@
 	}: {
 		practice?: boolean;
 		goalSquare?: number | null;
+		onplace?: (square: number) => void;
 		board: Board;
 		turn: 'w' | 'b';
 		seat: 'white' | 'black';
@@ -40,6 +42,7 @@
 	} = $props();
 	let interactiveReady = $state(false);
 	let selected = $state<number | null>(null);
+	let pinned = $state<ThreatInspection[]>([]);
 	let inspection = $state<ThreatInspection | null>(null),
 		motion = $state<PieceMotion | null>(null),
 		reduced = $state(false);
@@ -52,7 +55,6 @@
 		holdTimer: ReturnType<typeof setTimeout> | undefined,
 		holdPoint: { x: number; y: number } | null = null;
 	const shown = $derived.by(() => {
-		if (inspection) return inspection.position;
 		if (motion) {
 			const visible = board.slice();
 			visible[motion.to] = motion.captured;
@@ -124,7 +126,8 @@
 	});
 	function inspect(i: number) {
 		if (motion) return;
-		inspection = inspection?.target === i ? null : analyzeThreats(board, turn, i, selected);
+		inspection = analyzeThreats(board, turn, i);
+		if (!pinned.some((item) => item.target === i)) pinned = [...pinned, inspection];
 	}
 	function hold(event: PointerEvent, i: number) {
 		if (event.pointerType === 'mouse') {
@@ -159,9 +162,11 @@
 	const ys = $derived(flipped ? [0, 1, 2, 3] : [3, 2, 1, 0]);
 	$effect(() => {
 		void board;
-		void enabled;
 		selected = null;
-		inspection = null;
+		const targets = untrack(() => pinned.map((item) => item.target));
+		const next = targets.map((target) => analyzeThreats(board, turn, target));
+		pinned = next;
+		inspection = next.at(-1) ?? null;
 	});
 	function select(i: number) {
 		if (held) {
@@ -169,6 +174,11 @@
 			return;
 		}
 		inspection = null;
+		pinned = [];
+		if (onplace) {
+			onplace(i);
+			return;
+		}
 		if (!enabled || motion) return;
 		const move = moves.find((m) => m.to === i);
 		if (move) {
@@ -208,7 +218,16 @@
 	}
 </script>
 
-<div class="workspace">
+<!-- svelte-ignore a11y_no_static_element_interactions (Blank board clicks dismiss annotations.) -->
+<div
+	class="workspace"
+	onpointerdown={(event) => {
+		if (event.button === 0 && !(event.target as Element).closest('button,[data-node]')) {
+			pinned = [];
+			inspection = null;
+		}
+	}}
+>
 	<section aria-label="Chess boards">
 		<div class="slice-grid" bind:this={gridRoot} aria-busy={!!motion}>
 			<div></div>
@@ -236,8 +255,8 @@
 											class:capture={legal && !!p}
 											class:last={lastMove?.from === i || lastMove?.to === i}
 											class:checked={p?.t === 'k' && p.c === turn && check}
-											class:threat-target={inspection?.target === i}
-											class:threat-attacker={inspection?.attackers.includes(i)}
+											class:threat-target={pinned.some((item) => item.target === i)}
+											class:threat-attacker={pinned.some((item) => item.attackers.includes(i))}
 											class:threat-defender={inspection?.attackers.includes(i) &&
 												p?.c === inspection.color}
 											data-square={i}
@@ -277,11 +296,16 @@
 					</div>
 				{/each}
 			{/each}
-			{#if gridRoot}{#key flipped}<FlatOverlays root={gridRoot} {motion} {inspection} />{/key}{/if}
+			{#if gridRoot}{#key flipped}<FlatOverlays
+						root={gridRoot}
+						{motion}
+						inspections={pinned}
+					/>{/key}{/if}
 		</div>
 		{#if inspection}<ThreatSummary
 				{inspection}
 				onclear={() => {
+					pinned = [];
 					inspection = null;
 				}}
 			/>
@@ -299,6 +323,11 @@
 		{lastMove}
 		{motion}
 		{inspection}
+		inspections={pinned}
+		onclear={() => {
+			pinned = [];
+			inspection = null;
+		}}
 		oninspect={inspect}
 		onselect={select}
 	/>
@@ -425,10 +454,8 @@
 		box-shadow: 0 0 0 2px var(--piece-white);
 	}
 	.cell:focus-visible {
-		outline: 3px solid var(--piece-black);
-		outline-offset: -3px;
-		box-shadow: inset 0 0 0 5px var(--focus);
-		z-index: 1;
+		filter: brightness(1.25);
+		outline: none;
 	}
 	.files {
 		display: grid;

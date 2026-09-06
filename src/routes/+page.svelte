@@ -2,14 +2,14 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
-	import { createInitialState } from '$lib/chess';
+
 	import { api } from '../convex/_generated/api';
 	import { guestClient, errorMessage } from '$lib/multiplayer';
 	import SideToggle from '$lib/components/SideToggle.svelte';
 	import PlayOption from '$lib/components/PlayOption.svelte';
-	import SpatialBoard from '$lib/components/SpatialBoard.svelte';
+	import AutoplayTesseract from '$lib/components/AutoplayTesseract.svelte';
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
-	const position = createInitialState();
+
 	let seat = $state<'white' | 'black'>('white'),
 		busy = $state(false),
 		error = $state('');
@@ -83,8 +83,8 @@
 					requestId = null;
 				}}
 			/>
-			<PlayOption mode="friend" disabled={!ready || busy} onclick={create} />
-			{#if busy}<p role="status">Creating your invitation…</p>{/if}
+			<PlayOption mode="friend" {busy} disabled={!ready || busy} onclick={create} />
+
 			{#if error}<p class="error" role="alert">{error}</p>{/if}
 			<PlayOption
 				mode="computer"
@@ -99,17 +99,7 @@
 					href={resolve('/game/[gameId]', { gameId: recent })}>Return to your last friend match →</a
 				>{/if}
 		</section>
-		<SpatialBoard
-			annotations={false}
-			board={position.board}
-			selected={null}
-			moves={[]}
-			lastMove={null}
-			motion={null}
-			inspection={null}
-			onselect={() => {}}
-			oninspect={() => {}}
-		/>
+		<AutoplayTesseract />
 	</div>
 </main>
 

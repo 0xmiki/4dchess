@@ -1,18 +1,25 @@
 <script lang="ts">
 	let {
 		value = $bindable('white'),
+		label = 'Your side',
 		disabled = false,
 		onchange
-	}: { value?: 'white' | 'black'; disabled?: boolean; onchange?: () => void } = $props();
+	}: {
+		value?: 'white' | 'black';
+		label?: string;
+		disabled?: boolean;
+		onchange?: () => void;
+	} = $props();
+	const group = $props.id();
 </script>
 
 <fieldset {disabled} class="side-toggle">
-	<legend>Your side</legend>
+	<legend>{label}</legend>
 	<div>
 		{#each ['white', 'black'] as side (side)}<label
 				><input
 					type="radio"
-					name="side"
+					name={group}
 					value={side}
 					checked={value === side}
 					onchange={() => {
@@ -66,7 +73,7 @@
 		width: 1px;
 	}
 	label:has(:focus-visible) {
-		outline: 2px solid var(--focus);
+		background: var(--line-strong);
 	}
 	span {
 		width: 14px;

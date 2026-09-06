@@ -1,13 +1,20 @@
 <script lang="ts">
 	import Button from './Button.svelte';
+	import Spinner from './Spinner.svelte';
 	import UsersIcon from 'phosphor-svelte/lib/UsersIcon';
 	import CpuIcon from 'phosphor-svelte/lib/CpuIcon';
 	import ArrowRightIcon from 'phosphor-svelte/lib/ArrowRightIcon';
 	let {
 		mode,
 		onclick,
-		disabled = false
-	}: { mode: 'friend' | 'computer'; onclick: () => void; disabled?: boolean } = $props();
+		disabled = false,
+		busy = false
+	}: {
+		mode: 'friend' | 'computer';
+		onclick: () => void;
+		disabled?: boolean;
+		busy?: boolean;
+	} = $props();
 	const friend = $derived(mode === 'friend');
 </script>
 
@@ -15,7 +22,8 @@
 	<Button
 		variant={friend ? 'primary' : 'default'}
 		{onclick}
-		{disabled}
+		disabled={disabled || busy}
+		aria-busy={busy}
 		aria-label={friend ? 'Play with friend' : 'Play computer'}
 	>
 		<span class="mode-icon" aria-hidden="true"
@@ -29,7 +37,12 @@
 				>{friend ? 'Share a link. No account needed.' : 'Choose from four difficulty levels.'}</span
 			></span
 		>
-		<span class="arrow" aria-hidden="true"><ArrowRightIcon size={20} weight="bold" /></span>
+		<span class="arrow" aria-hidden="true"
+			>{#if busy}<Spinner label="Creating invitation" />{:else}<ArrowRightIcon
+					size={20}
+					weight="bold"
+				/>{/if}</span
+		>
 	</Button>
 </div>
 
