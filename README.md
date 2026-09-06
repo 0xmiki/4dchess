@@ -13,7 +13,7 @@
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-7c8a6e" /></a>
 </p>
 
-![4D chess. Play with your friends.](static/social-preview.png)
+![The starting position across four boards and an interactive tesseract.](docs/images/game.png)
 
 Four connected boards, one game. Move across all four dimensions and see the same position in a rotatable tesseract.
 

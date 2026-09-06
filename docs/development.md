@@ -58,3 +58,14 @@ E2E_BASE_URL=http://localhost:5173 bun run test:multiplayer
 Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an existing Chromium installation. These tests create real guest sessions and rooms on the specified backend. Signup limits apply, so avoid repeatedly running them against a shared deployment.
 
 The [rules reference](../src/lib/chess/README.md), [architecture](../architecture.md), and [operations notes](operations.md) explain the data model and checks in more detail.
+
+## README and social images
+
+The README screenshot and social card are captured from the actual board renderer, using a fresh computer game so every piece is on its starting square. The README composition removes coordinates, axes, and hints from the capture only, and aligns the four boards beside the tesseract. With the local app running:
+
+```sh
+bunx playwright install chromium
+node scripts/capture-images.mjs
+```
+
+Install TeX Gyre Pagella to reproduce the social card's serif title. Set `CAPTURE_URL` or `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a different local preview or browser. The capture does not create a guest session or multiplayer room.
