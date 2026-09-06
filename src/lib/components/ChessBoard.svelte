@@ -14,12 +14,12 @@
 	import { pieceNames } from '$lib/pieces';
 	import SpatialBoard from './SpatialBoard.svelte';
 	import Piece from './Piece.svelte';
-	import Button from './Button.svelte';
-	import ThreatSummary from './ThreatSummary.svelte';
+	import InspectionHint from './InspectionHint.svelte';
 	import FlatOverlays from './FlatOverlays.svelte';
 	import { analyzeThreats, type ThreatInspection } from '$lib/chess/threats';
-	import type { PresentedMove, PieceMotion } from './motion';
+	import { motionDuration, type PresentedMove, type PieceMotion } from './motion';
 	let {
+		gameKey = '',
 		practice = false,
 		goalSquare = null,
 		onplace,
@@ -30,6 +30,7 @@
 		lastMove = null,
 		onmove
 	}: {
+		gameKey?: string;
 		practice?: boolean;
 		goalSquare?: number | null;
 		onplace?: (square: number) => void;
@@ -47,6 +48,7 @@
 		motion = $state<PieceMotion | null>(null),
 		reduced = $state(false);
 	let gridRoot = $state<HTMLElement>();
+	let animatedPosition: Board | null = null;
 	let previous: Board | null = null,
 		before: Board | null = null,
 		lastAnimation = '',
@@ -91,6 +93,15 @@
 			recent = lastMove,
 			skip = reduced;
 		if (current !== previous) {
+			untrack(() => {
+				if (
+					animatedPosition &&
+					!current.every(
+						(p, i) => p?.t === animatedPosition?.[i]?.t && p?.c === animatedPosition?.[i]?.c
+					)
+				)
+					stopMotion();
+			});
 			before = previous;
 			previous = current;
 		}
@@ -100,7 +111,7 @@
 			return;
 		}
 		if (!before?.[recent.from]) return;
-		const key = `${recent.ply ?? ''}:${recent.from}:${recent.to}`;
+		const key = `${gameKey}:${recent.ply ?? ''}:${recent.from}:${recent.to}`;
 		if (key === lastAnimation) return;
 		const simulated = simulateMove(before, recent);
 		if (!simulated.every((p, i) => p?.c === current[i]?.c && p?.t === current[i]?.t)) return;
@@ -110,10 +121,11 @@
 		untrack(() => {
 			stopMotion();
 			if (skip || document.hidden) return;
+			animatedPosition = current;
 			const start = performance.now();
 			motion = { ...recent, piece: moving, captured, progress: 0 };
 			const tick = (now: number) => {
-				const t = Math.min(1, (now - start) / 360);
+				const t = Math.min(1, (now - start) / motionDuration(recent, moving));
 				if (t >= 1) {
 					motion = null;
 					return;
@@ -302,19 +314,29 @@
 						inspections={pinned}
 					/>{/key}{/if}
 		</div>
-		{#if inspection}<ThreatSummary
-				{inspection}
-				onclear={() => {
-					pinned = [];
-					inspection = null;
-				}}
-			/>
-		{:else if selected !== null && board[selected]}<div class="inspection row">
-				<p>
-					{pieceNames[board[selected]!.t]} · {squareAddress(selected)} · {moves.length} legal moves
-				</p>
-				<Button onclick={() => inspect(selected!)}>Inspect threats</Button>
-			</div>{/if}
+		<InspectionHint
+			description={pinned
+				.map(
+					(item) =>
+						squareAddress(item.target) +
+						': ' +
+						(item.attackers.length
+							? item.attackers
+									.map((from) => {
+										const p = item.position[from]!;
+										return (
+											(p.c === 'w' ? 'White' : 'Black') +
+											' ' +
+											pieceNames[p.t] +
+											' at ' +
+											squareAddress(from)
+										);
+									})
+									.join(', ')
+							: 'No attackers or defenders.')
+				)
+				.join('. ')}
+		/>
 	</section>
 	<SpatialBoard
 		board={shown}
@@ -347,9 +369,9 @@
 	}
 	.workspace {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) minmax(0, 1.08fr);
+		grid-template-columns: var(--board-columns);
 		align-items: start;
-		gap: var(--space-6);
+		gap: var(--board-gap);
 	}
 	.slice-grid {
 		position: relative;
@@ -420,15 +442,14 @@
 	}
 	.cell.selected {
 		background: var(--board-selected);
-		box-shadow: inset 0 0 0 3px var(--legal-ink);
+		box-shadow: none;
 	}
 	.cell.checked {
 		background: var(--board-check);
 	}
 	.cell.threat-target {
 		background: var(--board-target);
-		outline: 2px solid var(--piece-black);
-		outline-offset: -2px;
+		outline: none;
 	}
 	.cell.threat-attacker {
 		background: var(--board-threat);
@@ -443,15 +464,15 @@
 		height: 20%;
 		border-radius: 50%;
 		background: var(--legal-ink);
-		box-shadow: 0 0 0 2px var(--legal);
+		opacity: 0.55;
 		pointer-events: none;
 	}
 	.cell.capture::after {
 		width: 87%;
 		height: 87%;
 		background: none;
-		border: 3px solid var(--danger-ink);
-		box-shadow: 0 0 0 2px var(--piece-white);
+		border: 3px solid var(--legal-ink);
+		box-shadow: none;
 	}
 	.cell:focus-visible {
 		filter: brightness(1.25);
@@ -464,12 +485,6 @@
 		text-align: center;
 		font-size: 12px;
 		color: var(--muted);
-	}
-	.inspection {
-		margin-top: 12px;
-		color: var(--muted);
-		font-size: 13px;
-		text-transform: capitalize;
 	}
 	@media (max-width: 1000px) {
 		.workspace {

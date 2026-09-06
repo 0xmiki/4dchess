@@ -15,7 +15,7 @@
 
 <fieldset {disabled} class="side-toggle">
 	<legend>{label}</legend>
-	<div>
+	<div class="rail" class:black={value === 'black'}>
 		{#each ['white', 'black'] as side (side)}<label
 				><input
 					type="radio"
@@ -32,6 +32,26 @@
 </fieldset>
 
 <style>
+	.rail::before {
+		content: '';
+		position: absolute;
+		left: 4px;
+		top: 4px;
+		bottom: 4px;
+		width: calc((100% - 8px) / 2);
+		background: var(--line);
+		border-radius: 8px;
+		transform: translateX(0);
+		transition: transform var(--motion-selection) var(--ease-selection);
+	}
+	.rail.black::before {
+		transform: translateX(100%);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.rail::before {
+			transition: none;
+		}
+	}
 	fieldset {
 		border: 0;
 		padding: 0;
@@ -47,7 +67,10 @@
 		color: var(--muted);
 	}
 	fieldset > div {
-		display: flex;
+		position: relative;
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		width: 184px;
 		padding: var(--space-1);
 		background: var(--surface);
 		border-radius: var(--radius-control);
@@ -64,7 +87,6 @@
 		font-size: 14px;
 	}
 	label:has(:checked) {
-		background: var(--line);
 		color: var(--text);
 	}
 	input {

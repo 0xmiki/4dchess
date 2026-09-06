@@ -54,16 +54,16 @@
 		cursor: default;
 	}
 	button.primary {
-		background: var(--accent);
+		background: var(--primary-fill);
 		color: var(--on-accent);
-		border-color: var(--accent);
+		border-color: var(--primary-fill);
 		box-shadow:
 			0 var(--press-depth) 0 var(--accent-base),
 			0 5px 8px #00000045,
 			inset 0 1px 0 #ffffff80;
 	}
 	button.primary:hover:not(:disabled) {
-		background: var(--accent-hover);
+		background: var(--primary-hover);
 	}
 	button.primary:active:not(:disabled) {
 		box-shadow: 0 0 0 var(--accent-base);

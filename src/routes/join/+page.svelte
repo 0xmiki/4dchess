@@ -1,5 +1,4 @@
 <script lang="ts">
-	import BackToPlay from '$lib/components/BackToPlay.svelte';
 	import { onMount } from 'svelte';
 	import Button from '$lib/components/Button.svelte';
 	import { goto } from '$app/navigation';
@@ -23,7 +22,7 @@
 		try {
 			const client = await guestClient();
 			const joined = await client.mutation(api.games.join, { token });
-			await goto(resolve('/game/[gameId]', { gameId: joined.gameId }));
+			await goto(resolve('/room/[roomId]', { roomId: joined.gameId }));
 		} catch (cause) {
 			error = errorMessage(cause);
 		} finally {
@@ -39,22 +38,21 @@
 	/></svelte:head
 >
 <main class="shell">
-	<BackToPlay />
-	<section class="flow" aria-label="Join friend match">
+	<section class="flow" aria-label="Join friend room">
 		{#if !ready || (token && preview.isLoading)}<p role="status">Loading invitation…</p>
 		{:else if !token}<p class="error" role="alert">This invitation is invalid.</p>
-			<a href={resolve('/')}>Create a match</a>
+			<a href={resolve('/')}>Create a room</a>
 		{:else if preview.error}<p class="error" role="alert">{errorMessage(preview.error)}</p>
-			<a href={resolve('/')}>Create a match</a>
+			<a href={resolve('/')}>Create a room</a>
 		{:else if preview.data}
-			<h1>{preview.data.availableSeat ? 'Join your friend' : 'Match invitation'}</h1>
+			<h1>{preview.data.availableSeat ? 'Join your friend' : 'Room invitation'}</h1>
 			{#if preview.data.availableSeat}<p>
 					You’ll play {preview.data.availableSeat}. Untimed.
 				</p>{:else}<p>
-					This invitation has no open seat. If you already joined, you can return to the match.
+					This invitation has no open seat. If you already joined, you can return to the room.
 				</p>{/if}
 			<Button variant="primary" onclick={join} disabled={busy}
-				>{busy ? 'Joining…' : preview.data.availableSeat ? 'Join match' : 'Return to match'}</Button
+				>{busy ? 'Joining…' : preview.data.availableSeat ? 'Join room' : 'Return to room'}</Button
 			>
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}

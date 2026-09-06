@@ -4,15 +4,15 @@
 	onMount(() => {
 		ready = true;
 	});
-	import BackToPlay from './BackToPlay.svelte';
 	import SideToggle from './SideToggle.svelte';
+	import Piece from './Piece.svelte';
 	import {
 		createInitialState,
 		squareIndex,
 		simulateMove,
 		type Board,
 		type Move,
-		type Piece,
+		type Piece as ChessPiece,
 		type PieceType
 	} from '$lib/chess';
 	import { lessons, lessonOrder, type Lesson } from '$lib/guide/lessons';
@@ -35,7 +35,7 @@
 	};
 	function example(type: PieceType): Board {
 		const entry: Lesson = lessons[type];
-		const board: (Piece | null)[] = Array(64).fill(null);
+		const board: (ChessPiece | null)[] = Array(64).fill(null);
 		board[squareIndex(entry.from)] = { t: type, c: 'w' };
 		if (entry.capture) board[squareIndex(entry.four)] = { t: 'r', c: 'b' };
 		return board;
@@ -82,7 +82,7 @@
 		next[square] = { t: piece, c: placementSide === 'white' ? 'w' : 'b' };
 		board = next;
 		lastMove = null;
-		feedback = 'Piece placed. Choose another square or finish placing.';
+		feedback = 'Piece placed.';
 	}
 	function startingSquare() {
 		const color = placementSide === 'white' ? 'w' : 'b';
@@ -99,105 +99,94 @@
 </script>
 
 <section class="guide match-layout" aria-label="Learn and practice">
-	<aside class="game-info">
-		<div class="lesson-top">
-			<BackToPlay />
-			<div class="mode-switch" aria-label="Learning mode">
+	<aside class="game-info learning-tools">
+		<div class="mode-switch" aria-label="Learning mode">
+			<button
+				disabled={!ready}
+				class:chosen={!free}
+				aria-pressed={!free}
+				onclick={() => {
+					free = false;
+					reset();
+				}}>Lessons</button
+			><button
+				disabled={!ready}
+				class:chosen={free}
+				aria-pressed={free}
+				onclick={() => {
+					free = true;
+					reset();
+				}}>Free practice</button
+			>
+		</div>
+		{#if free}
+			<h1>Free practice</h1>
+			<div class="mode-switch" aria-label="Practice tool">
 				<button
-					disabled={!ready}
-					class:chosen={!free}
-					aria-pressed={!free}
-					onclick={() => {
-						free = false;
-						reset();
-					}}>Lessons</button
-				><button
-					disabled={!ready}
-					class:chosen={free}
-					aria-pressed={free}
-					onclick={() => {
-						free = true;
-						reset();
-					}}>Free practice</button
-				>
-			</div>
-		</div>
-		<div class="lesson-heading">
-			<div>
-				<p class="muted">
-					{free
-						? 'Move either side. No turns or check restrictions.'
-						: `Lesson ${step + 1} of ${lessonOrder.length}`}
-				</p>
-				<h1>{free ? 'Free practice' : `${lesson.name}: try a move`}</h1>
-				<p>
-					{free ? 'Select a piece, then choose a marked square.' : descriptions[lessonOrder[step]]}
-				</p>
-			</div>
-			<div class="lesson-controls">
-				{#if free}<Button
-						onclick={() => {
-							placing = !placing;
-							feedback = '';
-						}}>Add piece</Button
-					><Button onclick={() => reset(true)}>Full position</Button>{:else}<label
-						class="lesson-picker"
-						>Lesson<select
-							aria-label="Lesson"
-							value={lessonOrder[step]}
-							onchange={(event) =>
-								chooseStep(lessonOrder.indexOf(event.currentTarget.value as PieceType))}
-							>{#each lessonOrder as type (type)}<option value={type}>{lessons[type].name}</option
-								>{/each}</select
-						></label
-					>{/if}
-				{#if history.length}<Button onclick={undo}>Undo</Button><Button onclick={() => reset()}
-						>Reset</Button
-					>{/if}
-			</div>
-		</div>
-		{#if !free}<div class="lesson-progress">
-				<p role="status">{feedback || 'Move the White piece to the outlined square.'}</p>
-				<div class="row">
-					<Button
-						onclick={() => {
-							reset();
-							move({ from: squareIndex(lesson.from), to: target });
-						}}>Show move</Button
-					>{#if complete && step < lessonOrder.length - 1}<Button
-							variant="primary"
-							onclick={() => chooseStep(step + 1)}>Next lesson</Button
-						>{/if}
-				</div>
-			</div>{:else}<p role="status" class="practice-feedback">{feedback}</p>{/if}
-		{#if free && placing}<div class="placement-tools">
-				<SelectField
-					label="Piece"
-					bind:value={piece}
-					options={lessonOrder.map((value) => ({ value, label: lessons[value].name }))}
-				/><SideToggle label="Piece color" bind:value={placementSide} /><Button
-					onclick={startingSquare}>Starting square</Button
-				><Button
+					class:chosen={!placing}
+					aria-pressed={!placing}
 					onclick={() => {
 						placing = false;
 						feedback = '';
-					}}>Done placing</Button
+					}}>Move pieces</button
+				><button
+					class:chosen={placing}
+					aria-pressed={placing}
+					onclick={() => {
+						placing = true;
+						feedback = '';
+					}}>Place pieces</button
 				>
-				<p>Click any square to place the piece. Undo restores anything replaced.</p>
+			</div>
+			{#if placing}
+				<SideToggle label="Color" bind:value={placementSide} />
+				<div class="piece-palette" aria-label="Piece to place">
+					{#each lessonOrder as type (type)}<button
+							title={lessons[type].name}
+							aria-label={lessons[type].name}
+							aria-pressed={piece === type}
+							class:chosen={piece === type}
+							onclick={() => {
+								piece = type;
+								feedback = '';
+							}}
+							><Piece
+								onDark
+								piece={{ t: type, c: placementSide === 'white' ? 'w' : 'b' }}
+								size={32}
+							/><span>{lessons[type].name}</span></button
+						>{/each}
+				</div>
+				<p role="status">{feedback || 'Click any square to place the selected piece.'}</p>
+				<button class="tool-action" onclick={startingSquare}>Starting square</button>
+			{:else}<p role="status">{feedback || 'Move either color. Turns and king safety are off.'}</p>
+				<button class="tool-action" onclick={() => reset(true)}>Full position</button>{/if}
+		{:else}
+			<SelectField
+				label="Piece"
+				options={lessonOrder.map((value) => ({ value, label: lessons[value].name }))}
+				bind:value={() => lessonOrder[step], (value) => chooseStep(lessonOrder.indexOf(value))}
+			/>
+			<h1>{lesson.name}: try a move</h1>
+			<p>{descriptions[lessonOrder[step]]}</p>
+			<p role="status">{feedback || 'Move to the outlined square.'}</p>
+			<button
+				class="tool-action"
+				onclick={() => {
+					reset();
+					move({ from: squareIndex(lesson.from), to: target });
+				}}>Show move</button
+			>
+			{#if complete && step < lessonOrder.length - 1}<Button onclick={() => chooseStep(step + 1)}
+					>Next lesson</Button
+				>{/if}
+		{/if}
+		{#if history.length}<div class="edit-actions">
+				<button class="tool-action" onclick={undo}>Undo</button><button
+					class="tool-action"
+					onclick={() => reset()}>Reset</button
+				>
 			</div>{/if}
-
-		<details class="extra-rules">
-			<summary>How do I win? What are the special rules?</summary>
-			<p>
-				Checkmate the other king: attack it so it has no safe escape. In a match, take turns and
-				keep your own king safe.
-			</p>
-			<p>
-				Pawns promote to queens at the far edge. There is no castling, en passant, or opening
-				two-square pawn move. Draws include stalemate, three repetitions, 100 halfmoves without a
-				pawn move or capture, and only two kings remaining.
-			</p>
-		</details>
 	</aside>
 	<div class="match-position">
 		<ChessBoard
@@ -218,34 +207,21 @@
 	.guide .game-info {
 		grid-column: 2;
 		grid-row: 1;
-		position: sticky;
-		top: var(--play-space);
-		max-height: calc(100svh - 2 * var(--play-space));
-		overflow: auto;
-		padding: 2px;
+		align-self: start;
+		gap: var(--space-4);
 	}
 	.guide .match-position {
 		grid-column: 1;
 		grid-row: 1;
 	}
-	.lesson-top,
-	.lesson-heading,
-	.lesson-controls,
-	.lesson-progress,
-	.placement-tools {
-		display: grid;
-		gap: var(--space-3);
-	}
-	.lesson-heading {
-		gap: var(--space-5);
-	}
 	h1 {
-		font-size: 24px;
+		font-size: 22px;
 		line-height: 1.2;
-		margin: var(--space-2) 0;
 	}
 	p {
 		font-size: 14px;
+		color: var(--muted);
+		margin: 0;
 	}
 	.mode-switch {
 		display: flex;
@@ -255,64 +231,69 @@
 	}
 	.mode-switch button {
 		flex: 1;
-		min-height: 40px;
-		padding: 8px;
+		min-height: 36px;
+		padding: 6px;
 		color: var(--muted);
-		cursor: pointer;
 		border-radius: 8px;
+		cursor: pointer;
+		font-size: 13px;
 	}
 	.mode-switch .chosen {
 		background: var(--line);
 		color: var(--text);
 	}
-	.lesson-picker {
-		display: grid;
-		gap: 8px;
-		font-size: 14px;
-	}
-	.lesson-picker select {
-		min-height: 44px;
-		background: var(--surface);
-		border: 1px solid var(--line);
-		border-radius: var(--radius-control);
-		padding: 8px 12px;
-		color: var(--text);
-	}
-	.placement-tools {
-		padding: var(--space-3);
-		background: var(--surface);
-		border-radius: var(--radius-control);
-	}
-	.placement-tools :global(.side-toggle) {
+	.learning-tools :global(.side-toggle) {
 		display: block;
 	}
-	.placement-tools :global(legend) {
+	.learning-tools :global(legend) {
 		float: none;
 		margin-bottom: 8px;
 	}
-	.extra-rules {
-		font-size: 14px;
+	.piece-palette {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: var(--space-1);
+	}
+	.piece-palette button {
+		display: grid;
+		place-items: center;
+		gap: 4px;
+		min-height: 62px;
+		border-radius: 8px;
+		cursor: pointer;
+		font-size: 11px;
 		color: var(--muted);
 	}
-	.extra-rules summary {
-		cursor: pointer;
+	.piece-palette .chosen {
+		background: var(--line);
+		color: var(--text);
 	}
-	.extra-rules p {
-		margin-top: var(--space-3);
+	.tool-action {
+		min-height: 36px;
+		padding: 8px 12px;
+		background: var(--surface);
+		border-radius: 8px;
+		cursor: pointer;
+		font-size: 14px;
+		color: var(--text);
+	}
+	.tool-action:hover,
+	.piece-palette button:hover {
+		background: var(--surface-raised);
+	}
+	.edit-actions {
+		display: flex;
+		gap: 8px;
+	}
+	.edit-actions button {
+		flex: 1;
 	}
 	@media (max-width: 850px) {
-		.guide .game-info {
-			position: static;
-			max-height: none;
-			overflow: visible;
+		.learning-tools {
+			max-width: 420px;
 		}
-		.lesson-controls {
-			display: flex;
-			flex-wrap: wrap;
-			align-items: end;
-		}
-		.lesson-heading {
-			gap: var(--space-3);
+		.piece-palette {
+			grid-template-columns: repeat(6, 1fr);
 		}
 	}
 </style>

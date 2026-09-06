@@ -197,7 +197,9 @@ export const get = query({
 	returns: v.object({ game: gameDocument, seat: color }),
 	handler: async (ctx, { gameId }) => {
 		const { participant } = await currentParticipant(ctx);
-		const game = await ctx.db.get(gameId);
+		const requested = await ctx.db.get(gameId);
+		const root = requested?.roomRootId ? await ctx.db.get(requested.roomRootId) : requested;
+		const game = root?.currentGameId ? await ctx.db.get(root.currentGameId) : root;
 		const seat = game && participant ? seatOf(game, participant._id) : null;
 		if (!game || !seat) throw new ConvexError('MATCH_NOT_FOUND');
 		return { game, seat };
@@ -264,5 +266,52 @@ export const expireWaiting = internalMutation({
 			.unique();
 		if (invite) await ctx.db.patch(invite._id, { status: 'expired' });
 		return null;
+	}
+});
+
+/** Compare-and-swap on the finished game makes simultaneous rematch requests idempotent. */
+export const rematch = mutation({
+	args: { roomId: v.id('games'), expectedGameId: v.id('games') },
+	returns: v.id('games'),
+	handler: async (ctx, { roomId, expectedGameId }) => {
+		const { game: requested, participant } = await requireMatch(ctx, roomId);
+		const root = requested.roomRootId ? await ctx.db.get(requested.roomRootId) : requested;
+		if (!root) throw new ConvexError('MATCH_NOT_FOUND');
+		const current = root.currentGameId ? await ctx.db.get(root.currentGameId) : root;
+		if (!current) throw new ConvexError('MATCH_NOT_FOUND');
+		if (current._id !== expectedGameId) return current._id;
+		if (current.status !== 'finished') throw new ConvexError('MATCH_NOT_FINISHED');
+		if (
+			current.result?.reason === 'cancellation' ||
+			!current.whiteParticipantId ||
+			!current.blackParticipantId
+		)
+			throw new ConvexError('ROOM_CLOSED');
+		await limitCreation(ctx, participant._id);
+		const initial = createInitialState(),
+			round = (current.round ?? 1) + 1;
+		const gameId = await ctx.db.insert('games', {
+			...initial,
+			board: [...initial.board],
+			positionKeys: [...initial.positionKeys],
+			roomRootId: root._id,
+			round,
+			creatorParticipantId: root.creatorParticipantId,
+			createRequestId: `room:${root._id}:${round}`,
+			whiteParticipantId: current.whiteParticipantId,
+			blackParticipantId: current.blackParticipantId,
+			status: 'active',
+			revision: 0,
+			expiresAt: root.expiresAt,
+			startedAt: Date.now(),
+			finishedAt: null,
+			purgeAt: null
+		});
+		await ctx.db.patch(root._id, {
+			currentGameId: gameId,
+			roomRootId: root._id,
+			round: root.round ?? 1
+		});
+		return gameId;
 	}
 });

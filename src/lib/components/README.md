@@ -2,7 +2,7 @@
 
 Both friend and computer games use the same board, artwork, menus, dialogs, and export interface.
 
-`AutoplayTesseract` runs local Easy self-play in a worker, with camera/move animation and pause cleanup. `GameOutcome` presents results and fresh win/checkmate effects. `Spinner` and `BackToPlay` standardize loading and back navigation.
+`AutoplayTesseract` runs local Easy self-play in a worker, with camera/move animation and pause cleanup. `GameOutcome` presents results and fresh win/checkmate effects. `InspectionHint` provides device-appropriate controls and screen-reader inspection details without adding an inspection panel. `Spinner` standardizes loading; `MovesPanel` pairs the move list with its export icon. Export dialogs support outside-click dismissal.
 
 `SideToggle` is the shared White/Black radio group. `ChessBoard` defaults to match rules; its explicit `practice` mode uses movement geometry for either color without turn or king-safety restrictions. Practice never changes saved matches.
 

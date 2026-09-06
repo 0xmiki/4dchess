@@ -12,6 +12,6 @@
 </script>
 
 <svelte:head><link rel="icon" href={favicon} /></svelte:head>
-{#if page.route.id?.startsWith('/game/') || page.route.id === '/join'}<AuthProvider
+{#if page.route.id?.startsWith('/game/') || page.route.id?.startsWith('/room/') || page.route.id === '/join'}<AuthProvider
 		>{@render children()}</AuthProvider
 	>{:else}{@render children()}{/if}

@@ -1,6 +1,6 @@
 # Multiplayer 4D chess architecture
 
-This document records the architecture for the first release: untimed friend matches joined as guests through invite links. SvelteKit provides the frontend. Convex owns authentication checks, match state, move validation, persistence, and subscriptions.
+This document records the architecture for the first release: untimed games in persistent friend rooms, joined as guests through invite links. SvelteKit provides the frontend. Convex owns authentication checks, match state, move validation, persistence, and subscriptions.
 
 The existing prototype at `prototype/index.html` supplies the rules, board interactions, and computer search. This document describes the intended implementation, not functionality already built.
 
@@ -37,7 +37,7 @@ Opening an invitation does not claim a seat. This also prevents link previews fr
 
 The first release has no chess clocks. Active matches do not expire because someone disconnects. Waiting matches expire after 24 hours.
 
-Accounts, matchmaking, ratings, spectators, draw offers, takebacks, and rematches are later discussions. Threat inspection is enabled for unrated friend matches and computer play. It previews a separate position and does not change the authoritative game.
+Accounts, matchmaking, ratings, spectators, draw offers, and takebacks are later discussions. Threat inspection is enabled for unrated friend matches and computer play. It previews a separate position and does not change the authoritative game.
 
 ## System boundaries
 
@@ -273,3 +273,13 @@ Benchmark move validation in the deployed Convex runtime before release. Keep co
 - [Convex Svelte authentication](https://docs.convex.dev/client/svelte/authentication)
 - [Convex Better Auth SvelteKit integration](https://labs.convex.dev/better-auth/framework-guides/sveltekit)
 - [Better Auth anonymous authentication](https://better-auth.com/docs/plugins/anonymous)
+
+## Persistent friend rooms
+
+The public room URL is `/room/[roomId]`; legacy `/game/[gameId]` URLs remain supported. For compatibility with existing invitations, the first game document is the stable room anchor. Its optional `currentGameId` points to the latest round. Each later game has `roomRootId` and `round`; the root is also indexed as round 1 once a rematch exists.
+
+`games.get` resolves a room anchor or a game in that room to the current game. Move, resignation, history, and receipt calls use the exact returned game ID. They never redirect old commands into a new round. The frontend subscribes through the stable room URL and restores pending moves using the current round's game ID.
+
+`games.rematch` checks room membership, compares `expectedGameId` with the current round, requires a finished non-cancelled game with both seats, and applies creation limits. It inserts a fresh initial position and updates the anchor in one transaction. Concurrent or retried starts observe the new pointer and return the current game rather than inserting another. Earlier game positions, results, and moves are preserved. The original invitation still routes its existing participants into the same room.
+
+A completed game clears automatic home redirection, but the room remains reusable while its players are viewing it. Starting another round updates both subscriptions. Leave room is unavailable during active play; resignation must finish the current game first.

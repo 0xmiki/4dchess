@@ -81,7 +81,7 @@ output {
 	font-variant-numeric: tabular-nums;
 }
 ::selection {
-	background: var(--accent);
+	background: var(--primary-fill);
 	color: var(--on-accent);
 }
 html {
@@ -155,8 +155,8 @@ select:focus {
 }
 .match-layout {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) 240px;
-	gap: var(--space-6);
+	grid-template-columns: minmax(0, 1fr) var(--sidebar-width);
+	gap: var(--sidebar-gap);
 	align-items: start;
 }
 .match-position {
@@ -223,4 +223,57 @@ select:focus {
 	.side-moves {
 		max-height: 180px;
 	}
+}
+
+.primary-action {
+	background: var(--primary-fill);
+	color: var(--on-accent);
+	border-color: var(--primary-fill);
+	box-shadow: 0 var(--press-depth) 0 var(--accent-base);
+	text-align: center;
+	text-decoration: none;
+	font-weight: 750;
+}
+.primary-action:hover {
+	background: var(--primary-hover);
+}
+.primary-action:active {
+	transform: translateY(var(--press-depth));
+	box-shadow: none;
+}
+* {
+	scrollbar-width: thin;
+	scrollbar-color: #626262 transparent;
+}
+::-webkit-scrollbar {
+	width: 5px;
+	height: 5px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+	background: transparent;
+}
+::-webkit-scrollbar-thumb {
+	background: #626262;
+	border-radius: 99px;
+}
+::-webkit-scrollbar-thumb:hover {
+	background: #818181;
+}
+::-webkit-scrollbar-button {
+	display: none;
+	width: 0;
+	height: 0;
+}
+
+.leave-match {
+	padding: 8px;
+	min-height: 36px;
+	color: var(--muted);
+	font-size: 13px;
+	cursor: pointer;
+	background: none;
+}
+.leave-match:hover {
+	color: var(--text);
 }

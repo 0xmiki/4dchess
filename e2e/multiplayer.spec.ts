@@ -33,7 +33,7 @@ test('lessons teach one move at a time and free practice supports either side an
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-async function friends(browser: Browser) {
+async function friends(browser: Browser, setup?: (page: Page) => Promise<void>) {
 	const whiteContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 	const blackContext = await browser.newContext({
 		viewport: { width: 390, height: 844 },
@@ -42,15 +42,16 @@ async function friends(browser: Browser) {
 	});
 	const white = await whiteContext.newPage(),
 		black = await blackContext.newPage();
+	await setup?.(white);
 	await white.goto(process.env.E2E_BASE_URL!);
 	await white.getByRole('button', { name: 'Play with friend', exact: true }).click();
-	await expect(white.getByRole('heading', { name: 'Waiting for your friend' })).toBeVisible();
+	await expect(white.getByLabel('Waiting for your friend', { exact: true })).toBeVisible();
 	const invitation = await white.getByRole('textbox', { name: 'Invitation link' }).inputValue();
 	await black.goto(invitation);
 	await expect(black.getByRole('heading', { name: 'Join your friend' })).toBeVisible();
-	await black.getByRole('button', { name: 'Join match', exact: true }).click();
-	await expect(black.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
-	await expect(white.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+	await black.getByRole('button', { name: 'Join room', exact: true }).click();
+	await expect(black.getByLabel('White to move', { exact: true })).toBeVisible();
+	await expect(white.getByLabel('White to move', { exact: true })).toBeVisible();
 	return { white, black, whiteContext, blackContext };
 }
 
@@ -73,7 +74,7 @@ test('friends synchronize, recover a lost acknowledgement, reconnect, and finish
 			true
 		);
 		await move(white, 0, 32);
-		await expect(black.getByRole('heading', { name: 'Black to move', exact: true })).toBeVisible();
+		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
 		// Simulate a crash before the accepted move's persistent pending record is cleared.
 		await black.evaluate(() => {
 			const remove = Storage.prototype.removeItem;
@@ -83,14 +84,14 @@ test('friends synchronize, recover a lost acknowledgement, reconnect, and finish
 			};
 		});
 		await move(black, 63, 31);
-		await expect(black.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+		await expect(black.getByLabel('White to move', { exact: true })).toBeVisible();
 		expect(
 			await black.evaluate(() =>
 				Object.keys(sessionStorage).some((key) => key.startsWith('fourfold-pending-'))
 			)
 		).toBe(true);
 		await black.reload();
-		await expect(black.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+		await expect(black.getByLabel('White to move', { exact: true })).toBeVisible();
 		await expect
 			.poll(() =>
 				black.evaluate(() =>
@@ -100,7 +101,7 @@ test('friends synchronize, recover a lost acknowledgement, reconnect, and finish
 			.toBe(false);
 		await whiteContext.setOffline(true);
 		await expect(
-			white.getByText('Connection lost. Your match is saved. Reconnecting…')
+			white.getByText('Connection lost. Your room is saved. Reconnecting…')
 		).toBeVisible();
 		await expect(white.locator('.cell').first()).toHaveAttribute('aria-disabled', 'true');
 		await whiteContext.setOffline(false);
@@ -116,25 +117,21 @@ test('friends synchronize, recover a lost acknowledgement, reconnect, and finish
 			await move(player, from, to);
 		}
 		for (const player of [white, black]) {
-			await expect(player.getByRole('heading', { name: 'Game drawn' })).toBeVisible();
-			await expect(player.getByText('Third repetition of the position.')).toBeVisible();
+			await expect(player.getByLabel('Game drawn', { exact: true })).toBeVisible();
+			await expect(player.getByText('Draw by repetition.')).toBeVisible();
 			await expect(player.locator('.cell').first()).toHaveAttribute('aria-disabled', 'true');
 		}
-		await black.getByLabel('Game options', { exact: true }).click();
-		await black.getByRole('button', { name: 'Move history' }).click();
 		await expect(
-			black.getByRole('dialog', { name: 'Move history', exact: true }).locator('.moves li')
+			black.getByRole('region', { name: 'Moves', exact: true }).locator('[data-ply]')
 		).toHaveCount(8);
-		await black.getByRole('button', { name: 'Close history' }).click();
-		await black.getByLabel('Game options', { exact: true }).click();
 		await black.getByRole('button', { name: 'Export game', exact: true }).click();
 		await expect(black.getByRole('textbox', { name: '4D PGN notation' })).toBeVisible();
 		await expect
 			.poll(() => black.getByRole('textbox', { name: '4D PGN notation' }).inputValue())
 			.toContain('1/2-1/2');
-		await black.getByRole('button', { name: 'Close export' }).click();
+		await black.keyboard.press('Escape');
 		await black.reload();
-		await expect(black.getByRole('heading', { name: 'Game drawn' })).toBeVisible();
+		await expect(black.getByLabel('Game drawn', { exact: true })).toBeVisible();
 	} finally {
 		await whiteContext.close();
 		await blackContext.close();
@@ -160,14 +157,13 @@ test('computer play uses no backend, supports threat inspection, animation, expo
 	await expect(choices.nth(0)).toHaveAccessibleName('Play with friend');
 	await expect(choices.nth(1)).toHaveAccessibleName('Play computer');
 	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
-	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+	await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
 	const before = await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'));
 	await page.locator('[data-square="2"]').click({ button: 'right' });
-	await expect(page.getByRole('region', { name: 'Threat inspection' })).toContainText(
-		'Defended by:'
-	);
+	await expect(page.locator('.cell.threat-target')).toHaveCount(1);
+	await expect(page.getByLabel('Threat controls')).toContainText('Right-click');
 	expect(await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'))).toBe(before);
-	await page.getByRole('button', { name: 'Clear inspection' }).click();
+	await page.locator('[data-square="20"]').click();
 	await move(page, 0, 32);
 	await expect(page.locator('[data-animation="piece"]')).toHaveCount(1);
 	await expect(page.locator('[data-animation="spatial-piece"]')).toHaveCount(1);
@@ -176,15 +172,14 @@ test('computer play uses no backend, supports threat inspection, animation, expo
 			page.evaluate(() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length)
 		)
 		.toBe(2);
-	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+	await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
 	await page.reload();
-	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+	await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
 	expect(
 		await page.evaluate(
 			() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length
 		)
 	).toBe(2);
-	await page.getByLabel('Game options', { exact: true }).click();
 	await page.getByRole('button', { name: 'Export game', exact: true }).click();
 	await expect
 		.poll(() => page.getByRole('textbox', { name: '4D PGN notation' }).inputValue())
@@ -201,7 +196,7 @@ test('computer can play White and reduced-motion preference disables moving over
 	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.goto(new URL('/computer?side=b', process.env.E2E_BASE_URL!).href);
 
-	await expect(page.getByRole('heading', { name: 'Black to move', exact: true })).toBeVisible();
+	await expect(page.getByLabel('Black to move', { exact: true })).toBeVisible();
 	await expect(page.locator('[data-animation]')).toHaveCount(0);
 	expect(
 		await page.evaluate(
@@ -209,24 +204,22 @@ test('computer can play White and reduced-motion preference disables moving over
 		)
 	).toBe(1);
 	await page.reload();
-	await expect(page.getByRole('heading', { name: 'Black to move', exact: true })).toBeVisible();
+	await expect(page.getByLabel('Black to move', { exact: true })).toBeVisible();
 });
 
 test('resignation requires confirmation and updates both players', async ({ browser }) => {
 	const { white, black, whiteContext, blackContext } = await friends(browser);
 	try {
-		await white.getByLabel('Game options', { exact: true }).click();
 		await white.getByRole('button', { name: 'Resign', exact: true }).click();
 		await white.getByRole('button', { name: 'Keep playing' }).click();
-		await expect(white.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
-		await white.getByLabel('Game options', { exact: true }).click();
+		await expect(white.getByLabel('White to move', { exact: true })).toBeVisible();
 		await white.getByRole('button', { name: 'Resign', exact: true }).click();
-		await white.getByRole('button', { name: 'Resign match', exact: true }).click();
-		await expect(white.getByRole('heading', { name: 'Black wins' })).toBeVisible();
-		await expect(black.getByRole('heading', { name: 'Black wins' })).toBeVisible();
+		await white.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(white.getByLabel('Black wins', { exact: true })).toBeVisible();
+		await expect(black.getByLabel('Black wins', { exact: true })).toBeVisible();
 		await expect(black.getByRole('region', { name: 'Game over' })).toContainText('You won!');
 		await expect(white.getByRole('region', { name: 'Game over' })).toContainText('You lost');
-		await expect(white.getByText('White resigned.')).toBeVisible();
+		await expect(white.getByRole('region', { name: 'Game over' })).toContainText('resignation');
 	} finally {
 		await whiteContext.close();
 		await blackContext.close();
@@ -241,11 +234,11 @@ test('home creates an invitation directly for the selected Black side', async ({
 	await white.press('ArrowRight');
 	await expect(page.getByRole('radio', { name: 'Black', exact: true })).toBeChecked();
 	await page.getByRole('button', { name: 'Play with friend', exact: true }).click();
-	await expect(page.getByRole('heading', { name: 'Waiting for your friend' })).toBeVisible();
+	await expect(page.getByLabel('Waiting for your friend', { exact: true })).toBeVisible();
 	await expect(page.getByText('You are black. Untimed.', { exact: true })).toBeVisible();
 	await expect(page.getByRole('textbox', { name: 'Invitation link' })).not.toHaveValue('');
-	await page.getByRole('button', { name: 'Cancel match', exact: true }).click();
-	await expect(page.getByRole('heading', { name: 'Match cancelled' })).toBeVisible();
+	await page.getByRole('button', { name: 'Close room', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
 });
 
 test('practice places either color and keeps both-color threat arrows until a board click', async ({
@@ -254,13 +247,13 @@ test('practice places either color and keeps both-color threat arrows until a bo
 	await page.goto(new URL('/how-to-play', process.env.E2E_BASE_URL!).href);
 	await expect(page.getByRole('button', { name: 'Show move', exact: true })).toBeEnabled();
 	await page.getByRole('button', { name: 'Free practice', exact: true }).click();
-	await page.getByRole('button', { name: 'Add piece', exact: true }).click();
+	await page.getByRole('button', { name: 'Place pieces', exact: true }).click();
 	const white = page.getByRole('radio', { name: 'White', exact: true });
 	await white.focus();
 	await white.press('ArrowRight');
 	await page.locator('[data-square="3"]').click();
 	await expect(page.locator('[data-square="3"]')).toHaveAttribute('aria-label', /Black rook/);
-	await page.getByRole('button', { name: 'Done placing', exact: true }).click();
+	await page.getByRole('button', { name: 'Move pieces', exact: true }).click();
 	await page.locator('[data-square="1"]').click({ button: 'right' });
 	await expect(page.locator('.overlay .threat-arrow')).toHaveCount(2);
 	const colors = await page
@@ -273,8 +266,8 @@ test('practice places either color and keeps both-color threat arrows until a bo
 	await expect(page.locator('.space-svg .threat-arrow')).toHaveCount(4);
 	await page.locator('[data-square="17"]').click();
 	await expect(page.locator('.threat-arrow')).toHaveCount(0);
-	await page.getByRole('button', { name: 'Add piece', exact: true }).click();
-	await page.getByRole('combobox', { name: 'Piece', exact: true }).selectOption('n');
+	await page.getByRole('button', { name: 'Place pieces', exact: true }).click();
+	await page.getByRole('button', { name: 'Knight', exact: true }).click();
 	await page.getByRole('button', { name: 'Starting square', exact: true }).click();
 	await expect(page.locator('[data-square="62"]')).toHaveAttribute('aria-label', /Black knight/);
 	await page.locator('[data-square="17"]').click();
@@ -297,4 +290,381 @@ test('the landing demo searches live moves and can be paused', async ({ page }) 
 	await expect
 		.poll(async () => Number(await demo.getAttribute('data-demo-ply')))
 		.toBeGreaterThan(Number(ply));
+});
+
+test('computer sidebar settings apply to new games and export dismisses outside', async ({
+	page
+}) => {
+	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+	await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
+	await expect(page.getByText('Back to play', { exact: true })).toHaveCount(0);
+	await expect(page.getByText('Options', { exact: true })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'New game', exact: true })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Resign', exact: true }).click();
+	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
+	await page.getByRole('radio', { name: 'White', exact: true }).focus();
+	await page.getByRole('radio', { name: 'White', exact: true }).press('ArrowRight');
+	await page.getByRole('combobox', { name: 'Difficulty', exact: true }).click();
+	await page.getByRole('option', { name: 'Medium', exact: true }).click();
+	await page.getByRole('button', { name: 'New game', exact: true }).click();
+	await expect
+		.poll(() =>
+			page.evaluate(() => {
+				const saved = JSON.parse(localStorage.getItem('fourfold-computer-v1')!);
+				return { player: saved.player, difficulty: saved.difficulty };
+			})
+		)
+		.toEqual({ player: 'b', difficulty: 'medium' });
+	await page.getByRole('button', { name: 'Export game', exact: true }).click();
+	const dialog = page.getByRole('dialog', { name: 'Export game', exact: true });
+	await expect(dialog).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Close export' })).toHaveCount(0);
+	await page.mouse.click(2, 2);
+	await expect(dialog).not.toBeVisible();
+});
+
+test('duplicate kings only show the selected square’s moves', async ({ page }) => {
+	await page.goto(new URL('/how-to-play', process.env.E2E_BASE_URL!).href);
+	await page.getByRole('button', { name: 'Free practice', exact: true }).click();
+	await page.getByRole('button', { name: 'Place pieces', exact: true }).click();
+	await page.getByRole('button', { name: 'King', exact: true }).click();
+	for (const square of [26, 11, 2]) await page.locator(`[data-square="${square}"]`).click();
+	await page.getByRole('button', { name: 'Move pieces', exact: true }).click();
+	await page.locator('[data-square="26"]').click();
+	const destinations = await page
+		.locator('.cell.legal')
+		.evaluateAll((cells) => cells.map((cell) => Number(cell.getAttribute('data-square'))));
+	expect(destinations).toHaveLength(34);
+	for (const square of destinations) {
+		const coordinates = [
+			square % 4,
+			Math.floor(square / 4) % 4,
+			Math.floor(square / 16) % 2,
+			Math.floor(square / 32)
+		];
+		expect(Math.max(...coordinates.map((v, i) => Math.abs(v - [2, 2, 1, 0][i])))).toBe(1);
+	}
+	await expect(page.locator('[data-square="1"]')).not.toHaveClass(/legal/);
+	await page.locator('[data-square="1"]').click();
+	await expect(page.locator('[data-square="26"]')).toHaveAttribute('aria-label', /White king/);
+	await expect(page.locator('[data-square="1"]')).toHaveAttribute('aria-label', /empty/);
+	await page.locator('[data-square="2"]').click();
+	await expect(page.locator('[data-square="1"]')).toHaveClass(/legal/);
+});
+
+test('styled selects support keyboard choice and outside dismissal', async ({ page }) => {
+	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+	await page.getByRole('button', { name: 'Resign', exact: true }).click();
+	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
+	const select = page.getByRole('combobox', { name: 'Difficulty', exact: true });
+	await select.click();
+	await expect(page.getByRole('listbox', { name: 'Difficulty' })).toBeVisible();
+	await select.press('End');
+	await select.press('Enter');
+	await expect(select).toHaveText('Extreme');
+	await select.click();
+	await page.mouse.click(2, 2);
+	await expect(select).toHaveAttribute('aria-expanded', 'false');
+	await select.focus();
+	await select.press('m');
+	await select.press('Enter');
+	await expect(select).toHaveText('Medium');
+});
+
+test('home and game use identical tesseract canvas dimensions', async ({ page }) => {
+	for (const width of [1920, 1440, 900, 390]) {
+		if (page.url().includes('/computer')) {
+			await page.getByRole('button', { name: 'Resign', exact: true }).click();
+			await page.getByRole('button', { name: 'Resign game', exact: true }).click();
+			await page.getByRole('button', { name: 'Leave room', exact: true }).click();
+			await page.evaluate(() => localStorage.removeItem('fourfold-computer-v1'));
+		}
+		await page.setViewportSize({ width, height: 1080 });
+		await page.goto(process.env.E2E_BASE_URL!);
+		const home = await page.locator('.space-svg').boundingBox();
+		await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+		await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
+		const game = await page.locator('.space-svg').boundingBox();
+		expect(home!.width).toBeCloseTo(game!.width, 0);
+		expect(home!.height).toBeCloseTo(game!.height, 0);
+	}
+});
+
+test('touch inspection uses a short long-press hint without an inspection panel', async ({
+	browser
+}) => {
+	const context = await browser.newContext({
+		viewport: { width: 390, height: 844 },
+		isMobile: true,
+		hasTouch: true
+	});
+	try {
+		const page = await context.newPage();
+		await page.goto(new URL('/how-to-play', process.env.E2E_BASE_URL!).href);
+		await expect(page.locator('.touch-hint')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'Inspect threats', exact: true })).toHaveCount(0);
+		await expect(page.getByRole('button', { name: 'Clear inspection', exact: true })).toHaveCount(
+			0
+		);
+	} finally {
+		await context.close();
+	}
+});
+
+test('demo holds its selected piece and freezes mid-move when paused', async ({ page }) => {
+	await page.goto(process.env.E2E_BASE_URL!);
+	const demo = page.locator('[data-demo-phase]');
+	await expect(demo).toHaveAttribute('data-demo-phase', 'selection');
+	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
+	await expect(page.locator('[data-animation="spatial-piece"]')).toHaveCount(0);
+	await expect(page.locator('.space-svg .piece')).toHaveCount(20);
+	await page.waitForTimeout(1300);
+	await expect(demo).toHaveAttribute('data-demo-phase', 'selection');
+	await page.locator('.space-svg').press('ArrowRight');
+	const point = page.locator('.space-svg [data-node="0"] circle').first();
+	const manualX = await point.getAttribute('cx');
+	await page.getByRole('button', { name: 'Play demo', exact: true }).click();
+	await expect(point).toHaveAttribute('cx', manualX!);
+	await expect(demo).toHaveAttribute('data-demo-phase', 'move');
+	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
+	const mover = page.locator('[data-animation="spatial-piece"] .piece');
+	const before = await mover.getAttribute('x');
+	await page.waitForTimeout(600);
+	await expect(mover).toHaveAttribute('x', before!);
+	await page.getByRole('button', { name: 'Play demo', exact: true }).click();
+	await expect
+		.poll(async () => Number(await demo.getAttribute('data-demo-ply')))
+		.toBeGreaterThanOrEqual(1);
+});
+
+test('home and game start with identical piece projection and neutral transparent surfaces', async ({
+	page
+}) => {
+	await page.goto(process.env.E2E_BASE_URL!);
+	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
+	const points = () =>
+		page.locator('.space-svg [data-node]').evaluateAll((nodes) =>
+			Object.fromEntries(
+				nodes.map((node) => {
+					const c = node.querySelector('circle')!;
+					return [node.getAttribute('data-node'), [c.getAttribute('cx'), c.getAttribute('cy')]];
+				})
+			)
+		);
+	const home = await points();
+	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+	await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
+	expect(await points()).toEqual(home);
+	await expect(page.locator('.space-svg polygon').first()).toHaveAttribute('fill-opacity', '.025');
+	const color = await page
+		.locator('.spatial')
+		.evaluate((el) => getComputedStyle(el).getPropertyValue('--grid').trim());
+	expect(color).toBe('#828282');
+	await expect(page.getByRole('button', { name: 'Resign', exact: true })).toBeVisible();
+});
+
+test('computer history is selectable and home resumes until the player leaves', async ({
+	page
+}) => {
+	await page.goto(process.env.E2E_BASE_URL!);
+	const primary = page.getByRole('button', { name: 'Play with friend', exact: true });
+	expect(await primary.evaluate((el) => getComputedStyle(el).color)).toBe(
+		await page.evaluate(() => getComputedStyle(document.body).color)
+	);
+	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'New game', exact: true })).toHaveCount(0);
+	await move(page, 0, 32);
+	await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
+	await page.locator('[data-ply="1"]').click();
+	await expect(page.locator('[data-ply="1"]')).toHaveAttribute('aria-current', 'step');
+	await expect(page.getByLabel('Reviewing move 1', { exact: true })).toBeVisible();
+	await expect(page.locator('[data-square="32"]')).toHaveAttribute('aria-label', /White rook/);
+	await expect(page.locator('[data-square="32"]')).toHaveAttribute('aria-disabled', 'true');
+	await page.getByRole('button', { name: 'Live', exact: true }).click();
+	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
+	await page.goto(process.env.E2E_BASE_URL!);
+	await expect(page).toHaveURL(/\/computer$/);
+	await page.getByRole('button', { name: 'Resign', exact: true }).click();
+	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Resign', exact: true })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'New game', exact: true })).toBeVisible();
+	await page.reload();
+	await expect(page.getByRole('heading', { name: 'You lost', exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Leave room', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
+	await page.reload();
+	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
+});
+
+test('online moves display immediately, roll back rejection, and reconcile without duplication', async ({
+	browser
+}) => {
+	let held: { accept: () => void; reject: () => void } | undefined,
+		hold = true;
+	const { white, black, whiteContext, blackContext } = await friends(browser, async (page) => {
+		await page.routeWebSocket(/convex\.cloud|127\.0\.0\.1:3320/, (socket) => {
+			const server = socket.connectToServer();
+			socket.onMessage((message) => {
+				const data = JSON.parse(String(message));
+				if (hold && data.type === 'Mutation' && data.udfPath === 'moves:submit') {
+					held = {
+						accept: () => server.send(message),
+						reject: () =>
+							socket.send(
+								JSON.stringify({
+									type: 'MutationResponse',
+									requestId: data.requestId,
+									success: false,
+									result: 'Rejected for test',
+									errorData: 'ILLEGAL_MOVE',
+									logLines: []
+								})
+							)
+					};
+				} else server.send(message);
+			});
+		});
+	});
+	try {
+		await move(white, 0, 32);
+		await expect.poll(() => !!held).toBe(true);
+		await expect(white.locator('[data-square="32"]')).toHaveAttribute('aria-label', /White rook/);
+		await expect(black.locator('[data-square="32"]')).toHaveAttribute('aria-label', /empty/);
+		held!.reject();
+		held = undefined;
+		await expect(white.locator('[data-square="0"]')).toHaveAttribute('aria-label', /White rook/);
+		await expect(white.locator('[data-square="32"]')).toHaveAttribute('aria-label', /empty/);
+		await expect(white.getByRole('alert')).toContainText('not legal');
+		await move(white, 0, 32);
+		await expect.poll(() => !!held).toBe(true);
+		await expect(white.locator('[data-square="32"]')).toHaveAttribute('aria-label', /White rook/);
+		hold = false;
+		held!.accept();
+		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
+		await expect(white.locator('[data-ply="1"]')).toHaveCount(1);
+		await white.getByRole('button', { name: 'Previous move', exact: true }).click();
+		await expect(white.locator('[data-square="0"]')).toHaveAttribute('aria-label', /White rook/);
+		await white.getByRole('button', { name: 'Live', exact: true }).click();
+		const url = white.url();
+		await white.goto(process.env.E2E_BASE_URL!);
+		await expect(white).toHaveURL(url);
+		await white.getByRole('button', { name: 'Resign', exact: true }).click();
+		await white.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(white.getByLabel('Black wins', { exact: true })).toBeVisible();
+		await white.getByRole('button', { name: 'Leave room', exact: true }).click();
+		await expect(
+			white.getByRole('button', { name: 'Play with friend', exact: true })
+		).toBeVisible();
+	} finally {
+		await whiteContext.close();
+		await blackContext.close();
+	}
+});
+
+test('finished score sheet exports, dismisses with Escape, and restores after reload', async ({
+	page
+}) => {
+	await page.addInitScript(() => {
+		if (!sessionStorage.getItem('draw-seeded')) {
+			localStorage.setItem(
+				'fourfold-computer-v1',
+				JSON.stringify({
+					version: 1,
+					player: 'w',
+					difficulty: 'easy',
+					startedAt: Date.now(),
+					moves: [
+						{ from: 0, to: 32 },
+						{ from: 63, to: 31 },
+						{ from: 32, to: 0 },
+						{ from: 31, to: 63 },
+						{ from: 0, to: 32 },
+						{ from: 63, to: 31 },
+						{ from: 32, to: 0 },
+						{ from: 31, to: 63 }
+					]
+				})
+			);
+			sessionStorage.setItem('draw-seeded', '1');
+		}
+	});
+	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+	await expect(page.getByLabel('Game drawn', { exact: true })).toBeVisible();
+	await expect(page.locator('[data-ply]')).toHaveCount(8);
+	await page.getByRole('button', { name: 'Export game', exact: true }).click();
+	await expect(page.getByRole('textbox', { name: '4D PGN notation' })).toHaveValue(/1\/2-1\/2/);
+	await page.keyboard.press('Escape');
+	await expect(page.getByRole('dialog', { name: 'Export game' })).not.toBeVisible();
+	await page.reload();
+	await expect(page.getByLabel('Game drawn', { exact: true })).toBeVisible();
+});
+
+test('a concluded computer game stops automatic home redirection', async ({ page }) => {
+	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+	await page.getByRole('button', { name: 'Resign', exact: true }).click();
+	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'You lost', exact: true })).toBeVisible();
+	await page.goto(process.env.E2E_BASE_URL!);
+	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
+	await page.reload();
+	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
+});
+
+test('friends replay in the same room and recover a second-round move after reload', async ({
+	browser
+}) => {
+	const { white, black, whiteContext, blackContext } = await friends(browser);
+	try {
+		const roomUrl = white.url();
+		expect(roomUrl).toContain('/room/');
+		expect(black.url()).toBe(roomUrl);
+		await expect(white.getByRole('button', { name: 'Leave room', exact: true })).toHaveCount(0);
+		await move(white, 0, 32);
+		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
+		await black.getByRole('button', { name: 'Resign', exact: true }).click();
+		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+		await expect(white.getByRole('button', { name: 'Leave room', exact: true })).toBeVisible();
+		await white.getByRole('button', { name: 'New game', exact: true }).click();
+		for (const player of [white, black]) {
+			await expect(player.getByLabel('White to move', { exact: true })).toBeVisible();
+			await expect(player).toHaveURL(roomUrl);
+			await expect(player.locator('[data-ply]')).toHaveCount(0);
+			await expect(player.getByRole('button', { name: 'Leave room', exact: true })).toHaveCount(0);
+		}
+		await white.evaluate(() => {
+			const remove = Storage.prototype.removeItem;
+			Storage.prototype.removeItem = function (key) {
+				if (this === sessionStorage && key.startsWith('fourfold-pending-')) return;
+				remove.call(this, key);
+			};
+		});
+		await move(white, 0, 32);
+		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
+		expect(
+			await white.evaluate(() =>
+				Object.keys(sessionStorage).some((key) => key.startsWith('fourfold-pending-'))
+			)
+		).toBe(true);
+		await white.reload();
+		await expect(white.getByLabel('Black to move', { exact: true })).toBeVisible();
+		await expect
+			.poll(() =>
+				white.evaluate(() =>
+					Object.keys(sessionStorage).some((key) => key.startsWith('fourfold-pending-'))
+				)
+			)
+			.toBe(false);
+		await expect(white.locator('[data-ply]')).toHaveCount(1);
+		await black.getByRole('button', { name: 'Resign', exact: true }).click();
+		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+		await white.getByRole('button', { name: 'Leave room', exact: true }).click();
+		await expect(
+			white.getByRole('button', { name: 'Play with friend', exact: true })
+		).toBeVisible();
+	} finally {
+		await whiteContext.close();
+		await blackContext.close();
+	}
 });

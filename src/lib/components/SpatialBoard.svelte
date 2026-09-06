@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy } from 'svelte';
-	import { projectCoordinate } from '$lib/visuals/projection';
+	import { fade } from 'svelte/transition';
+	import { projectCoordinate, DEFAULT_CAMERA } from '$lib/visuals/projection';
 	import {
 		squareCoordinates,
 		squareIndex,
@@ -12,13 +13,14 @@
 	import { pieceNames } from '$lib/pieces';
 	import Piece from './Piece.svelte';
 	import AxisGizmo from './AxisGizmo.svelte';
-	import type { PieceMotion } from './motion';
+	import { spatialMotionPoint, type PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
 		annotations = true,
+		focusMove = null,
 		onclear = () => {},
-		yaw = $bindable(-0.48),
-		pitch = $bindable(0.26),
+		yaw = $bindable(DEFAULT_CAMERA.yaw),
+		pitch = $bindable(DEFAULT_CAMERA.pitch),
 		board,
 		selected,
 		moves,
@@ -30,6 +32,7 @@
 		inspections = []
 	}: {
 		annotations?: boolean;
+		focusMove?: (Move & { knight?: boolean }) | null;
 		onclear?: () => void;
 		yaw?: number;
 		pitch?: number;
@@ -58,6 +61,12 @@
 	onDestroy(() => clearTimeout(holdTimer));
 	const componentId = $props.id();
 	const arrowId = componentId + '-spatial-threat';
+	const markerFade = () => ({
+		duration:
+			typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+				? 0
+				: 180
+	});
 	function project(coordinate: Coordinates) {
 		return projectCoordinate(coordinate, { yaw, pitch });
 	}
@@ -74,20 +83,17 @@
 			return { label: 'XYZ'[i], dx: (tip.x - origin.x) * 0.6, dy: (tip.y - origin.y) * 0.6 };
 		});
 	});
-	const mover = $derived.by(() => {
-		if (!motion) return null;
-		const a = squareCoordinates(motion.from),
-			b = squareCoordinates(motion.to),
-			t = motion.progress;
-		const p = project([
-			a[0] + (b[0] - a[0]) * t,
-			a[1] + (b[1] - a[1]) * t,
-			a[2] + (b[2] - a[2]) * t,
-			a[3] + (b[3] - a[3]) * t
-		]);
-		if (motion.piece.t === 'n') p.y -= Math.sin(Math.PI * t) * 21;
-		return p;
-	});
+	const mover = $derived(
+		motion ? spatialMotionPoint(project, motion, motion.piece, motion.progress) : null
+	);
+	const motionRoute = $derived(
+		motion
+			? Array.from({ length: 25 }, (_, i) => {
+					const p = spatialMotionPoint(project, motion, motion.piece, i / 24);
+					return (i ? 'L' : 'M') + p.x + ',' + p.y;
+				}).join(' ')
+			: ''
+	);
 	const faces = $derived(
 		[0, 1]
 			.flatMap((w) =>
@@ -115,8 +121,8 @@
 		})
 	);
 	function reset() {
-		yaw = -0.48;
-		pitch = 0.26;
+		yaw = DEFAULT_CAMERA.yaw;
+		pitch = DEFAULT_CAMERA.pitch;
 	}
 	function down(event: PointerEvent) {
 		if (event.button !== 0 || gesture) return;
@@ -221,15 +227,14 @@
 				refY="5"
 				markerWidth="6"
 				markerHeight="6"
-				orient="auto"
-				><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker
+				orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke" /></marker
 			></defs
 		>
 		{#each faces as face (face.w * 2 + face.z)}
 			<polygon
 				points={face.ids.map((i) => `${points[i].x},${points[i].y}`).join(' ')}
 				fill="var(--plane)"
-				fill-opacity=".12"
+				fill-opacity=".025"
 			/>
 			{#each [0, 1, 2, 3] as n (n)}
 				{@const a = project([n, 0, face.z, face.w])}{@const b = project([n, 3, face.z, face.w])}
@@ -274,9 +279,9 @@
 						stroke={marked.position[from]?.c === 'w'
 							? 'var(--threat-white)'
 							: 'var(--threat-black)'}
-						stroke-dasharray={marked.position[from]?.c === marked.color ? '6 4' : undefined}
 						class="threat-arrow"
-						stroke-width="3"
+						stroke-width="1.6"
+						opacity=".48"
 						marker-end={`url(#${arrowId})`}
 					/>{/each}{/each}
 		{:else if selected !== null}
@@ -287,8 +292,7 @@
 					y2={points[move.to].y}
 					stroke="var(--legal)"
 					stroke-width="1.3"
-					stroke-dasharray="3 4"
-					opacity=".65"
+					opacity=".16"
 				/>{/each}
 		{:else if lastMove && !motion}<line
 				x1={points[lastMove.from].x}
@@ -297,6 +301,25 @@
 				y2={points[lastMove.to].y}
 				stroke="var(--accent)"
 				stroke-width="2"
+			/>{/if}
+		{#if focusMove}{@const a = points[focusMove.from]}{@const b = points[focusMove.to]}<path
+				in:fade={markerFade()}
+				class="demo-path"
+				d={focusMove.knight
+					? `M${a.x} ${a.y} Q${(a.x + b.x) / 2} ${(a.y + b.y) / 2 - 45} ${b.x} ${b.y}`
+					: `M${a.x} ${a.y} L${b.x} ${b.y}`}
+				fill="none"
+				stroke="var(--demo-mark)"
+				opacity=".48"
+				stroke-width="2"
+			/>{/if}
+		{#if motion && !focusMove}<path
+				d={motionRoute}
+				fill="none"
+				stroke="var(--grid)"
+				stroke-width="1.3"
+				opacity=".3"
+				pointer-events="none"
 			/>{/if}
 		{#each nodes as i (i)}
 			{@const p = board[i]}{@const point = points[i]}{@const legal = moves.some(
@@ -310,32 +333,50 @@
 				>
 				<circle cx={point.x} cy={point.y} r="12" fill="transparent" />
 				{#if inspection?.target === i}<rect
+						in:fade={markerFade()}
 						x={point.x - 16}
 						y={point.y - 16}
 						width="32"
 						height="32"
 						rx="5"
 						fill="var(--board-target)"
-						stroke="var(--defender)"
+						fill-opacity=".18"
+						stroke="none"
 					/>{:else if inspection?.attackers.includes(i)}<circle
 						cx={point.x}
 						cy={point.y}
 						r="15"
 						fill={p?.c === inspection.color ? 'var(--board-target)' : 'var(--board-threat)'}
+						fill-opacity=".28"
 					/>{/if}
 				{#if selected === i}<circle
+						in:fade={markerFade()}
 						cx={point.x}
 						cy={point.y}
 						r="15"
 						fill="var(--board-selected)"
-						stroke="var(--accent)"
+						fill-opacity=".2"
+						stroke="none"
 					/>{/if}
 				{#if legal}<circle
+						in:fade={markerFade()}
 						cx={point.x}
 						cy={point.y}
 						r={p ? 14 : 5}
 						fill={p ? 'none' : 'var(--legal)'}
-						stroke={p ? 'var(--danger)' : 'var(--legal)'}
+						opacity=".42"
+						stroke={p ? 'var(--legal)' : 'none'}
+						stroke-width="2"
+					/>{/if}
+				{#if focusMove && (i === focusMove.from || i === focusMove.to)}<circle
+						in:fade={markerFade()}
+						class="demo-endpoint"
+						opacity=".3"
+						cx={point.x}
+						cy={point.y}
+						r="15"
+						fill="var(--demo-mark-fill)"
+						stroke="var(--demo-mark)"
 						stroke-width="2"
 					/>{/if}
 				{#if p}<Piece
@@ -378,10 +419,29 @@
 
 <style>
 	.threat-arrow {
-		filter: drop-shadow(0 1px 0 var(--threat-outline)) drop-shadow(0 -1px 0 var(--threat-outline))
-			drop-shadow(1px 0 0 var(--threat-outline)) drop-shadow(-1px 0 0 var(--threat-outline));
+		stroke-linecap: butt;
 	}
 	.spatial {
+		--axis-w: #aaa;
+		--grid: #828282;
+		--grid-soft: #606060;
+		--plane: #777;
+		--legal: #aaa;
+		--defender: #aaa;
+		--accent: #aaa;
+		--board-selected: #aaa;
+		--board-target: #aaa;
+		--board-threat: #888;
+		--demo-mark: #aaa;
+		--demo-mark-fill: #777;
+		--threat-white: #b5b5b5;
+		--threat-black: #909090;
+		--piece-white: #eee;
+		--piece-white-outline: #333;
+		--piece-black: #292929;
+		--piece-black-outline: #151515;
+		--piece-black-detail: #ccc;
+
 		min-width: 0;
 	}
 	.space-svg {

@@ -46,7 +46,14 @@
 				? 'Checkmate.'
 				: result?.reason === 'resignation'
 					? 'Game ended by resignation.'
-					: 'Game drawn.'}
+					: ((
+							{
+								stalemate: 'Stalemate.',
+								repetition: 'Draw by repetition.',
+								fiftyMove: 'Draw by the 50-move rule.',
+								bareKings: 'Only kings remain.'
+							} as Record<string, string>
+						)[result?.detail ?? ''] ?? 'Game drawn.')}
 		</p>
 	</section>{/if}
 {#if confetti}<div class="confetti" aria-hidden="true">

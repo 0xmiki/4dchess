@@ -1,8 +1,28 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	let { title, children, onclose }: { title: string; children: Snippet; onclose?: () => void } =
-		$props();
+	let {
+		title,
+		children,
+		onclose,
+		dismissOnBackdrop = false
+	}: {
+		title: string;
+		children: Snippet;
+		onclose?: () => void;
+		dismissOnBackdrop?: boolean;
+	} = $props();
 	let dialog: HTMLDialogElement;
+	let beganOutside = false;
+	function outside(event: PointerEvent) {
+		const r = dialog.getBoundingClientRect();
+		return (
+			event.target === dialog &&
+			(event.clientX < r.left ||
+				event.clientX > r.right ||
+				event.clientY < r.top ||
+				event.clientY > r.bottom)
+		);
+	}
 	export function showModal() {
 		dialog.showModal();
 	}
@@ -11,7 +31,18 @@
 	}
 </script>
 
-<dialog bind:this={dialog} aria-label={title} {onclose}>
+<dialog
+	bind:this={dialog}
+	aria-label={title}
+	{onclose}
+	onpointerdown={(event) => {
+		beganOutside = outside(event);
+	}}
+	onpointerup={(event) => {
+		if (dismissOnBackdrop && beganOutside && outside(event)) close();
+		beganOutside = false;
+	}}
+>
 	<h2>{title}</h2>
 	{@render children()}
 </dialog>

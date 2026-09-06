@@ -1,7 +1,13 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
+	import { resolve } from '$app/paths';
+	import { rememberMatch, leaveMatch } from '$lib/active-match';
+	import { motionDuration } from '$lib/components/motion';
+	import { historyPositions } from '$lib/chess/history';
+	import SideToggle from '$lib/components/SideToggle.svelte';
+	import MovesPanel from '$lib/components/MovesPanel.svelte';
 	import GameOutcome from '$lib/components/GameOutcome.svelte';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
-	import BackToPlay from '$lib/components/BackToPlay.svelte';
 	import { onMount, untrack } from 'svelte';
 	import {
 		applyMove,
@@ -16,10 +22,8 @@
 	import ChessBoard from '$lib/components/ChessBoard.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import SelectField from '$lib/components/SelectField.svelte';
-	import GameMenu from '$lib/components/GameMenu.svelte';
-	import GameStatus from '$lib/components/GameStatus.svelte';
+	import TurnIndicator from '$lib/components/TurnIndicator.svelte';
 	import Modal from '$lib/components/Modal.svelte';
-	import RulesDialog from '$lib/components/RulesDialog.svelte';
 	import MoveList from '$lib/components/MoveList.svelte';
 	import ExportGame from '$lib/components/ExportGame.svelte';
 	let game = $state<GameState | null>(null),
@@ -36,15 +40,30 @@
 	let history = $state<Entry[]>([]),
 		startedAt = $state(Date.now()),
 		showExport = $state(false);
-	let menu = $state<ReturnType<typeof GameMenu>>();
-	let rules: ReturnType<typeof RulesDialog>,
-		newDialog: ReturnType<typeof Modal>,
-		historyDialog: ReturnType<typeof Modal>,
-		exportDialog: ReturnType<typeof Modal>;
-	const sideOptions = [
-		{ value: 'w', label: 'White' },
-		{ value: 'b', label: 'Black' }
-	] as const;
+	let resigned = $state(false),
+		reviewPly = $state<number | null>(null);
+	const result = $derived(
+		resigned
+			? { reason: 'resignation', winner: player === 'w' ? ('black' as const) : ('white' as const) }
+			: (game?.result ?? null)
+	);
+	const positions = $derived(game ? historyPositions(game.board, game.ply, history) : new Map());
+	function leave() {
+		if (!result) return;
+		leaveMatch();
+		void goto(resolve('/'));
+	}
+	function resign() {
+		if (result) {
+			resignDialog.close();
+			return;
+		}
+		resigned = true;
+		reviewPly = null;
+		resignDialog.close();
+		save();
+	}
+	let resignDialog: ReturnType<typeof Modal>, exportDialog: ReturnType<typeof Modal>;
 	const levelOptions = Object.entries(difficulties).map(([value, level]) => ({
 		value: value as Difficulty,
 		label: level.label
@@ -84,6 +103,7 @@
 				history = restored;
 				startedAt = Number.isFinite(saved.startedAt) ? saved.startedAt : Date.now();
 				game = state;
+				resigned = saved.resigned === true;
 			}
 		} catch {
 			error = 'The saved computer game could not be restored. Start a new game.';
@@ -93,11 +113,16 @@
 			setupSide = requested === 'b' ? 'b' : 'w';
 			start();
 		}
+		if (result) leaveMatch();
+		else rememberMatch({ kind: 'computer' });
 		const visibility = () => {
 			hidden = document.hidden;
 		};
 		document.addEventListener('visibilitychange', visibility);
 		return () => document.removeEventListener('visibilitychange', visibility);
+	});
+	$effect(() => {
+		if (ready && result) leaveMatch();
 	});
 	function save() {
 		try {
@@ -105,6 +130,7 @@
 				'fourfold-computer-v1',
 				JSON.stringify({
 					version: 1,
+					resigned,
 					player,
 					difficulty,
 					startedAt,
@@ -116,6 +142,9 @@
 		}
 	}
 	function start() {
+		resigned = false;
+		reviewPly = null;
+		rememberMatch({ kind: 'computer' });
 		player = setupSide;
 		difficulty = setupDifficulty;
 		history = [];
@@ -125,7 +154,7 @@
 		save();
 	}
 	function move(move: Move) {
-		if (!game) return;
+		if (!game || resigned) return;
 		const before = game;
 		const applied = applyMove(before, move);
 		if (!applied.ok) {
@@ -151,7 +180,7 @@
 			isHidden = hidden,
 			isReady = ready;
 		void retry;
-		if (!position || position.result || position.turn === side || isHidden || !isReady) return;
+		if (!position || result || position.turn === side || isHidden || !isReady) return;
 		return untrack(() => {
 			let worker: Worker;
 			try {
@@ -163,6 +192,11 @@
 			let active = true,
 				finishTimer: ReturnType<typeof setTimeout> | undefined;
 			const startTime = performance.now();
+			const last = history.at(-1);
+			const replyDelay =
+				last?.piece.c === side && !matchMedia('(prefers-reduced-motion: reduce)').matches
+					? motionDuration(last, last.piece) + 120
+					: 380;
 			thinking = true;
 			error = '';
 			const watchdog = setTimeout(() => {
@@ -190,7 +224,7 @@
 						if (reply) move(reply);
 						else error = 'The computer did not return a move. Retry to continue.';
 					},
-					Math.max(0, 380 - (performance.now() - startTime))
+					Math.max(0, replyDelay - (performance.now() - startTime))
 				);
 			};
 			worker.onerror = () => {
@@ -208,17 +242,11 @@
 			};
 		});
 	});
-	function newGame() {
-		setupSide = player;
-		setupDifficulty = difficulty;
-		menu?.close();
-		newDialog.showModal();
-	}
 	function exportSnapshot() {
 		if (!game) throw Error('No game');
 		return {
 			moves: history,
-			result: game.result,
+			result,
 			date: startedAt,
 			white: player === 'w' ? 'You' : `Computer (${difficulties[difficulty].label})`,
 			black: player === 'b' ? 'You' : `Computer (${difficulties[difficulty].label})`
@@ -229,120 +257,111 @@
 <svelte:head><title>Play computer · 4D chess</title></svelte:head>
 <main class="shell match-shell">
 	{#if !ready}<LoadingScreen label="Loading computer game" />
-	{:else if !game}<section class="flow" aria-label="Computer game settings">
-			<h1>Play computer</h1>
-			<SelectField label="Your side" bind:value={setupSide} options={sideOptions} /><SelectField
-				label="Difficulty"
-				bind:value={setupDifficulty}
-				options={levelOptions}
-			/><Button variant="primary" onclick={start}>Start game</Button>{#if error}<p
-					class="error"
-					role="alert"
-				>
-					{error}
-				</p>{/if}
-		</section>
-	{:else}<div class="match-layout">
+	{:else if game}<div class="match-layout">
 			<div class="match-position">
 				<ChessBoard
-					board={game.board}
-					turn={game.turn}
+					gameKey={String(startedAt)}
+					board={reviewPly === null ? game.board : positions.get(reviewPly)!}
+					turn={reviewPly === null ? game.turn : reviewPly % 2 === 0 ? 'w' : 'b'}
 					seat={player === 'w' ? 'white' : 'black'}
-					enabled={!thinking && game.turn === player && !game.result}
-					lastMove={history.at(-1) ?? null}
+					enabled={reviewPly === null && !thinking && game.turn === player && !result}
+					lastMove={reviewPly === null
+						? (history.at(-1) ?? null)
+						: (history.find((move) => move.ply === reviewPly) ?? null)}
 					onmove={move}
 				/>
 			</div>
 			<aside class="game-info">
-				<div class="computer-status row">
-					<GameStatus
-						board={game.board}
-						turn={game.turn}
-						result={game.result}
-						{thinking}
-						subtitle={`You are ${player === 'w' ? 'White' : 'Black'} · ${difficulties[difficulty].label}`}
-					/>
-				</div>
 				{#if error}<div class="notice row" role="alert">
 						<p class="error">{error}</p>
-						{#if game.turn !== player && !game.result && !thinking}<Button
+						{#if game.turn !== player && !result && !thinking}<Button
 								onclick={() => {
 									retry++;
 								}}>Retry computer</Button
 							>{/if}
 					</div>{/if}
-				<GameOutcome result={game.result} side={player === 'w' ? 'white' : 'black'} />
-				<footer class="game-tools">
-					<BackToPlay />{#if game}<Button onclick={newGame}>New game</Button
-						>{/if}{#if game}<GameMenu bind:this={menu}
-							><Button
-								onclick={() => {
-									menu?.close();
-									rules.showModal();
-								}}>Rules</Button
-							>{#if history.length}<Button
-									onclick={() => {
-										menu?.close();
-										historyDialog.showModal();
-									}}>Move history</Button
-								>{/if}<Button
-								onclick={() => {
-									menu?.close();
-									showExport = true;
-									exportDialog.showModal();
-								}}>Export game</Button
-							></GameMenu
-						>{/if}
-				</footer>
-				{#if history.length}<section class="side-moves" aria-label="Recent moves">
-						<h2>Moves</h2>
-						<MoveList moves={[...history].reverse().slice(0, 8)} />
-					</section>{/if}
+				<GameOutcome {result} side={player === 'w' ? 'white' : 'black'} />
+				{#if result}<div class="computer-settings">
+						<SideToggle
+							bind:value={
+								() => (setupSide === 'w' ? 'white' : 'black'),
+								(side) => {
+									setupSide = side === 'white' ? 'w' : 'b';
+								}
+							}
+						/><SelectField
+							label="Difficulty"
+							bind:value={setupDifficulty}
+							options={levelOptions}
+						/><Button variant="primary" onclick={start}>New game</Button>
+					</div>{:else}<Button onclick={() => resignDialog.showModal()}>Resign</Button>{/if}
+				<MovesPanel
+					onexport={() => {
+						showExport = true;
+						exportDialog.showModal();
+					}}
+					>{#snippet indicator()}<TurnIndicator
+							label={reviewPly !== null
+								? 'Reviewing move ' + reviewPly
+								: result
+									? result.winner
+										? (result.winner === 'white' ? 'White' : 'Black') + ' wins'
+										: 'Game drawn'
+									: (game?.turn === 'w' ? 'White' : 'Black') + ' to move'}
+							turn={game?.turn ?? 'w'}
+							text={reviewPly !== null
+								? `Move ${reviewPly}`
+								: result
+									? 'Game over'
+									: thinking
+										? 'Computer is thinking…'
+										: game?.turn === player
+											? 'Your turn'
+											: 'Computer’s turn'}
+						/>{/snippet}{#if history.length}<MoveList
+							moves={history}
+							{positions}
+							selectedPly={reviewPly ?? game.ply}
+							livePly={game.ply}
+							onselect={(ply) => {
+								reviewPly = ply === game!.ply ? null : ply;
+							}}
+						/>{:else}<p class="muted">No moves yet.</p>{/if}</MovesPanel
+				>{#if result}<button class="leave-match" onclick={leave}>Leave room</button>{/if}
 			</aside>
 		</div>
 	{/if}
 </main>
-<RulesDialog bind:this={rules} onclose={() => menu?.focus()} />
-<Modal bind:this={newDialog} title="Start a new computer game?"
-	><div class="stack">
-		<p>The current game will be replaced.</p>
-		<SelectField label="Your side" bind:value={setupSide} options={sideOptions} /><SelectField
-			label="Difficulty"
-			bind:value={setupDifficulty}
-			options={levelOptions}
-		/>
-		<div class="row">
-			<Button onclick={() => newDialog.close()}>Keep playing</Button><Button
-				variant="primary"
-				onclick={() => {
-					newDialog.close();
-					start();
-				}}>Start new game</Button
-			>
-		</div>
+<Modal bind:this={resignDialog} title="Resign this game?"
+	><p>The computer will win.</p>
+	<div class="row">
+		<Button onclick={() => resignDialog.close()}>Keep playing</Button><Button onclick={resign}
+			>Resign game</Button
+		>
 	</div></Modal
 >
-<Modal bind:this={historyDialog} title="Move history" onclose={() => menu?.focus()}
-	><MoveList moves={[...history].reverse()} /><Button onclick={() => historyDialog.close()}
-		>Close history</Button
-	></Modal
->
+
 <Modal
 	bind:this={exportDialog}
 	title="Export game"
+	dismissOnBackdrop
 	onclose={() => {
 		showExport = false;
-		menu?.focus();
 	}}
-	>{#if showExport}<ExportGame load={exportSnapshot} />{/if}<Button
-		onclick={() => exportDialog.close()}>Close export</Button
-	></Modal
+	>{#if showExport}<ExportGame load={exportSnapshot} />{/if}</Modal
 >
 
 <style>
-	.computer-status {
-		justify-content: space-between;
-		margin-bottom: 24px;
+	.computer-settings {
+		display: grid;
+		gap: var(--space-4);
+	}
+	.computer-settings :global(.side-toggle) {
+		display: block;
+	}
+	.computer-settings :global(legend) {
+		float: none;
+		margin-bottom: 8px;
 	}
 	.notice {
 		margin-bottom: 16px;

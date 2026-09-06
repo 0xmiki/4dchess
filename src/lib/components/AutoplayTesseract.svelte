@@ -1,24 +1,41 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { cameraForMove } from '$lib/visuals/projection';
-	import { createInitialState, applyMove, type Board, type Move } from '$lib/chess';
+	import { cameraForMove, DEFAULT_CAMERA } from '$lib/visuals/projection';
+	import { demoFrame } from '$lib/visuals/demo-timeline';
+	import {
+		createInitialState,
+		applyMove,
+		legalMoves,
+		type Board,
+		type Move,
+		type GameState,
+		type Piece
+	} from '$lib/chess';
 	import ComputerWorker from '$lib/chess/computer.worker.ts?worker&inline';
 	import SpatialBoard from './SpatialBoard.svelte';
 	import type { PieceMotion } from './motion';
+	import { analyzeThreats, type ThreatInspection } from '$lib/chess/threats';
 	import PauseIcon from 'phosphor-svelte/lib/PauseIcon';
 	import PlayIcon from 'phosphor-svelte/lib/PlayIcon';
 	const initial = createInitialState();
+	let ready = $state(false);
 	let game = $state(initial),
 		shown = $state<Board>(initial.board),
 		motion = $state<PieceMotion | null>(null),
 		last = $state<Move | null>(null);
-	let yaw = $state(-0.48),
-		pitch = $state(0.26),
+	let selected = $state<number | null>(null),
+		destinations = $state<Move[]>([]),
+		preview = $state<ThreatInspection | null>(null),
+		focusMove = $state<(Move & { knight?: boolean }) | null>(null);
+	let yaw = $state(DEFAULT_CAMERA.yaw),
+		pitch = $state(DEFAULT_CAMERA.pitch),
 		paused = $state(false),
+		phase = $state('idle'),
 		root: HTMLDivElement;
 	let resume = () => {},
 		stop = () => {};
 	onMount(() => {
+		ready = true;
 		let worker: Worker | null = null,
 			timer: ReturnType<typeof setTimeout>,
 			frame = 0,
@@ -26,7 +43,24 @@
 			request = 0,
 			visible = true,
 			alive = true;
+		type Sequence = {
+			move: Move;
+			before: Board;
+			travel: Board;
+			next: GameState;
+			piece: Piece;
+			captured: Piece | null;
+			legal: Move[];
+			inspection: ThreatInspection;
+			fromYaw: number;
+			fromPitch: number;
+			camera: typeof DEFAULT_CAMERA;
+			start: number;
+			elapsed: number;
+		};
+		let sequence: Sequence | null = null;
 		const preference = matchMedia('(prefers-reduced-motion: reduce)');
+		const canRun = () => alive && !paused && !document.hidden && visible;
 		function halt() {
 			clearTimeout(timer);
 			cancelAnimationFrame(frame);
@@ -34,20 +68,79 @@
 			worker = null;
 			pending = false;
 			request++;
-			motion = null;
-			shown = game.board;
 		}
-		function schedule(delay = 1200) {
+		function schedule(delay = 2400) {
 			clearTimeout(timer);
-			if (alive && !paused && !document.hidden && visible) timer = setTimeout(think, delay);
+			if (canRun()) timer = setTimeout(think, delay);
+		}
+		function clearMarkers() {
+			selected = null;
+			destinations = [];
+			preview = null;
+			focusMove = null;
+			motion = null;
+		}
+		function animate(now: number) {
+			if (!sequence || !canRun()) return;
+			const s = sequence;
+			s.elapsed = now - s.start;
+			const sample = demoFrame(s.elapsed);
+			phase = sample.phase;
+			yaw = s.fromYaw + (s.camera.yaw - s.fromYaw) * sample.cameraProgress;
+			pitch = s.fromPitch + (s.camera.pitch - s.fromPitch) * sample.cameraProgress;
+			selected = phase === 'orbit' || phase === 'settle' ? null : s.move.from;
+			destinations = phase === 'selection' ? s.legal : [];
+			focusMove =
+				phase === 'preview' || phase === 'move' || phase === 'settle'
+					? { ...s.move, knight: s.piece.t === 'n' }
+					: null;
+			preview = phase === 'preview' ? s.inspection : null;
+			if (phase === 'move') {
+				shown = s.travel;
+				motion = {
+					...s.move,
+					piece: s.piece,
+					captured: s.captured,
+					progress: sample.pieceProgress
+				};
+			} else {
+				shown = phase === 'settle' ? s.next.board : s.before;
+				motion = null;
+			}
+			if (sample.done) {
+				game = s.next;
+				shown = game.board;
+				last = s.move;
+				sequence = null;
+				clearMarkers();
+				phase = 'idle';
+				schedule(game.result ? 8000 : 1600);
+			} else frame = requestAnimationFrame(animate);
+		}
+		function restartAnimation() {
+			if (sequence) {
+				const progress = demoFrame(sequence.elapsed).cameraProgress;
+				const expectedYaw = sequence.fromYaw + (sequence.camera.yaw - sequence.fromYaw) * progress;
+				const expectedPitch =
+					sequence.fromPitch + (sequence.camera.pitch - sequence.fromPitch) * progress;
+				if (Math.abs(yaw - expectedYaw) + Math.abs(pitch - expectedPitch) > 0.00001) {
+					sequence.fromYaw = yaw;
+					sequence.fromPitch = pitch;
+					if (progress < 1) sequence.elapsed = 0;
+					else sequence.camera = { yaw, pitch };
+				}
+				sequence.start = performance.now() - sequence.elapsed;
+				frame = requestAnimationFrame(animate);
+			} else schedule(600);
 		}
 		function think() {
-			if (!alive || paused || document.hidden || !visible || pending) return;
+			if (!canRun() || pending || sequence) return;
 			if (game.result) {
 				game = createInitialState();
 				shown = game.board;
 				last = null;
-				schedule(1200);
+				clearMarkers();
+				schedule();
 				return;
 			}
 			worker ??= new ComputerWorker();
@@ -60,70 +153,70 @@
 				if (event.data.type !== 'result' || !move) {
 					worker?.terminate();
 					worker = null;
-					schedule(2000);
+					schedule(4000);
 					return;
 				}
-				const before = game.board,
-					applied = applyMove(game, move);
+				const applied = applyMove(game, move);
 				if (!applied.ok) {
-					schedule(2000);
+					schedule(4000);
 					return;
 				}
-				game = applied.state;
-				last = move;
 				if (preference.matches) {
+					game = applied.state;
 					shown = game.board;
-					schedule(game.result ? 4000 : 1800);
+					last = move;
+					schedule(game.result ? 8000 : 3600);
 					return;
 				}
-				const piece = before[move.from]!,
-					captured = before[move.to],
-					view = before.slice();
-				view[move.from] = null;
-				shown = view;
-				const start = performance.now(),
-					fromYaw = yaw,
-					fromPitch = pitch,
-					targetCamera = cameraForMove(before, move, { yaw, pitch });
-				const animate = (now: number) => {
-					const orbit = Math.min(1, (now - start) / 650),
-						orbitEase = orbit * orbit * (3 - 2 * orbit);
-					const t = Math.max(0, Math.min(1, (now - start - 650) / 900)),
-						ease = t * t * (3 - 2 * t);
-					motion = { ...move, piece, captured, progress: ease };
-					yaw = fromYaw + (targetCamera.yaw - fromYaw) * orbitEase;
-					pitch = fromPitch + (targetCamera.pitch - fromPitch) * orbitEase;
-					if (t < 1) frame = requestAnimationFrame(animate);
-					else {
-						motion = null;
-						shown = game.board;
-						schedule(game.result ? 4000 : 1200);
-					}
+				const travel = game.board.slice();
+				travel[move.from] = null;
+				sequence = {
+					move,
+					before: game.board,
+					travel,
+					next: applied.state,
+					piece: game.board[move.from]!,
+					captured: game.board[move.to],
+					legal: legalMoves(game.board, game.turn, move.from),
+					inspection: analyzeThreats(game.board, game.turn, move.to, move.from),
+					fromYaw: yaw,
+					fromPitch: pitch,
+					camera: cameraForMove(game.board, move, { yaw, pitch }),
+					start: performance.now(),
+					elapsed: 0
 				};
 				frame = requestAnimationFrame(animate);
 			};
 			worker.onerror = () => {
 				halt();
-				schedule(2000);
+				schedule(4000);
 			};
 			worker.postMessage({ id, state: $state.snapshot(game), difficulty: 'easy' });
 		}
 		stop = halt;
-		resume = () => schedule(300);
+		resume = restartAnimation;
 		const visibility = () => {
 			if (document.hidden) halt();
-			else schedule(300);
+			else restartAnimation();
 		};
 		const changed = () => {
 			halt();
-			schedule(300);
+			if (sequence && preference.matches) {
+				game = sequence.next;
+				shown = game.board;
+				last = sequence.move;
+				sequence = null;
+				clearMarkers();
+				phase = 'idle';
+			}
+			restartAnimation();
 		};
 		document.addEventListener('visibilitychange', visibility);
 		preference.addEventListener('change', changed);
 		const observer = new IntersectionObserver(([entry]) => {
 			visible = entry.isIntersecting;
 			if (!visible) halt();
-			else schedule(500);
+			else restartAnimation();
 		});
 		observer.observe(root);
 		schedule();
@@ -149,21 +242,33 @@
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions (Capture manual orbit gestures to pause the demo.) -->
-<div class="autoplay" bind:this={root} data-demo-ply={game.ply} onpointerdown={interact}>
+<div
+	class="autoplay"
+	bind:this={root}
+	data-demo-ply={game.ply}
+	data-demo-phase={phase}
+	onpointerdown={interact}
+>
 	<SpatialBoard
 		annotations={false}
 		board={shown}
-		selected={null}
-		moves={[]}
+		{selected}
+		moves={destinations}
+		{focusMove}
 		lastMove={last}
 		{motion}
-		inspection={null}
+		inspection={preview}
+		inspections={preview ? [preview] : []}
 		onselect={() => {}}
 		oninspect={() => {}}
 		bind:yaw
 		bind:pitch
 	/>
-	<button class="demo-pause" aria-label={paused ? 'Play demo' : 'Pause demo'} onclick={toggle}
+	<button
+		disabled={!ready}
+		class="demo-pause"
+		aria-label={paused ? 'Play demo' : 'Pause demo'}
+		onclick={toggle}
 		>{#if paused}<PlayIcon size={18} />{:else}<PauseIcon size={18} />{/if}</button
 	>
 </div>

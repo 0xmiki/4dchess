@@ -3,9 +3,17 @@ import { expect, it } from 'vitest';
 
 const css = readFileSync(new URL('./design.css', import.meta.url), 'utf8');
 const colors = Object.fromEntries(
-	[...css.matchAll(/--([\w-]+):\s*(#[\da-f]{6});/g)].map((match) => [match[1], match[2]])
+	[...css.matchAll(/--([\w-]+):\s*(#[\da-f]{6}|var\(--[\w-]+\));/g)].map((match) => [
+		match[1],
+		match[2]
+	])
 );
+function resolveColor(value: string): string {
+	const reference = /^var\(--([\w-]+)\)$/.exec(value);
+	return reference ? resolveColor(colors[reference[1]]) : value;
+}
 function luminance(hex: string) {
+	hex = resolveColor(hex);
 	const channels = hex
 		.slice(1)
 		.match(/../g)!
@@ -23,7 +31,7 @@ it.each([
 	['text', 'surface'],
 	['muted', 'page'],
 	['muted', 'surface'],
-	['on-accent', 'accent'],
+	['on-accent', 'primary-fill'],
 	['accent', 'page'],
 	['axis-w', 'surface'],
 	['danger', 'surface']

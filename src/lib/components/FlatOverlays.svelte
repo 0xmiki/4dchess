@@ -1,5 +1,5 @@
 <script lang="ts">
-	import type { PieceMotion } from './motion';
+	import { flatMotionPoint, type FlatPoint, type PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
 	import { onMount } from 'svelte';
 	import Piece from './Piece.svelte';
@@ -12,7 +12,7 @@
 		motion: PieceMotion | null;
 		inspections?: ThreatInspection[];
 	} = $props();
-	let boxes = $state<{ x: number; y: number; size: number }[]>([]),
+	let boxes = $state<FlatPoint[]>([]),
 		width = $state(0),
 		height = $state(0);
 	onMount(() => {
@@ -21,10 +21,19 @@
 			width = r.width;
 			height = r.height;
 			boxes = Array.from({ length: 64 }, (_, i) => {
-				const c = root.querySelector(`[data-square="${i}"]`)!.getBoundingClientRect();
+				const cell = root.querySelector(`[data-square="${i}"]`)!;
+				const c = cell.getBoundingClientRect(),
+					plane = cell.closest('.board')!.getBoundingClientRect();
 				return {
 					x: c.x - r.x + c.width / 2,
 					y: c.y - r.y + c.height / 2,
+					cellWidth: c.width,
+					plane: {
+						left: plane.left - r.left,
+						right: plane.right - r.left,
+						top: plane.top - r.top,
+						bottom: plane.bottom - r.top
+					},
 					size: Math.min(72, c.width * 0.76)
 				};
 			});
@@ -39,12 +48,24 @@
 		const a = boxes[motion.from],
 			b = boxes[motion.to],
 			t = motion.progress;
-		return {
-			x: a.x + (b.x - a.x) * t,
-			y: a.y + (b.y - a.y) * t - (motion.piece.t === 'n' ? Math.sin(Math.PI * t) * 24 : 0),
-			size: a.size
-		};
+		return flatMotionPoint(a, b, motion, motion.piece, t, width, height);
 	});
+	const route = $derived(
+		motion && boxes.length
+			? Array.from({ length: 21 }, (_, i) => {
+					const p = flatMotionPoint(
+						boxes[motion.from],
+						boxes[motion.to],
+						motion,
+						motion.piece,
+						i / 20,
+						width,
+						height
+					);
+					return (i ? 'L' : 'M') + p.x + ',' + p.y;
+				}).join(' ')
+			: ''
+	);
 </script>
 
 {#if boxes.length}
@@ -55,10 +76,9 @@
 				viewBox="0 0 10 10"
 				refX="9"
 				refY="5"
-				markerWidth="6"
-				markerHeight="6"
-				orient="auto"
-				><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker
+				markerWidth="3"
+				markerHeight="3"
+				orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke" /></marker
 			></defs
 		>
 		{#if inspections.length}{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}<line
@@ -69,12 +89,18 @@
 						stroke={marked.position[from]?.c === 'w'
 							? 'var(--threat-white)'
 							: 'var(--threat-black)'}
-						stroke-dasharray={marked.position[from]?.c === marked.color ? '6 4' : undefined}
 						class="threat-arrow"
-						stroke-width="3"
+						stroke-width="10"
+						opacity=".48"
 						marker-end="url(#flat-threat-arrow)"
 					/>{/each}{/each}{/if}
-		{#if motion && point}<g data-animation="piece"
+		{#if motion && point}<path
+				d={route}
+				fill="none"
+				stroke="var(--legal-ink)"
+				stroke-width="1.5"
+				opacity=".3"
+			/><g data-animation="piece"
 				><Piece
 					onDark
 					piece={motion.piece}
@@ -88,8 +114,7 @@
 
 <style>
 	.threat-arrow {
-		filter: drop-shadow(0 1px 0 var(--threat-outline)) drop-shadow(0 -1px 0 var(--threat-outline))
-			drop-shadow(1px 0 0 var(--threat-outline)) drop-shadow(-1px 0 0 var(--threat-outline));
+		stroke-linecap: butt;
 	}
 	.overlay {
 		position: absolute;

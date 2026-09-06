@@ -28,6 +28,7 @@ export default defineSchema({
 		.index('by_user', ['userId']),
 	games: defineTable(gameFields)
 		.index('by_creator_request', ['creatorParticipantId', 'createRequestId'])
+		.index('by_room_round', ['roomRootId', 'round'])
 		.index('by_white', ['whiteParticipantId'])
 		.index('by_black', ['blackParticipantId'])
 		.index('by_status_expiry', ['status', 'expiresAt'])
