@@ -20,6 +20,9 @@ export const POST: RequestHandler = async (event) => {
 	if (!secret) return new Response('Guest sessions are temporarily unavailable.', { status: 503 });
 	const signed = await signGuestRequest(secret, ip);
 	const headers = new Headers();
+	// Fetch may decompress upstream bodies while preserving encoding headers.
+	// Request identity encoding so the browser receives a consistent response.
+	headers.set('accept-encoding', 'identity');
 	for (const name of ['accept', 'cookie', 'origin', 'referer', 'user-agent', 'content-type']) {
 		const value = event.request.headers.get(name);
 		if (value) headers.set(name, value);
