@@ -56,6 +56,13 @@ const messages: Record<string, string> = {
 export function errorMessage(error: unknown) {
 	if (error instanceof ConvexError && typeof error.data === 'string')
 		return messages[error.data] ?? 'The request was rejected.';
+	if (error instanceof Error && /Could not find public function/.test(error.message))
+		return 'This server has not been updated for this feature yet.';
+	if (
+		error instanceof Error &&
+		/Server Error|ArgumentValidationError|ReturnsValidationError/.test(error.message)
+	)
+		return 'The server could not complete this action. Please retry.';
 	return 'Could not reach the game server. Check your connection and retry.';
 }
 

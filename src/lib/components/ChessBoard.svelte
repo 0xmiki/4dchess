@@ -20,6 +20,7 @@
 	import { motionDuration, type PresentedMove, type PieceMotion } from './motion';
 	let {
 		gameKey = '',
+		showHint = true,
 		practice = false,
 		goalSquare = null,
 		onplace,
@@ -31,6 +32,7 @@
 		onmove
 	}: {
 		gameKey?: string;
+		showHint?: boolean;
 		practice?: boolean;
 		goalSquare?: number | null;
 		onplace?: (square: number) => void;
@@ -315,6 +317,7 @@
 					/>{/key}{/if}
 		</div>
 		<InspectionHint
+			visible={showHint}
 			description={pinned
 				.map(
 					(item) =>

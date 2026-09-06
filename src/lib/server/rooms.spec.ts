@@ -18,6 +18,10 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 		outsider = await guest(t);
 	const room = await white.mutation(api.games.create, { seat: 'white', requestId: randomUUID() });
 	await black.mutation(api.games.join, { token: room.token });
+	const original = await white.query(api.games.get, { gameId: room.gameId });
+	expect((await t.query(api.games.previewInvite, { token: room.token })).challengerName).toBe(
+		original.players.white
+	);
 	await expect(
 		white.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
 	).rejects.toThrow('MATCH_NOT_FINISHED');
@@ -64,6 +68,8 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 	).toHaveLength(2);
 	for (const player of [white, black]) {
 		const view = await player.query(api.games.get, { gameId: room.gameId });
+		expect(view.seat).toBe(player === white ? 'black' : 'white');
+		expect(view.players).toEqual({ white: original.players.black, black: original.players.white });
 		expect(view.game).toMatchObject({
 			_id: games[0],
 			round: 2,
@@ -74,8 +80,8 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 	}
 	const joined = await black.mutation(api.games.join, { token: room.token });
 	expect(await white.query(api.games.roomScore, { roomId: room.gameId })).toEqual({
-		white: 1,
-		black: 0,
+		you: 1,
+		opponent: 0,
 		games: 1
 	});
 	await t.run((ctx) =>
@@ -85,11 +91,12 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 		})
 	);
 	expect(await black.query(api.games.roomScore, { roomId: room.gameId })).toEqual({
-		white: 1.5,
-		black: 0.5,
+		you: 0.5,
+		opponent: 1.5,
 		games: 2
 	});
 	expect(joined.gameId).toBe(room.gameId);
+	expect(joined.seat).toBe('white');
 	const old = await t.run((ctx) => ctx.db.get(room.gameId));
 	expect(old?.status).toBe('finished');
 	expect(old?.ply).toBe(1);
@@ -116,4 +123,31 @@ it('does not reopen a closed unjoined room', async () => {
 	await expect(
 		player.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
 	).rejects.toThrow('ROOM_CLOSED');
+});
+
+it('rematches after zero-move resignations and counts wins for people after colors swap', async () => {
+	const t = setup(),
+		first = await guest(t),
+		second = await guest(t);
+	const room = await first.mutation(api.games.create, { seat: 'white', requestId: randomUUID() });
+	await second.mutation(api.games.join, { token: room.token });
+	for (let round = 0; round < 3; round++) {
+		const view = await second.query(api.games.get, { gameId: room.gameId });
+		await second.mutation(api.games.resign, {
+			gameId: view.game._id,
+			expectedRevision: view.game.revision,
+			requestId: randomUUID()
+		});
+		const offer = { roomId: room.gameId, expectedGameId: view.game._id };
+		await second.mutation(api.games.rematch, offer);
+		await first.mutation(api.games.rematch, offer);
+		const next = await first.query(api.games.get, { gameId: room.gameId });
+		expect(next.game.ply).toBe(0);
+		expect(next.seat).toBe(round % 2 === 0 ? 'black' : 'white');
+		expect(await first.query(api.games.roomScore, { roomId: room.gameId })).toEqual({
+			you: round + 1,
+			opponent: 0,
+			games: round + 1
+		});
+	}
 });

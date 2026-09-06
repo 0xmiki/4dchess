@@ -3,7 +3,7 @@ import { createInitialState } from '../lib/chess';
 import { internal } from './_generated/api';
 import { internalMutation, mutation, query } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
-import { currentParticipant, ensureParticipant } from './lib/participants';
+import { currentParticipant, ensureParticipant, participantName } from './lib/participants';
 import { invitationToken, tokenHash, validateRequestId } from './lib/invitations';
 import { color, gameDocument, seatReceipt } from './lib/validators';
 import { requireMatch, validateRevision } from './lib/access';
@@ -133,6 +133,7 @@ export const previewInvite = query({
 		gameId: v.id('games'),
 		status: v.union(v.literal('waiting'), v.literal('active'), v.literal('finished')),
 		availableSeat: v.union(color, v.null()),
+		challengerName: v.string(),
 		expiresAt: v.number()
 	}),
 	handler: async (ctx, { token }) => {
@@ -149,6 +150,7 @@ export const previewInvite = query({
 			game.status === 'waiting' && invite.status === 'open' && Date.now() < invite.expiresAt;
 		return {
 			gameId: game._id,
+			challengerName: await participantName(ctx, game.creatorParticipantId),
 			status: game.status,
 			availableSeat: available
 				? game.whiteParticipantId
@@ -174,7 +176,14 @@ export const join = mutation({
 		const game = await ctx.db.get(invite.gameId);
 		if (!game) throw new ConvexError('INVALID_INVITE');
 		const existingSeat = seatOf(game, participantId);
-		if (existingSeat) return { gameId: game._id, seat: existingSeat, revision: game.revision };
+		if (existingSeat) {
+			const current = game.currentGameId ? await ctx.db.get(game.currentGameId) : game;
+			return {
+				gameId: game._id,
+				seat: current ? seatOf(current, participantId)! : existingSeat,
+				revision: current?.revision ?? game.revision
+			};
+		}
 		if (game.whiteParticipantId && game.blackParticipantId) throw new ConvexError('MATCH_FULL');
 		if (game.status !== 'waiting' || invite.status !== 'open')
 			throw new ConvexError('INVITE_CLOSED');
@@ -194,7 +203,14 @@ export const join = mutation({
 
 export const get = query({
 	args: { gameId: v.id('games') },
-	returns: v.object({ game: gameDocument, seat: color }),
+	returns: v.object({
+		game: gameDocument,
+		seat: color,
+		players: v.object({
+			white: v.union(v.string(), v.null()),
+			black: v.union(v.string(), v.null())
+		})
+	}),
 	handler: async (ctx, { gameId }) => {
 		const { participant } = await currentParticipant(ctx);
 		const requested = await ctx.db.get(gameId);
@@ -202,7 +218,14 @@ export const get = query({
 		const game = root?.currentGameId ? await ctx.db.get(root.currentGameId) : root;
 		const seat = game && participant ? seatOf(game, participant._id) : null;
 		if (!game || !seat) throw new ConvexError('MATCH_NOT_FOUND');
-		return { game, seat };
+		return {
+			game,
+			seat,
+			players: {
+				white: game.whiteParticipantId ? await participantName(ctx, game.whiteParticipantId) : null,
+				black: game.blackParticipantId ? await participantName(ctx, game.blackParticipantId) : null
+			}
+		};
 	}
 });
 
@@ -304,8 +327,8 @@ export const rematch = mutation({
 			round,
 			creatorParticipantId: root.creatorParticipantId,
 			createRequestId: `room:${root._id}:${round}`,
-			whiteParticipantId: current.whiteParticipantId,
-			blackParticipantId: current.blackParticipantId,
+			whiteParticipantId: current.blackParticipantId,
+			blackParticipantId: current.whiteParticipantId,
 			status: 'active',
 			revision: 0,
 			expiresAt: root.expiresAt,
@@ -336,9 +359,9 @@ export const dismissRematch = mutation({
 
 export const roomScore = query({
 	args: { roomId: v.id('games') },
-	returns: v.object({ white: v.number(), black: v.number(), games: v.number() }),
+	returns: v.object({ you: v.number(), opponent: v.number(), games: v.number() }),
 	handler: async (ctx, { roomId }) => {
-		const { game } = await requireMatch(ctx, roomId);
+		const { game, participant } = await requireMatch(ctx, roomId);
 		const root = game.roomRootId ? await ctx.db.get(game.roomRootId) : game;
 		if (!root) throw new ConvexError('MATCH_NOT_FOUND');
 		const rounds = await ctx.db
@@ -346,15 +369,18 @@ export const roomScore = query({
 			.withIndex('by_room_round', (q) => q.eq('roomRootId', root._id))
 			.collect();
 		if (!rounds.some((round) => round._id === root._id)) rounds.push(root);
-		const score = { white: 0, black: 0, games: 0 };
+		const score = { you: 0, opponent: 0, games: 0 };
 		for (const round of rounds) {
 			if (round.status !== 'finished' || !round.result || round.result.reason === 'cancellation')
 				continue;
 			score.games++;
-			if (round.result.winner) score[round.result.winner]++;
-			else {
-				score.white += 0.5;
-				score.black += 0.5;
+			if (round.result.winner) {
+				const winner =
+					round.result.winner === 'white' ? round.whiteParticipantId : round.blackParticipantId;
+				score[winner === participant._id ? 'you' : 'opponent']++;
+			} else {
+				score.you += 0.5;
+				score.opponent += 0.5;
 			}
 		}
 		return score;

@@ -7,6 +7,7 @@ import { components, internal } from './_generated/api';
 import { verifyGuestRequest } from '../lib/server/guest-proof';
 import type { DataModel } from './_generated/dataModel';
 import authConfig from './auth.config';
+import { randomGuestName } from '../lib/guest-name';
 
 export const authComponent = createClient<DataModel>(components.betterAuth);
 
@@ -37,7 +38,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) =>
 			})
 		},
 		plugins: [
-			anonymous({ disableDeleteAnonymousUser: true, generateName: () => 'Guest' }),
+			anonymous({ disableDeleteAnonymousUser: true, generateName: randomGuestName }),
 			convex({ authConfig })
 		]
 	});

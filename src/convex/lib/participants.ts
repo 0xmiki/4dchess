@@ -1,6 +1,13 @@
 import { ConvexError } from 'convex/values';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { authComponent } from '../auth';
+import { guestName } from '../../lib/guest-name';
+import type { Id } from '../_generated/dataModel';
+
+export async function participantName(ctx: QueryCtx | MutationCtx, id: Id<'participants'>) {
+	const participant = await ctx.db.get(id);
+	return participant?.displayName ?? guestName(id);
+}
 
 export async function currentParticipant(ctx: QueryCtx | MutationCtx) {
 	const user = await authComponent.safeGetAuthUser(ctx);
@@ -20,9 +27,12 @@ export async function currentParticipant(ctx: QueryCtx | MutationCtx) {
 export async function ensureParticipant(ctx: MutationCtx) {
 	const { user, participant } = await currentParticipant(ctx);
 	if (participant) return participant._id;
+	const displayName = user.name && user.name !== 'Guest' ? user.name : undefined;
 	// The indexed lookup and insert share the caller's transaction.
 	return await ctx.db.insert(
 		'participants',
-		user.isAnonymous ? { guestId: user._id, userId: null } : { guestId: null, userId: user._id }
+		user.isAnonymous
+			? { guestId: user._id, userId: null, displayName }
+			: { guestId: null, userId: user._id, displayName }
 	);
 }

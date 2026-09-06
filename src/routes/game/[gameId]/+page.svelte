@@ -25,6 +25,8 @@
 	import Modal from '$lib/components/Modal.svelte';
 	import ExportGame from '$lib/components/ExportGame.svelte';
 	import MoveHistory from '$lib/components/MoveHistory.svelte';
+	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import InspectionHint from '$lib/components/InspectionHint.svelte';
 	const auth = useAuth(),
 		client = useConvexClient();
 	const roomId = $derived((page.params.roomId ?? page.params.gameId) as Id<'games'>);
@@ -371,8 +373,15 @@
 		</section>
 	{:else if game && match.data}
 		<div class="match-layout">
-			<div class="match-position">
+			<div class="match-position board-stage">
+				<PlayerProfile
+					name={match.data.players?.[match.data.seat === 'white' ? 'black' : 'white'] ??
+						'Waiting for friend'}
+					side={match.data.seat === 'white' ? 'black' : 'white'}
+					active={game.status === 'active' && !ownTurn}
+				/>
 				<ChessBoard
+					showHint={false}
 					gameKey={gameId}
 					board={review?.board ?? liveBoard!}
 					turn={review
@@ -391,6 +400,13 @@
 					lastMove={review ? review.move : (provisional?.move ?? latest.data ?? null)}
 					onmove={move}
 				/>
+				<PlayerProfile
+					name={match.data.players?.[match.data.seat] ?? 'Guest'}
+					side={match.data.seat}
+					own
+					active={game.status === 'active' && ownTurn}
+				/>
+				<div class="board-hint"><InspectionHint /></div>
 			</div>
 			<aside class="game-info">
 				{#if game.status === 'waiting'}
@@ -423,7 +439,7 @@
 							<button
 								class="delete-room"
 								onclick={() => deleteDialog.showModal()}
-								disabled={sending}><TrashIcon size={16} />Delete room</button
+								disabled={sending}><TrashIcon size={16} />Delete challenge</button
 							>
 						{/if}
 					</div>
@@ -439,11 +455,8 @@
 				<GameOutcome result={game.result} side={match.data.seat} />
 				{#if score.data && score.data.games > 0}
 					<div class="room-score" aria-label="Room score">
-						<span>You <strong>{score.data[match.data.seat]}</strong></span>
-						<span
-							>Friend <strong>{score.data[match.data.seat === 'white' ? 'black' : 'white']}</strong
-							></span
-						>
+						<span>You <strong>{score.data.you}</strong></span>
+						<span>Friend <strong>{score.data.opponent}</strong></span>
 					</div>
 				{/if}
 				{#if game.status === 'active'}<Button
@@ -515,14 +528,14 @@
 	}}
 	>{#if showExport}<ExportGame load={exportSnapshot} />{/if}</Modal
 >
-<Modal bind:this={deleteDialog} title="Delete this room?" dismissOnBackdrop>
+<Modal bind:this={deleteDialog} title="Delete this challenge?" dismissOnBackdrop>
 	<p>The invitation will stop working.</p>
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 	<div class="row">
-		<Button onclick={() => deleteDialog.close()} disabled={sending}>Keep room</Button><Button
+		<Button onclick={() => deleteDialog.close()} disabled={sending}>Keep challenge</Button><Button
 			onclick={cancel}
 			disabled={sending}
-			>{#if sending}<Spinner label="Deleting room" />{/if}Delete room</Button
+			>{#if sending}<Spinner label="Deleting challenge" />{/if}Delete challenge</Button
 		>
 	</div>
 </Modal>
@@ -538,6 +551,24 @@
 </Modal>
 
 <style>
+	.board-hint {
+		padding-inline: var(--space-3);
+		--hint-color: color-mix(in srgb, var(--muted) 70%, var(--page));
+	}
+	.board-hint :global(.inspection-hint) {
+		margin: 0;
+	}
+	.board-stage {
+		display: grid;
+		gap: var(--space-4);
+		--board-columns: repeat(2, minmax(0, 1fr));
+	}
+	.board-stage :global(.workspace) {
+		align-items: center;
+	}
+	.board-stage > :global(.player-profile) {
+		margin-inline: var(--space-3);
+	}
 	.room-score {
 		display: flex;
 		justify-content: space-between;
@@ -552,8 +583,9 @@
 	}
 	.delete-room {
 		display: flex;
+		padding-inline: var(--space-5);
 		align-items: center;
-		justify-content: center;
+		justify-content: flex-start;
 		gap: 8px;
 		min-height: 40px;
 		color: var(--muted);

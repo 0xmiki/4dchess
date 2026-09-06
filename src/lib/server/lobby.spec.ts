@@ -163,6 +163,7 @@ describe('match creation and invitation access', () => {
 		});
 		const preview = await t.query(api.games.previewInvite, { token: created.token });
 		expect(preview).toEqual({
+			challengerName: expect.any(String),
 			gameId: created.gameId,
 			availableSeat: 'white',
 			expiresAt: created.expiresAt,

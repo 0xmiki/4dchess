@@ -20,8 +20,8 @@ export default defineSchema({
 	}).index('by_name', ['name']),
 	participants: defineTable(
 		v.union(
-			v.object({ guestId: v.string(), userId: v.null() }),
-			v.object({ guestId: v.null(), userId: v.string() })
+			v.object({ guestId: v.string(), userId: v.null(), displayName: v.optional(v.string()) }),
+			v.object({ guestId: v.null(), userId: v.string(), displayName: v.optional(v.string()) })
 		)
 	)
 		.index('by_guest', ['guestId'])
