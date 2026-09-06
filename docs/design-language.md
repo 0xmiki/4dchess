@@ -50,7 +50,7 @@ Pointer interaction never draws a ring around the tesseract. Keyboard focus chan
 
 ## Geometry and teaching
 
-Use actual game coordinates. The nested cubes represent equally sized W layers; projection makes one appear smaller. The camera fits the enlarged projection within its available viewport at every rotation.
+Use actual game coordinates. The nested cubes represent equally sized W layers; projection makes one appear smaller. The camera uses the original fixed projection scale. Do not refit or normalize its bounds during rotation: this introduces a visible zoom as corners change position.
 
 The guide pairs 3D and 4D examples with flat boards and labelled coordinate changes. Learners can compare directly rather than remember a previous screen. [Recognition and recall guidance](https://www.nngroup.com/articles/recognition-and-recall/).
 

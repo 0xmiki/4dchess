@@ -48,7 +48,8 @@
 	onDestroy(() => clearTimeout(holdTimer));
 	const componentId = $props.id();
 	const arrowId = componentId + '-spatial-threat';
-	function rawProject([x, y, z, w]: Coordinates) {
+	// Keep the original fixed camera scale: fitting per angle causes visible zoom while orbiting.
+	function project([x, y, z, w]: Coordinates) {
 		const wScale = 2.05 / (2.7 - (w * 2 - 1));
 		const px = (x / 1.5 - 1) * wScale,
 			py = (y / 1.5 - 1) * wScale,
@@ -58,21 +59,7 @@
 		const ry = py * Math.cos(pitch) - rz * Math.sin(pitch),
 			depth = py * Math.sin(pitch) + rz * Math.cos(pitch);
 		const scale = 5.5 / (5.5 - depth);
-		return { x: 220 + rx * 101 * scale, y: 220 - ry * 101 * scale, depth, scale };
-	}
-	const cameraFit = $derived.by(() => {
-		let extent = 0;
-		for (const x of [0, 3])
-			for (const y of [0, 3])
-				for (const z of [0, 1]) {
-					const point = rawProject([x, y, z, 1]);
-					extent = Math.max(extent, Math.abs(point.x - 220), Math.abs(point.y - 220));
-				}
-		return Math.min(1, 198 / extent);
-	});
-	function project(coordinate: Coordinates) {
-		const point = rawProject(coordinate);
-		return { ...point, x: 220 + (point.x - 220) * cameraFit, y: 220 + (point.y - 220) * cameraFit };
+		return { x: 220 + rx * 86 * scale, y: 220 - ry * 86 * scale, depth, scale };
 	}
 	const points = $derived(Array.from({ length: 64 }, (_, i) => project(squareCoordinates(i))));
 	const orientation = $derived.by(() => {
