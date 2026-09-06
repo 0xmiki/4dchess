@@ -7,6 +7,7 @@ import { currentParticipant, ensureParticipant } from './lib/participants';
 import { invitationToken, tokenHash, validateRequestId } from './lib/invitations';
 import { color, gameDocument, seatReceipt } from './lib/validators';
 import { requireMatch, validateRevision } from './lib/access';
+import { limitCreation } from './lib/limits';
 
 const WAITING_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
@@ -84,6 +85,17 @@ export const create = mutation({
 			throw new ConvexError('REQUEST_ID_REUSED');
 		const token = await invitationToken(participantId, requestId);
 		if (existing) return { gameId: existing._id, token, seat, expiresAt: existing.expiresAt };
+		await limitCreation(ctx, participantId);
+		const waiting = await ctx.db
+			.query('games')
+			.withIndex('by_creator_status', (q) =>
+				q
+					.eq('creatorParticipantId', participantId)
+					.eq('status', 'waiting')
+					.gt('expiresAt', Date.now())
+			)
+			.take(5);
+		if (waiting.length >= 5) throw new ConvexError('TOO_MANY_INVITES');
 		const hash = await tokenHash(token);
 		if (
 			await ctx.db
@@ -106,7 +118,8 @@ export const create = mutation({
 			revision: 0,
 			expiresAt,
 			startedAt: null,
-			finishedAt: null
+			finishedAt: null,
+			purgeAt: expiresAt + 7 * 86400000
 		});
 		await ctx.db.insert('invites', { gameId, tokenHash: hash, expiresAt, status: 'open' });
 		await ctx.scheduler.runAt(expiresAt, internal.games.expireWaiting, { gameId });
@@ -171,6 +184,7 @@ export const join = mutation({
 			[seat === 'white' ? 'whiteParticipantId' : 'blackParticipantId']: participantId,
 			status: 'active',
 			startedAt: Date.now(),
+			purgeAt: null,
 			revision: game.revision + 1
 		});
 		await ctx.db.patch(invite._id, { status: 'consumed' });
@@ -218,6 +232,7 @@ export const cancel = mutation({
 		await ctx.db.patch(gameId, {
 			status: 'finished',
 			result: { reason: 'cancellation', winner: null, detail: 'creatorCancelled' },
+			purgeAt: Date.now() + 7 * 86400000,
 			finishedAt: Date.now(),
 			revision: game.revision + 1
 		});
@@ -239,6 +254,7 @@ export const expireWaiting = internalMutation({
 		await ctx.db.patch(gameId, {
 			status: 'finished',
 			result: { reason: 'cancellation', winner: null, detail: 'inviteExpired' },
+			purgeAt: game.expiresAt + 7 * 86400000,
 			finishedAt: Date.now(),
 			revision: game.revision + 1
 		});

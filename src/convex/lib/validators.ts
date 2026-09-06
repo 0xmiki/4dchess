@@ -47,7 +47,8 @@ export const gameFields = {
 	result,
 	expiresAt: v.number(),
 	startedAt: v.union(v.number(), v.null()),
-	finishedAt: v.union(v.number(), v.null())
+	finishedAt: v.union(v.number(), v.null()),
+	purgeAt: v.optional(v.union(v.number(), v.null()))
 };
 export const moveFields = {
 	gameId: v.id('games'),

@@ -10,6 +10,7 @@ async function establishGuest() {
 	if (session.error) throw new Error('Could not restore your session.');
 	if (session.data) return;
 	const signedIn = await authClient.signIn.anonymous();
+	if (signedIn.error?.status === 429) throw new ConvexError('GUEST_RATE_LIMITED');
 	if (signedIn.error) throw new Error('Could not start a guest session.');
 }
 
@@ -32,6 +33,10 @@ export async function guestClient() {
 }
 
 const messages: Record<string, string> = {
+	GUEST_RATE_LIMITED:
+		'Too many guest sessions were started from this connection. Please try again later.',
+	RATE_LIMITED: 'You have created too many matches recently. Please try again later.',
+	TOO_MANY_INVITES: 'You already have five open invitations. Cancel one or wait for it to expire.',
 	UNAUTHENTICATED:
 		'Your guest session is unavailable. Reopen the game in the browser where you joined.',
 	MATCH_NOT_FOUND: 'This game is not available to your guest session.',

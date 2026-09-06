@@ -11,5 +11,8 @@
 	"routes": [{ "pattern": "4dchess.justglow.dev", "custom_domain": true }],
 	"workers_dev": false,
 	"preview_urls": false,
-	"observability": { "enabled": true }
+	"observability": { "enabled": true },
+	"ratelimits": [
+		{ "name": "GUEST_SIGNUPS", "namespace_id": "10401", "simple": { "limit": 10, "period": 60 } }
+	]
 }

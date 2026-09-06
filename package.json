@@ -10,6 +10,8 @@
 		"check:backend": "tsc --noEmit -p src/convex/tsconfig.json",
 		"convex:push": "convex dev --once",
 		"convex:health": "convex run health:check",
+		"ops:status": "convex run operations:status",
+		"ops:logs": "convex logs",
 		"deploy:frontend": "wrangler deploy",
 		"build": "wrangler types --check && vite build",
 		"preview": "wrangler dev .svelte-kit/cloudflare/_worker.js --port 4173",
