@@ -10,7 +10,6 @@
 	} from '$lib/chess';
 	import { pieceNames } from '$lib/pieces';
 	import Piece from './Piece.svelte';
-	import Button from './Button.svelte';
 	import AxisGizmo from './AxisGizmo.svelte';
 	import type { PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
@@ -195,9 +194,6 @@
 </script>
 
 <section class="spatial" aria-label="Tesseract projection">
-	<div class="row spatial-toolbar">
-		<span>Tesseract projection</span><Button onclick={reset}>Reset view</Button>
-	</div>
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions (This SVG is a keyboard-operable orbit control. Native board buttons provide keyboard access to every move.) -->
 	<svg
 		class="space-svg"
@@ -395,10 +391,6 @@
 	}
 	.spatial {
 		min-width: 0;
-	}
-	.spatial-toolbar {
-		justify-content: space-between;
-		font-size: 13px;
 	}
 	.space-svg {
 		display: block;

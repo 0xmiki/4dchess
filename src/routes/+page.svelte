@@ -5,7 +5,8 @@
 	import { createInitialState } from '$lib/chess';
 	import GameHeader from '$lib/components/GameHeader.svelte';
 	import PlayOption from '$lib/components/PlayOption.svelte';
-	import ChessBoard from '$lib/components/ChessBoard.svelte';
+	import SpatialBoard from '$lib/components/SpatialBoard.svelte';
+	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
 	const position = createInitialState();
 	let ready = $state(false),
 		recent = $state('');
@@ -27,70 +28,73 @@
 >
 <main class="shell">
 	<GameHeader heading />
-	<section class="play-options" aria-label="Choose how to play">
-		<PlayOption mode="friend" disabled={!ready} onclick={() => goto(resolve('/friend'))} />
-		<PlayOption mode="computer" disabled={!ready} onclick={() => goto(resolve('/computer'))} />
-	</section>
-	{#if recent && /^[a-z0-9]+$/.test(recent)}<a
-			class="resume"
-			href={resolve('/game/[gameId]', { gameId: recent })}>Return to your last friend match →</a
-		>{/if}
-	<section class="board-preview" aria-label="Starting position">
-		<div class="preview-heading">
-			<h2>Starting position</h2>
-			<a href={resolve('/how-to-play')}>Learn how to play →</a>
-		</div>
-		<ChessBoard board={position.board} turn="w" seat="white" enabled={false} onmove={() => {}} />
-	</section>
+
+	<div class="home-play">
+		<section class="play-options" aria-label="Choose how to play">
+			<PlayOption mode="friend" disabled={!ready} onclick={() => goto(resolve('/friend'))} />
+			<PlayOption mode="computer" disabled={!ready} onclick={() => goto(resolve('/computer'))} />
+			<a class="learn" href={resolve('/how-to-play')}
+				><BookOpenIcon size={20} aria-hidden="true" />Learn how to play</a
+			>
+			{#if recent && /^[a-z0-9]+$/.test(recent)}<a
+					class="resume"
+					href={resolve('/game/[gameId]', { gameId: recent })}>Return to your last friend match →</a
+				>{/if}
+		</section>
+		<SpatialBoard
+			board={position.board}
+			selected={null}
+			moves={[]}
+			lastMove={null}
+			motion={null}
+			inspection={null}
+			onselect={() => {}}
+			oninspect={() => {}}
+		/>
+	</div>
 </main>
 
 <style>
+	.home-play {
+		display: grid;
+		grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+		gap: var(--space-8);
+		align-items: center;
+		min-height: calc(100svh - 150px);
+	}
 	.play-options {
 		display: grid;
-		grid-template-columns: 1fr 1fr;
 		gap: var(--space-5);
-		max-width: 1000px;
-		margin: var(--space-6) auto var(--space-7);
+		width: 100%;
+		max-width: 480px;
+		justify-self: center;
+	}
+	.learn {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
+		min-height: var(--control-height);
+		text-decoration: none;
+		color: var(--text);
+	}
+	.learn:hover {
+		text-decoration: underline;
 	}
 	.resume {
-		display: block;
-		width: fit-content;
-		margin: calc(-1 * var(--space-5)) auto var(--space-6);
+		text-align: center;
 		font-size: 14px;
 		color: var(--muted);
 	}
-	.preview-heading {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: var(--space-4);
-		margin-bottom: var(--space-5);
-	}
-	.preview-heading h2 {
-		font-size: 20px;
-	}
-	.preview-heading a {
-		color: var(--accent);
-		font-size: 14px;
-		text-decoration: none;
-	}
-	.preview-heading a:hover {
-		text-decoration: underline;
-	}
-	@media (max-width: 700px) {
-		.play-options {
+	@media (max-width: 800px) {
+		.home-play {
 			grid-template-columns: 1fr;
+			gap: var(--space-5);
+			min-height: 0;
+			padding-top: var(--space-5);
+		}
+		.play-options {
 			gap: var(--space-4);
-			margin: var(--space-5) auto var(--space-6);
-		}
-		.preview-heading {
-			align-items: flex-start;
-		}
-		.preview-heading h2 {
-			font-size: 17px;
-		}
-		.preview-heading a {
-			font-size: 13px;
 		}
 	}
 </style>

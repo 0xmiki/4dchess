@@ -35,7 +35,8 @@
 		cursor: pointer;
 		box-shadow:
 			0 var(--press-depth) 0 var(--button-base),
-			inset 0 1px 0 #ffffff12;
+			0 5px 8px #00000045,
+			inset 0 1px 0 #ffffff24;
 		transition:
 			transform var(--motion-press),
 			box-shadow var(--motion-press),
@@ -58,7 +59,8 @@
 		border-color: var(--accent);
 		box-shadow:
 			0 var(--press-depth) 0 var(--accent-base),
-			inset 0 1px 0 #ffffff40;
+			0 5px 8px #00000045,
+			inset 0 1px 0 #ffffff80;
 	}
 	button.primary:hover:not(:disabled) {
 		background: var(--accent-hover);

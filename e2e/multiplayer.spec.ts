@@ -13,7 +13,8 @@ test('the dedicated guide teaches moves with linked diagrams, mistake cases, and
 	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
 	await expect(page.locator('.move-explorer')).toHaveCount(0);
-	await expect(page.locator('[data-square]')).toHaveCount(64);
+	await expect(page.locator('.space-svg')).toBeVisible();
+	await expect(page.locator('[data-square]')).toHaveCount(0);
 	await page.getByRole('link', { name: 'How to play', exact: true }).click();
 	await expect(page).toHaveURL(/\/how-to-play$/);
 	await expect(
