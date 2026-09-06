@@ -49,6 +49,26 @@ export const gameFields = {
 	startedAt: v.union(v.number(), v.null()),
 	finishedAt: v.union(v.number(), v.null())
 };
+export const moveFields = {
+	gameId: v.id('games'),
+	participantId: v.id('participants'),
+	requestId: v.string(),
+	expectedRevision: v.number(),
+	revision: v.number(),
+	ply: v.number(),
+	from: v.number(),
+	to: v.number(),
+	piece,
+	captured: v.union(piece, v.null()),
+	createdAt: v.number(),
+	result
+};
+export const moveDocument = v.object({
+	_id: v.id('moves'),
+	_creationTime: v.number(),
+	...moveFields
+});
+export const moveReceipt = v.object({ revision: v.number(), ply: v.number(), result });
 export const gameDocument = v.object({
 	_id: v.id('games'),
 	_creationTime: v.number(),

@@ -1,6 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
-import { gameFields } from './lib/validators';
+import { gameFields, moveFields } from './lib/validators';
 
 export default defineSchema({
 	participants: defineTable(
@@ -27,5 +27,16 @@ export default defineSchema({
 		)
 	})
 		.index('by_token_hash', ['tokenHash'])
-		.index('by_game', ['gameId'])
+		.index('by_game', ['gameId']),
+	moves: defineTable(moveFields)
+		.index('by_game_ply', ['gameId', 'ply'])
+		.index('by_request', ['gameId', 'participantId', 'requestId']),
+	commands: defineTable({
+		gameId: v.id('games'),
+		participantId: v.id('participants'),
+		requestId: v.string(),
+		expectedRevision: v.number(),
+		revision: v.number(),
+		kind: v.literal('resign')
+	}).index('by_request', ['gameId', 'participantId', 'requestId'])
 });

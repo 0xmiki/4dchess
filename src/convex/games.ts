@@ -6,8 +6,56 @@ import type { Doc, Id } from './_generated/dataModel';
 import { currentParticipant, ensureParticipant } from './lib/participants';
 import { invitationToken, tokenHash, validateRequestId } from './lib/invitations';
 import { color, gameDocument, seatReceipt } from './lib/validators';
+import { requireMatch, validateRevision } from './lib/access';
 
 const WAITING_LIFETIME_MS = 24 * 60 * 60 * 1000;
+
+export const resign = mutation({
+	args: { gameId: v.id('games'), expectedRevision: v.number(), requestId: v.string() },
+	returns: v.number(),
+	handler: async (ctx, { gameId, expectedRevision, requestId }) => {
+		validateRequestId(requestId);
+		validateRevision(expectedRevision);
+		const { game, participant, seat } = await requireMatch(ctx, gameId);
+		const prior = await ctx.db
+			.query('commands')
+			.withIndex('by_request', (q) =>
+				q.eq('gameId', gameId).eq('participantId', participant._id).eq('requestId', requestId)
+			)
+			.unique();
+		if (prior) {
+			if (prior.expectedRevision !== expectedRevision) throw new ConvexError('REQUEST_ID_REUSED');
+			return prior.revision;
+		}
+		if (
+			await ctx.db
+				.query('moves')
+				.withIndex('by_request', (q) =>
+					q.eq('gameId', gameId).eq('participantId', participant._id).eq('requestId', requestId)
+				)
+				.unique()
+		)
+			throw new ConvexError('REQUEST_ID_REUSED');
+		if (game.status !== 'active') throw new ConvexError('MATCH_NOT_ACTIVE');
+		if (game.revision !== expectedRevision) throw new ConvexError('STALE_REVISION');
+		const revision = game.revision + 1;
+		await ctx.db.patch(gameId, {
+			status: 'finished',
+			result: { reason: 'resignation', winner: seat === 'white' ? 'black' : 'white' },
+			finishedAt: Date.now(),
+			revision
+		});
+		await ctx.db.insert('commands', {
+			gameId,
+			participantId: participant._id,
+			requestId,
+			expectedRevision,
+			revision,
+			kind: 'resign'
+		});
+		return revision;
+	}
+});
 
 function seatOf(game: Doc<'games'>, participantId: Id<'participants'>) {
 	if (game.whiteParticipantId === participantId) return 'white' as const;
