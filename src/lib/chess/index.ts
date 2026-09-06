@@ -26,5 +26,6 @@ export {
 	positionKey,
 	getOutcome,
 	createInitialState,
-	applyMove
+	applyMove,
+	simulateMove
 } from './fourfold-v1';

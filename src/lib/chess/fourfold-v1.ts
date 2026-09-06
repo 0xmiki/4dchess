@@ -140,6 +140,13 @@ function moveBoard(board: Board, move: Move): Board {
 	return next;
 }
 
+/** Apply geometry for search and threat previews. This does not establish move legality. */
+export function simulateMove(board: Board, move: Move): Board {
+	if (!isSquare(move.from) || !isSquare(move.to) || !board[move.from])
+		throw new RangeError('Invalid simulation move.');
+	return moveBoard(board, move);
+}
+
 export function legalMoves(board: Board, color: Color, onlyFrom?: number): Move[] {
 	if (onlyFrom !== undefined && !isSquare(onlyFrom)) return [];
 	const moves: Move[] = [];
