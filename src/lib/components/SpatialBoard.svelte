@@ -14,6 +14,7 @@
 	import type { PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
+		annotations = true,
 		board,
 		selected,
 		moves,
@@ -23,6 +24,7 @@
 		motion,
 		inspection
 	}: {
+		annotations?: boolean;
 		board: Board;
 		selected: number | null;
 		moves: Move[];
@@ -366,9 +368,11 @@
 					{size}
 				/></g
 			>{/if}
-		<AxisGizmo axes={orientation} x={39} y={395} />
+		{#if annotations}<AxisGizmo axes={orientation} x={39} y={395} />{/if}
 	</svg>
-	<p class="muted caption">W = 0 is the inner cube. W = 1 is the outer cube.</p>
+	{#if annotations}<p class="muted caption">
+			W = 0 is the inner cube. W = 1 is the outer cube.
+		</p>{/if}
 </section>
 
 <style>

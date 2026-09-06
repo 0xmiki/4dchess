@@ -11,7 +11,6 @@
 	import { errorMessage } from '$lib/multiplayer';
 	import ChessBoard from '$lib/components/ChessBoard.svelte';
 	import Button from '$lib/components/Button.svelte';
-	import GameHeader from '$lib/components/GameHeader.svelte';
 	import GameStatus from '$lib/components/GameStatus.svelte';
 	import GameMenu from '$lib/components/GameMenu.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -235,39 +234,6 @@
 
 <svelte:head><title>{status || 'Match'} · 4D chess</title></svelte:head>
 <main class="shell">
-	<GameHeader>
-		<GameMenu bind:this={optionsMenu}>
-			{#if game}<Button
-					onclick={() => {
-						optionsMenu.close();
-						showExport = true;
-						exportDialog.showModal();
-					}}>Export game</Button
-				>{/if}
-			<Button
-				disabled={!mounted}
-				onclick={() => {
-					optionsMenu.close();
-					rulesDialog.showModal();
-				}}>Rules</Button
-			>
-			{#if game && game.ply > 0}<Button
-					onclick={() => {
-						optionsMenu.close();
-						showHistory = true;
-						historyDialog.showModal();
-					}}>Move history</Button
-				>{/if}
-			{#if game?.status === 'active'}<Button
-					disabled={sending || !!pending}
-					onclick={() => {
-						optionsMenu.close();
-						resignRequest = null;
-						resignDialog.showModal();
-					}}>Resign</Button
-				>{/if}
-		</GameMenu>
-	</GameHeader>
 	{#if !mounted || auth.isLoading || (auth.isAuthenticated && match.isLoading)}<p role="status">
 			Loading match…
 		</p>
@@ -328,6 +294,40 @@
 			onmove={move}
 		/>
 	{/if}
+	<footer class="game-tools">
+		<a href={resolve('/')}>Back to play</a>
+		<GameMenu bind:this={optionsMenu}>
+			{#if game}<Button
+					onclick={() => {
+						optionsMenu.close();
+						showExport = true;
+						exportDialog.showModal();
+					}}>Export game</Button
+				>{/if}
+			<Button
+				disabled={!mounted}
+				onclick={() => {
+					optionsMenu.close();
+					rulesDialog.showModal();
+				}}>Rules</Button
+			>
+			{#if game && game.ply > 0}<Button
+					onclick={() => {
+						optionsMenu.close();
+						showHistory = true;
+						historyDialog.showModal();
+					}}>Move history</Button
+				>{/if}
+			{#if game?.status === 'active'}<Button
+					disabled={sending || !!pending}
+					onclick={() => {
+						optionsMenu.close();
+						resignRequest = null;
+						resignDialog.showModal();
+					}}>Resign</Button
+				>{/if}
+		</GameMenu>
+	</footer>
 </main>
 
 <RulesDialog bind:this={rulesDialog} onclose={() => optionsMenu.focus()} />

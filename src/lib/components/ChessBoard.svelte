@@ -2,6 +2,7 @@
 	import { onMount, untrack } from 'svelte';
 	import {
 		legalMoves,
+		canReach,
 		inCheck,
 		squareIndex,
 		squareCoordinates,
@@ -19,6 +20,8 @@
 	import { analyzeThreats, type ThreatInspection } from '$lib/chess/threats';
 	import type { PresentedMove, PieceMotion } from './motion';
 	let {
+		practice = false,
+		goalSquare = null,
 		board,
 		turn,
 		seat,
@@ -26,6 +29,8 @@
 		lastMove = null,
 		onmove
 	}: {
+		practice?: boolean;
+		goalSquare?: number | null;
 		board: Board;
 		turn: 'w' | 'b';
 		seat: 'white' | 'black';
@@ -33,6 +38,7 @@
 		lastMove?: PresentedMove | null;
 		onmove: (move: Move) => void;
 	} = $props();
+	let interactiveReady = $state(false);
 	let selected = $state<number | null>(null);
 	let inspection = $state<ThreatInspection | null>(null),
 		motion = $state<PieceMotion | null>(null),
@@ -55,6 +61,7 @@
 		return board;
 	});
 	onMount(() => {
+		interactiveReady = true;
 		const preference = matchMedia('(prefers-reduced-motion: reduce)');
 		reduced = preference.matches;
 		const changed = () => {
@@ -137,8 +144,16 @@
 		if (holdPoint && Math.hypot(event.clientX - holdPoint.x, event.clientY - holdPoint.y) > 8)
 			clearTimeout(holdTimer);
 	}
-	const moves = $derived(selected !== null && enabled ? legalMoves(board, turn, selected) : []);
-	const check = $derived(inCheck(board, turn));
+	const moves = $derived(
+		selected !== null && enabled
+			? practice
+				? Array.from({ length: 64 }, (_, to) => ({ from: selected!, to })).filter((move) =>
+						canReach(board, move.from, move.to)
+					)
+				: legalMoves(board, turn, selected)
+			: []
+	);
+	const check = $derived(!practice && inCheck(board, turn));
 	const flipped = $derived(seat === 'black');
 	const xs = $derived(flipped ? [3, 2, 1, 0] : [0, 1, 2, 3]);
 	const ys = $derived(flipped ? [0, 1, 2, 3] : [3, 2, 1, 0]);
@@ -161,7 +176,7 @@
 			onmove(move);
 			return;
 		}
-		selected = selected === i ? null : board[i]?.c === turn ? i : null;
+		selected = selected === i ? null : board[i] && (practice || board[i]?.c === turn) ? i : null;
 	}
 	function navigate(event: KeyboardEvent, i: number) {
 		if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
@@ -213,6 +228,8 @@
 										<button
 											type="button"
 											class="cell"
+											disabled={!interactiveReady}
+											class:lesson-target={goalSquare === i}
 											class:dark={(x + y) % 2 === 0}
 											class:selected={selected === i}
 											class:legal
@@ -224,7 +241,7 @@
 											class:threat-defender={inspection?.attackers.includes(i) &&
 												p?.c === inspection.color}
 											data-square={i}
-											aria-label={`${squareAddress(i)}, ${p ? `${p.c === 'w' ? 'White' : 'Black'} ${pieceNames[p.t]}` : 'empty'}${legal ? ', legal destination' : ''}`}
+											aria-label={`${squareAddress(i)}, ${p ? `${p.c === 'w' ? 'White' : 'Black'} ${pieceNames[p.t]}` : 'empty'}${legal ? ', legal destination' : ''}${goalSquare === i ? ', lesson destination' : ''}`}
 											aria-pressed={selected === i}
 											aria-disabled={!enabled || !!motion}
 											title="Right-click, long-press, or Shift+F10 to inspect threats"
@@ -288,6 +305,10 @@
 </div>
 
 <style>
+	.cell.lesson-target {
+		outline: 3px dashed var(--piece-black);
+		outline-offset: -5px;
+	}
 	.z-label,
 	.axis-w,
 	.ranks,

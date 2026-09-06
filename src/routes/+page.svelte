@@ -3,11 +3,17 @@
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { createInitialState } from '$lib/chess';
-	import GameHeader from '$lib/components/GameHeader.svelte';
+	import { api } from '../convex/_generated/api';
+	import { guestClient, errorMessage } from '$lib/multiplayer';
+	import SideToggle from '$lib/components/SideToggle.svelte';
 	import PlayOption from '$lib/components/PlayOption.svelte';
 	import SpatialBoard from '$lib/components/SpatialBoard.svelte';
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
 	const position = createInitialState();
+	let seat = $state<'white' | 'black'>('white'),
+		busy = $state(false),
+		error = $state('');
+	let requestId: string | null = null;
 	let ready = $state(false),
 		recent = $state('');
 	onMount(() => {
@@ -18,6 +24,45 @@
 			/* Storage is optional. */
 		}
 	});
+	async function create() {
+		if (busy) return;
+		busy = true;
+		error = '';
+		try {
+			try {
+				const stored = sessionStorage.getItem('fourfold-create');
+				if (stored && !requestId) {
+					const pending = JSON.parse(stored);
+					if (
+						pending.seat === seat &&
+						typeof pending.requestId === 'string' &&
+						/^[a-f0-9-]{36}$/i.test(pending.requestId)
+					)
+						requestId = pending.requestId;
+				}
+			} catch {
+				/* Storage is optional. */
+			}
+			requestId ??= crypto.randomUUID();
+			try {
+				sessionStorage.setItem('fourfold-create', JSON.stringify({ requestId, seat }));
+			} catch {
+				/* The live request still has a stable ID. */
+			}
+			const client = await guestClient();
+			const created = await client.mutation(api.games.create, { seat, requestId });
+			try {
+				sessionStorage.removeItem('fourfold-create');
+			} catch {
+				/* Storage is optional. */
+			}
+			await goto(resolve('/game/[gameId]', { gameId: created.gameId }));
+		} catch (cause) {
+			error = errorMessage(cause);
+		} finally {
+			busy = false;
+		}
+	}
 </script>
 
 <svelte:head
@@ -27,12 +72,25 @@
 	/></svelte:head
 >
 <main class="shell">
-	<GameHeader heading />
+	<h1 class="sr-only">4D chess</h1>
 
 	<div class="home-play">
 		<section class="play-options" aria-label="Choose how to play">
-			<PlayOption mode="friend" disabled={!ready} onclick={() => goto(resolve('/friend'))} />
-			<PlayOption mode="computer" disabled={!ready} onclick={() => goto(resolve('/computer'))} />
+			<SideToggle
+				bind:value={seat}
+				disabled={busy || !ready}
+				onchange={() => {
+					requestId = null;
+				}}
+			/>
+			<PlayOption mode="friend" disabled={!ready || busy} onclick={create} />
+			{#if busy}<p role="status">Creating your invitation…</p>{/if}
+			{#if error}<p class="error" role="alert">{error}</p>{/if}
+			<PlayOption
+				mode="computer"
+				disabled={!ready || busy}
+				onclick={() => goto(resolve(seat === 'white' ? '/computer?side=w' : '/computer?side=b'))}
+			/>
 			<a class="learn" href={resolve('/how-to-play')}
 				><BookOpenIcon size={20} aria-hidden="true" />Learn how to play</a
 			>
@@ -42,6 +100,7 @@
 				>{/if}
 		</section>
 		<SpatialBoard
+			annotations={false}
 			board={position.board}
 			selected={null}
 			moves={[]}
@@ -60,7 +119,7 @@
 		grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
 		gap: var(--space-8);
 		align-items: center;
-		min-height: calc(100svh - 150px);
+		min-height: calc(100svh - 48px);
 	}
 	.play-options {
 		display: grid;

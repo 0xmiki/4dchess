@@ -7,9 +7,9 @@ Values live in `src/lib/design.css`. Import this file directly from the root lay
 ## Screens
 
 - Home: two stacked play cards on the left, a learn link beneath, an optional return-to-match link, and the tesseract on the right.
-- Friend and computer setup: one column of choices ending in one primary action.
-- Match: turn or result above the position. History, rules, and export stay in the options menu. New game appears after a computer game ends.
-- How to play: coordinate explanation, six selectable pieces, paired 3D/4D diagrams, playback, and mistakes. No guest session is needed.
+- Side selection lives on home. Friend play creates an invitation directly with a stable request ID; `/friend` redirects home. Computer play starts or restores a game directly. Further computer settings remain in the new-game dialog.
+- Match: turn or result above the position. A contextual footer below the board holds Back to play and Options. Dropdown actions are flat rows; Escape, outside click, and arrow keys work. No global navbar.
+- How to play: one piece and one target move at a time, using the real board. Show move demonstrates the task; Next lesson appears after success. A lesson selector allows jumping between pieces. Free practice permits either color with movement rules but no turns or king-safety restrictions, with a full position, undo, and reset. No guest session is needed.
 
 ## Color
 
@@ -46,15 +46,15 @@ UI icons use `phosphor-svelte`, imported by individual icon path. Chess pieces a
 
 Buttons have a three-pixel lower edge. Pressing moves the face down by the same amount and collapses the shadow; hover brightens the face. `--motion-press` controls the transition. Reduced motion removes the transition.
 
-Pointer interaction never draws a ring around the tesseract. Keyboard focus changes its background instead. Native buttons and board cells retain keyboard focus indicators, and diagrams retain arrow-key rotation and Home reset. The tesseract has no visible toolbar or reset button.
+Pointer interaction never draws a ring around the tesseract. Keyboard focus changes its background instead. Native buttons and board cells retain keyboard focus indicators, and diagrams retain arrow-key rotation and Home reset. The tesseract has no visible toolbar or reset button. Home also hides axis annotations and the W caption; its layout centers the controls and projection in the available viewport.
 
 ## Geometry and teaching
 
 Use actual game coordinates. The nested cubes represent equally sized W layers; projection makes one appear smaller. The camera uses the original fixed projection scale. Do not refit or normalize its bounds during rotation: this introduces a visible zoom as corners change position.
 
-The guide pairs 3D and 4D examples with flat boards and labelled coordinate changes. Learners can compare directly rather than remember a previous screen. [Recognition and recall guidance](https://www.nngroup.com/articles/recognition-and-recall/).
+The lesson board and tesseract show the same move together. Learners can compare directly rather than remember a previous screen. [Recognition and recall guidance](https://www.nngroup.com/articles/recognition-and-recall/).
 
-Moves can be played, paused, or scrubbed. Mistakes have an explicit illegal-state label. Rotation changes presentation only. Avoid perpetual rotation and decorative data. Special rules remain expandable. [Progressive disclosure guidance](https://www.nngroup.com/articles/progressive-disclosure/).
+Learners make moves themselves or play the example. Invalid destinations cannot be played. Rotation changes presentation only. Avoid perpetual rotation and decorative data. Special rules remain expandable. [Progressive disclosure guidance](https://www.nngroup.com/articles/progressive-disclosure/).
 
 ## References and review
 

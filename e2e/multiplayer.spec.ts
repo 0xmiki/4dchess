@@ -5,46 +5,30 @@ test.skip(
 	'Set E2E_BASE_URL explicitly. These checks create guest matches on its backend.'
 );
 
-test('the dedicated guide teaches moves with linked diagrams, mistake cases, and keyboard playback', async ({
+test('lessons teach one move at a time and free practice supports either side and undo', async ({
 	page
 }) => {
 	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.goto(process.env.E2E_BASE_URL!);
-	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
-	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
-	await expect(page.locator('.move-explorer')).toHaveCount(0);
+	await expect(page.locator('.site-header')).toHaveCount(0);
+	await expect(page.getByRole('radio', { name: 'White', exact: true })).toBeChecked();
 	await expect(page.locator('.space-svg')).toBeVisible();
-	await expect(page.locator('[data-square]')).toHaveCount(0);
-	await page.getByRole('link', { name: 'How to play', exact: true }).click();
-	await expect(page).toHaveURL(/\/how-to-play$/);
-	await expect(
-		page.getByRole('heading', { name: 'How to play 4D chess', exact: true })
-	).toBeVisible();
-	const explorer = page.locator('.move-explorer');
-	await explorer.getByRole('button', { name: 'Knight', exact: true }).click();
-	await expect(explorer.getByRole('button', { name: 'Knight', exact: true })).toHaveAttribute(
-		'aria-pressed',
-		'true'
-	);
-	await expect(explorer.locator('.lesson-explanation')).toContainText('2 + 1');
-	const slider = explorer.getByRole('slider', { name: 'Move progress', exact: true });
-	await slider.focus();
-	await slider.press('End');
-	await expect(explorer.locator('output')).toHaveText('After');
-	await explorer.getByLabel('Show a common mistake').check();
-	await expect(explorer.locator('.case-label')).toHaveText('Not a legal move');
-	await expect(explorer.getByRole('slider')).toBeDisabled();
-	await explorer.getByLabel('Show a common mistake').uncheck();
-	const projections = explorer.locator('svg.projection');
-	const before = await projections.nth(1).locator('polygon').first().getAttribute('points');
-	await projections.nth(0).focus();
-	await projections.nth(0).press('ArrowRight');
-	await expect(projections.nth(1).locator('polygon').first()).not.toHaveAttribute(
-		'points',
-		before!
-	);
-	await explorer.getByRole('button', { name: 'Reset views', exact: true }).click();
-	await expect(projections.nth(1).locator('polygon').first()).toHaveAttribute('points', before!);
+	await page.getByRole('link', { name: 'Learn how to play', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Rook: try a move' })).toBeVisible();
+	await page.locator('[data-square="0"]').click();
+	await page.locator('[data-square="32"]').click();
+	await expect(page.getByRole('status')).toContainText('That’s it');
+	await page.getByRole('button', { name: 'Next lesson', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Bishop: try a move' })).toBeVisible();
+	await page.getByRole('button', { name: 'Show move', exact: true }).click();
+	await expect(page.getByRole('status')).toContainText('That’s it');
+	await page.getByRole('button', { name: 'Free practice', exact: true }).click();
+	await page.getByRole('button', { name: 'Full position', exact: true }).click();
+	await page.locator('[data-square="63"]').click();
+	await expect(page.locator('.cell.legal').first()).toBeVisible();
+	await page.locator('.cell.legal').first().click();
+	await page.getByRole('button', { name: 'Undo', exact: true }).click();
+	await expect(page.locator('[data-square="63"]')).toHaveAttribute('aria-label', /Black rook/);
 	await page.setViewportSize({ width: 390, height: 844 });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
@@ -60,7 +44,6 @@ async function friends(browser: Browser) {
 		black = await blackContext.newPage();
 	await white.goto(process.env.E2E_BASE_URL!);
 	await white.getByRole('button', { name: 'Play with friend', exact: true }).click();
-	await white.getByRole('button', { name: 'Create friend match' }).click();
 	await expect(white.getByRole('heading', { name: 'Waiting for your friend' })).toBeVisible();
 	const invitation = await white.getByRole('textbox', { name: 'Invitation link' }).inputValue();
 	await black.goto(invitation);
@@ -175,7 +158,6 @@ test('computer play uses no backend, supports threat inspection, animation, expo
 	await expect(choices.nth(0)).toHaveAccessibleName('Play with friend');
 	await expect(choices.nth(1)).toHaveAccessibleName('Play computer');
 	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
-	await page.getByRole('button', { name: 'Start game', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
 	const before = await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'));
 	await page.locator('[data-square="2"]').click({ button: 'right' });
@@ -215,12 +197,8 @@ test('computer can play White and reduced-motion preference disables moving over
 	page
 }) => {
 	await page.emulateMedia({ reducedMotion: 'reduce' });
-	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
-	await page
-		.getByRole('region', { name: 'Computer game settings' })
-		.getByLabel('Your side')
-		.selectOption('b');
-	await page.getByRole('button', { name: 'Start game', exact: true }).click();
+	await page.goto(new URL('/computer?side=b', process.env.E2E_BASE_URL!).href);
+
 	await expect(page.getByRole('heading', { name: 'Black to move', exact: true })).toBeVisible();
 	await expect(page.locator('[data-animation]')).toHaveCount(0);
 	expect(
@@ -249,4 +227,19 @@ test('resignation requires confirmation and updates both players', async ({ brow
 		await whiteContext.close();
 		await blackContext.close();
 	}
+});
+
+test('home creates an invitation directly for the selected Black side', async ({ page }) => {
+	await page.goto(process.env.E2E_BASE_URL!);
+	const white = page.getByRole('radio', { name: 'White', exact: true });
+	await expect(white).toBeEnabled();
+	await white.focus();
+	await white.press('ArrowRight');
+	await expect(page.getByRole('radio', { name: 'Black', exact: true })).toBeChecked();
+	await page.getByRole('button', { name: 'Play with friend', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Waiting for your friend' })).toBeVisible();
+	await expect(page.getByText('You are black. Untimed.', { exact: true })).toBeVisible();
+	await expect(page.getByRole('textbox', { name: 'Invitation link' })).not.toHaveValue('');
+	await page.getByRole('button', { name: 'Cancel match', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Match cancelled' })).toBeVisible();
 });

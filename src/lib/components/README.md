@@ -2,6 +2,8 @@
 
 Both friend and computer games use the same board, artwork, menus, dialogs, and export interface.
 
+`SideToggle` is the shared White/Black radio group. `ChessBoard` defaults to match rules; its explicit `practice` mode uses movement geometry for either color without turn or king-safety restrictions. Practice never changes saved matches.
+
 `AxisGizmo` shows XYZ orientation using the same camera as its parent projection. W remains a labelled, dashed connection between cubes.
 
 | Component          | Responsibility                                                                  |
@@ -24,7 +26,7 @@ Both friend and computer games use the same board, artwork, menus, dialogs, and 
 | `AuthProvider`     | Convex authentication context for online match/invitation routes only.          |
 | `TesseractMark`    | Shared geometric product mark.                                                  |
 | `PlayOption`       | Raised mode card linking to friend or computer setup.                           |
-| `HowToPlay`        | The coordinate introduction and piece-by-piece learning flow.                   |
+| `HowToPlay`        | One target move per lesson and a local free-practice board.                     |
 | `GuideProjection`  | Linked 3D/4D teaching diagrams using the game's projection geometry.            |
 | `GuideFlatBoards`  | The teaching move in White's flat-board orientation.                            |
 | `CoordinateChange` | Labelled before/after coordinates with changed axes emphasized.                 |
