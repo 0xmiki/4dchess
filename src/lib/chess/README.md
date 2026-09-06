@@ -45,6 +45,6 @@ bun run check:backend
 
 Focused tests cover movement across all dimensions, blockers, pawn captures and promotion, pins, king safety, state immutability, illegal requests, draws, and checkmate precedence.
 
-Parity tests compare every piece/square pair on empty and occupied boards, then compare legal moves, positions, checks, and outcomes through 24 deterministic games. `fixtures/prototype-rules.txt` is a frozen test reference extracted from the user's prototype on 2026-09-06. Its rule functions are unchanged; evaluation and search were omitted. Tests do not require the original directory to exist.
+Parity tests compare every piece/square pair on empty and occupied boards, then compare legal moves, positions, checks, and outcomes through 24 deterministic games. `fixtures/prototype-rules.txt` is a frozen test reference extracted from the original Fourfold prototype. Its rule functions are unchanged; evaluation and search were omitted. Tests do not require the original directory to exist.
 
-The Convex TypeScript check includes the production engine. The engine itself has no Node runtime imports. Tests do not establish deployed Convex performance. Benchmark validation when the match mutation is implemented.
+The Convex TypeScript check includes the production engine. The engine itself has no Node runtime imports. Tests do not establish deployed Convex performance. Benchmark authoritative move validation before making capacity claims.

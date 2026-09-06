@@ -20,12 +20,13 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"lint": "prettier --check . && eslint .",
 		"format": "prettier --write .",
-		"test:unit": "vitest",
+		"test:unit": "vitest --project server",
 		"test:rules": "vitest run --project server src/lib/chess",
 		"test:backend": "vitest run --project server src/lib/server",
 		"test:multiplayer": "playwright test --config playwright.multiplayer.config.ts",
 		"test": "bun run test:unit -- --run",
-		"gen": "wrangler types"
+		"gen": "wrangler types",
+		"deploy:ci": "node scripts/deploy.mjs"
 	},
 	"devDependencies": {
 		"@eslint/js": "^10.0.1",
@@ -37,7 +38,6 @@
 		"@tailwindcss/typography": "^0.5.19",
 		"@tailwindcss/vite": "^4.3.0",
 		"@types/node": "^24",
-		"@vitest/browser-playwright": "^4.1.8",
 		"convex-test": "^0.0.56",
 		"eslint": "^10.4.1",
 		"eslint-config-prettier": "^10.1.8",
@@ -55,7 +55,6 @@
 		"typescript-eslint": "^8.60.1",
 		"vite": "^8.0.16",
 		"vitest": "^4.1.8",
-		"vitest-browser-svelte": "^2.1.1",
 		"wrangler": "^4.97.0"
 	},
 	"dependencies": {
@@ -64,5 +63,6 @@
 		"better-auth": "~1.6.15",
 		"convex": "^1.45.0",
 		"convex-svelte": "^0.14.0"
-	}
+	},
+	"license": "MIT"
 }

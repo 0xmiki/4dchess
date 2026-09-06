@@ -1,285 +1,43 @@
-# Multiplayer 4D chess architecture
+# Architecture
 
-This document records the architecture for the first release: untimed games in persistent friend rooms, joined as guests through invite links. SvelteKit provides the frontend. Convex owns authentication checks, match state, move validation, persistence, and subscriptions.
-
-The existing prototype at `prototype/index.html` supplies the rules, board interactions, and computer search. This document describes the intended implementation, not functionality already built.
-
-## First release
-
-The primary flow is:
-
-```text
-Create match
-→ guest session exists
-→ participant exists
-→ creator claims a white or black seat
-→ invitation is created
-
-Friend opens invitation
-→ sees a limited match preview
-→ presses Join
-→ transaction claims the remaining seat
-→ match becomes active
-
-Play
-→ both participants subscribe to the match
-→ server validates and commits each move
-→ refresh restores identity and seat
-→ disconnect does not alter the match
-
-End
-→ checkmate, automatic draw, or resignation
-→ status becomes finished
-→ result is stored
-```
-
-Opening an invitation does not claim a seat. This also prevents link previews from joining games.
-
-The first release has no chess clocks. Active matches do not expire because someone disconnects. Waiting matches expire after 24 hours.
-
-Accounts, matchmaking, ratings, spectators, draw offers, and takebacks are later discussions. Threat inspection is enabled for unrated friend matches and computer play. It previews a separate position and does not change the authoritative game.
-
-## System boundaries
+SvelteKit renders the app. Convex owns guest identity, friend rooms, move validation, and persistence. The browser owns presentation, lessons, and computer search.
 
 ```mermaid
 flowchart LR
-    UI[SvelteKit interface] -->|Move requests| Backend[Convex mutations]
-    Backend --> Database[(Matches and move history)]
-    Database -->|Reactive query updates| UI
-    Rules[Shared TypeScript rules] --> UI
-    Rules --> Backend
-    UI --> Search[Search worker for computer play]
+    Browser[SvelteKit browser] -->|Authenticated moves| Convex[Convex mutations]
+    Convex --> Database[(Rooms and move history)]
+    Database -->|Subscriptions| Browser
+    Rules[Shared TypeScript rules] --> Browser
+    Rules --> Convex
+    Browser --> Search[Local search worker]
 ```
 
-The browser calculates legal destinations for immediate feedback. Convex independently validates every multiplayer move against the stored position. A browser never submits an authoritative board, result, player identity, or timestamp.
+## Rules and presentation
 
-The frontend subscribes directly to Convex using `convex-svelte`. SvelteKit provides routes and any authentication integration required by the chosen provider. Match mutations live in Convex.
+The `fourfold-v1` ruleset defines a `4 × 4 × 2 × 2` board. Pure TypeScript functions validate movement, king safety, promotion, and automatic outcomes. The client highlights possible moves; the server independently validates submitted moves.
 
-Camera position, selected squares, animations, and threat inspection stay local. Computer search remains separate from authoritative multiplayer validation.
+The four flat boards and tesseract render the same position. Selection, camera rotation, threat annotations, and animation never change the authoritative state. Multiplayer moves appear optimistically and reconcile with the server's receipt. Historical review uses a separate board and disables moves until the player returns to Live.
 
-## Rules engine
+## Identity and rooms
 
-Extract `createRules()` from the prototype into pure TypeScript under `src/lib/chess/`. Keep browser storage, rendering, and search outside this module.
+Better Auth creates an anonymous account when someone creates or accepts a challenge. Names are generated at account creation and copied into stable participant records. Invitation previews expose only the details needed to accept; room and move queries require membership.
 
-The initial ruleset preserves the prototype:
+A room's first game is its stable anchor. Subsequent rounds point back to it, and the anchor points to the current round. Acceptance of a rematch starts a fresh game with swapped seats. Scores follow participants rather than colors, and previous move histories remain intact.
 
-- The board has dimensions `4 × 4 × 2 × 2`, with 64 squares and ten pieces per side.
-- White moves first.
-- Pawns automatically promote to queens.
-- There is no castling, en passant, or opening pawn double move.
-- A move cannot leave the moving side's king in check. Kings are never captured.
-- Checkmate wins the game.
-- Stalemate, third repetition, 100 halfmoves without a pawn move or capture, and bare kings automatically draw the game.
+Invitation tokens use the URL fragment so they are not sent in ordinary HTTP requests. The backend derives tokens using HMAC and stores their hashes. Pending challenges expire after 24 hours. Deletion is restricted to the creator before the game begins.
 
-Preserve the prototype's movement definitions and outcome precedence. Tests must cover movement across dimensions, blocking, king safety, promotion, repetition, and terminal positions.
+## Reliable commands
 
-Each match stores a `rulesVersion`, initially `fourfold-v1`. Ongoing games and replays use their original version. A future rule change must not silently change an existing game.
+Move and resignation requests carry a request ID and expected revision. The server checks stored receipts before validating a new command. Retrying an accepted command returns its original result, including after another move or the end of a game.
 
-The shared engine exposes position creation, move validation, move application, position keys, and outcome calculation. Given the same rules version, position, draw state, and move, it must return the same result.
+The browser saves pending move requests in session storage. A reload can retry the same command without duplicating it. Invalid moves roll back; uncertain network outcomes remain retryable. An active friend game must be resigned before leaving through the interface.
 
-## Participants and authentication
+## Local modes
 
-Matches reference stable participant IDs:
+Computer games and lessons do not create backend games or guest sessions. Search runs in a Web Worker. Computer history is stored locally and replayed through the rules engine when restored. Players can leave and resume without resigning.
 
-```ts
-whiteParticipantId: ParticipantId | null;
-blackParticipantId: ParticipantId | null;
-```
+Free practice permits either color to move without turn or king-safety restrictions, and supports placing pieces, undoing edits, and resetting the position.
 
-A guest participant initially has:
+## Deployment
 
-```ts
-{ guestId: "...", userId: null }
-```
-
-Creating an account can change its identity binding while retaining the participant ID:
-
-```ts
-{ guestId: null, userId: "..." }
-```
-
-Exactly one identity binding is active. Match seats and move history continue referencing the same participant ID.
-
-Guests still have authenticated sessions. Convex resolves the caller's participant from a verified session, never from a participant ID supplied as proof of identity. Concurrent requests to establish the same participant must resolve to one record.
-
-Refreshing restores access while that guest session remains valid. Losing an unlinked guest session means losing access to its seat in the initial release. The invitation cannot be used to impersonate an existing participant or recover a consumed seat.
-
-The implementation uses Better Auth anonymous sessions through its Convex component and SvelteKit integration. Authenticated guests map to stable participant records. Session recovery and concurrent joining have been verified against the development deployment.
-
-Later account linking must also handle signing into an account that already has a participant. An alias between participants is a possible approach, but ownership conflicts require a policy before implementation. Account linking must preserve existing seat access without rewriting matches.
-
-## Match lifecycle and result
-
-```text
-waiting → active → finished
-waiting → finished · cancellation
-```
-
-Lifecycle and ending are separate fields:
-
-```ts
-type MatchStatus = 'waiting' | 'active' | 'finished';
-
-type MatchResult =
-	| {
-			reason: 'checkmate' | 'resignation';
-			winner: 'white' | 'black';
-	  }
-	| {
-			reason: 'draw';
-			winner: null;
-			detail: 'stalemate' | 'repetition' | 'fiftyMove' | 'bareKings';
-	  }
-	| {
-			reason: 'cancellation';
-			winner: null;
-			detail: 'creatorCancelled' | 'inviteExpired';
-	  };
-
-type MatchEnding = {
-	status: MatchStatus;
-	result: MatchResult | null;
-	finishedAt: number | null;
-};
-```
-
-The `detail` fields are a proposed refinement for history and explanations. The agreed result categories are checkmate, draw, resignation, and cancellation.
-
-Invariants:
-
-- Waiting matches have exactly one occupied seat.
-- Active matches have two distinct participants.
-- Waiting and active matches have no result or finish timestamp.
-- Finished matches have a result and finish timestamp.
-- Cancellation ends a waiting match. Resignation ends an active match and awards the win to the other side.
-- Finishing writes status, result, and finish timestamp atomically.
-- Finished matches accept no further moves or changes to their result.
-
-## Stored records
-
-| Table          | Contents                                                                                                                                 |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `participants` | Stable participant ID and authentication identity binding. Display names are deferred.                                                   |
-| `games`        | Creator, seats, status, rules version, current board, side to move, revision, ply, draw state, waiting deadline, result, and timestamps. |
-| `moves`        | Game ID, ply, participant ID, source and destination, request ID, accepted revision, and server timestamp.                               |
-| `invites`      | Game ID, invitation token hash, deadline, and consumption or revocation state.                                                           |
-| `commands`     | Accepted resignation request IDs, participants, expected revisions, and resulting revisions for idempotent retries.                      |
-
-Authentication session records belong to the selected authentication integration.
-
-Store the current position in `games` so opening a match does not require replaying its history. Store accepted moves separately and paginate history. Commit the updated position and its move record in the same transaction.
-
-The current draw state includes the halfmove counter and position keys since the most recent pawn move or capture, including the current position. Under this ruleset, the automatic 100-halfmove draw bounds that window. Include the initial position when starting repetition tracking.
-
-Use indexes for identity lookup, invitation token lookup, moves by game and ply, and accepted requests by game, participant, and request ID. Enforce uniqueness through transactional checks; an index alone is not a uniqueness constraint.
-
-## Revisions and retries
-
-Every match starts with `revision: 0`. Every accepted move increments it.
-
-The proposed convention is to increment revision for every accepted change to shared match state, including joining, resignation, and cancellation. Keep `ply` separately as the number of moves played. Rejected requests and successful retries increment neither field.
-
-A move request contains:
-
-```ts
-{
-  gameId,
-  move: { from, to },
-  expectedRevision: 14,
-  requestId: "..."
-}
-```
-
-The client generates one request ID per intended move and retains it for retries. Request IDs are scoped to the game and authenticated participant. Reusing one with different contents is an error.
-
-A stale request is rejected with `STALE_REVISION`. If the same request already succeeded, return its original receipt before checking whether its expected revision is now stale. This handles a committed move whose acknowledgement was lost.
-
-## Transaction contracts
-
-### Create
-
-Resolve the authenticated guest participant, reserve the creator's chosen seat, initialize the position and rules version, and create a 24-hour invitation. Use an unguessable invitation token and store its hash. The default color selection remains a product decision.
-
-Creation accepts a UUID v4 request ID, scoped to its creator. A retry returns the original match and invitation; changing the requested seat under the same request ID fails. The implementation derives the invitation token with HMAC-SHA-256 over a version label, participant ID, and request ID, using a separate server-held invitation secret. Only the token hash is stored. The creator can recover the token while the invitation is open. Keep the secret stable while invitations are open.
-
-### Join
-
-Joining runs in one Convex mutation:
-
-1. Resolve the authenticated participant and target match.
-2. If the participant already occupies a seat, return that seat successfully.
-3. If both seats are occupied, return `MATCH_FULL`.
-4. Verify that the invitation is valid, unconsumed, and unexpired, and that the match is waiting.
-5. Claim the remaining seat, consume the invitation, and activate the match atomically.
-
-Existing membership is checked before invitation consumption or expiry. A successful joiner's retry restores their seat even after their original join consumed the invitation.
-
-If three distinct participants attempt to join concurrently, exactly one claims the remaining seat. The others receive `MATCH_FULL`. The creator's repeated join returns their existing seat rather than claiming the second one.
-
-### Submit move
-
-One mutation performs the complete transition:
-
-1. Resolve the caller and verify match membership.
-2. Check for an already accepted request and validate that its contents match.
-3. Check active status, expected revision, and whose turn it is.
-4. Validate input bounds and move legality using the stored rules version.
-5. Apply the move and update draw state.
-6. Calculate the resulting outcome.
-7. Atomically insert the move and update the position, side to move, ply, revision, and any ending.
-
-No validation decision relies on a browser-supplied board or result. Concurrent moves or a move racing resignation must serialize through the same game record.
-
-### Cancel and resign
-
-Only the creator can cancel a waiting match. Either seated participant can resign an active match. Validate caller, status, and revision in the transaction. Repeated requests must not produce a second ending or increment revision again.
-
-## Expiry and retention
-
-Creation stores the waiting deadline and schedules an internal expiry mutation. Joining also checks the deadline directly, so a delayed scheduled job cannot admit a participant after expiry.
-
-The expiry mutation cancels only a match that is still waiting and whose deadline has passed. If the match has become active, it does nothing. Expiry and joining use the same game record so competing transitions cannot both succeed.
-
-Expiration invalidates an invitation. Maintenance deletes expired or cancelled, never-started matches and their invitations after seven days. It checks that no moves or commands exist before deletion. Active and completed played games remain available. See [operations.md](docs/operations.md) for quotas, the bounded cleanup job, and monitoring.
-
-## Queries and reconnection
-
-An invitation preview returns only the information needed to decide whether to join. Full match and history queries require membership in the first release. Invitation tokens and private authentication data must not appear in match responses.
-
-Both players subscribe to the same authoritative match. Refresh restores the session, resolves the participant, and loads the existing seat. It does not require claiming a seat again.
-
-After reconnection, reconcile the latest revision and any pending request receipt. The UI distinguishes an unconfirmed move from an accepted one and replaces stale local state with the server position.
-
-A disconnect has no lifecycle effect. Presence is not proof of forfeiture. Any future presence updates should remain separate from the game record and its revision.
-
-## Implementation order and verification
-
-1. Extract the rules engine and test parity with the prototype.
-2. Implement guest identity, schema, invitation creation, and transactional joining.
-3. Implement authoritative moves, results, cancellation, resignation, and waiting expiry.
-4. Connect the existing board interactions to SvelteKit and Convex subscriptions.
-5. Verify complete games in two independent browser sessions.
-
-Backend checks must exercise concurrent joins, duplicate requests, stale revisions, unauthorized moves, move/resignation races, join/expiry races, and attempts to change finished games. Reconnection checks must include a move accepted before the client receives its acknowledgement.
-
-Benchmark move validation in the deployed Convex runtime before release. Keep computer search outside move mutations.
-
-## Technical references
-
-- [Convex Svelte integration](https://docs.convex.dev/client/svelte/overview)
-- [Convex transactions and concurrency](https://docs.convex.dev/database/advanced/occ)
-- [Convex scheduled functions](https://docs.convex.dev/scheduling/scheduled-functions)
-- [Convex execution and storage limits](https://docs.convex.dev/production/state/limits)
-- [Convex Svelte authentication](https://docs.convex.dev/client/svelte/authentication)
-- [Convex Better Auth SvelteKit integration](https://labs.convex.dev/better-auth/framework-guides/sveltekit)
-- [Better Auth anonymous authentication](https://better-auth.com/docs/plugins/anonymous)
-
-## Persistent friend rooms
-
-The public room URL is `/room/[roomId]`; legacy `/game/[gameId]` URLs remain supported. For compatibility with existing invitations, the first game document is the stable room anchor. Its optional `currentGameId` points to the latest round. Each later game has `roomRootId` and `round`; the root is also indexed as round 1 once a rematch exists.
-
-`games.get` resolves a room anchor or a game in that room to the current game. Move, resignation, history, and receipt calls use the exact returned game ID. They never redirect old commands into a new round. The frontend subscribes through the stable room URL and restores pending moves using the current round's game ID.
-
-`games.rematch` checks room membership, compares `expectedGameId` with the current round, requires a finished non-cancelled game with both seats, and applies creation limits. It inserts a fresh initial position and updates the anchor in one transaction. Concurrent or retried starts observe the new pointer and return the current game rather than inserting another. Earlier game positions, results, and moves are preserved. The original invitation still routes its existing participants into the same room.
-
-A completed game clears automatic home redirection, but the room remains reusable while its players are viewing it. Starting another round updates both subscriptions. Leave room is unavailable during active play; resignation must finish the current game first.
+Cloudflare Workers serves the SvelteKit app and proxies authentication. A shared secret authenticates anonymous-signup requests between the Worker and Convex. Rate limits and expiry cleanup are described in [operations.md](docs/operations.md). Deployment instructions are in [deployment.md](docs/deployment.md).
