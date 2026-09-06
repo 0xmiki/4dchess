@@ -269,7 +269,18 @@ test('waiting rooms persist, copy without relabeling, and delete cleanly', async
 	await expect(page.locator('.player-profile').last().locator('strong')).toHaveText(guestName);
 	await expect(page.getByRole('textbox', { name: 'Invitation link' })).toHaveValue(invite);
 	await page.screenshot({ path: '/tmp/waiting-room-refined.png' });
-	await page.getByRole('button', { name: 'Delete challenge', exact: true }).click();
+	await expect(page.locator('.home-link.corner')).toHaveText('');
+	await context.setOffline(true);
+	const openedImmediately = await page.evaluate(() => {
+		(document.querySelector('.home-link.corner') as HTMLAnchorElement).click();
+		return [...document.querySelectorAll('dialog')].some((dialog) => dialog.open);
+	});
+	expect(openedImmediately).toBe(true);
+	await expect(page.getByRole('dialog', { name: 'Delete this challenge?' })).toBeVisible();
+	await page.getByRole('button', { name: 'Keep challenge', exact: true }).click();
+	await context.setOffline(false);
+	await expect(page).toHaveURL(roomUrl);
+	await page.getByRole('link', { name: '4D chess home', exact: true }).first().click();
 	await page
 		.getByRole('dialog')
 		.getByRole('button', { name: 'Delete challenge', exact: true })
@@ -521,7 +532,7 @@ test('computer history stays saved while players freely leave and resume', async
 	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
 	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
 	const saved = await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'));
-	await page.getByRole('button', { name: 'Leave game', exact: true }).click();
+	await page.getByRole('link', { name: '4D chess home', exact: true }).first().click();
 	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
 	await page.reload();
 	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
@@ -724,6 +735,36 @@ test('friends replay in the same room and recover a second-round move after relo
 		await expect(
 			white.getByRole('button', { name: 'Play with friend', exact: true })
 		).toBeVisible();
+	} finally {
+		await whiteContext.close();
+		await blackContext.close();
+	}
+});
+
+test('home logo requires resignation in an active friend game and permits a zero-move rematch', async ({
+	browser
+}) => {
+	const { white, black, whiteContext, blackContext } = await friends(browser);
+	try {
+		await black.getByRole('link', { name: '4D chess home', exact: true }).first().click();
+		await expect(black.getByRole('dialog', { name: 'Resign and go home?' })).toBeVisible();
+		await black.getByRole('button', { name: 'Stay here', exact: true }).click();
+		await expect(black.getByRole('button', { name: 'Resign', exact: true })).toBeVisible();
+		const roomUrl = black.url();
+		await black.getByRole('link', { name: '4D chess home', exact: true }).first().click();
+		await black.getByRole('button', { name: 'Resign and go home', exact: true }).click();
+		await expect(
+			black.getByRole('button', { name: 'Play with friend', exact: true })
+		).toBeVisible();
+		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+		await black.goto(roomUrl);
+		await black.getByRole('button', { name: 'Rematch', exact: true }).click();
+		await white.getByRole('button', { name: 'Accept rematch', exact: true }).click();
+		await expect(black.getByLabel('White to move', { exact: true })).toBeVisible();
+		await expect(black.locator('.player-profile').last()).toHaveAttribute(
+			'aria-label',
+			/white, you$/
+		);
 	} finally {
 		await whiteContext.close();
 		await blackContext.close();

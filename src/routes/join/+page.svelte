@@ -3,6 +3,7 @@
 	import Button from '$lib/components/Button.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import HomeLink from '$lib/components/HomeLink.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { useQuery } from 'convex-svelte';
@@ -41,7 +42,7 @@
 >
 <main class="challenge-page">
 	<section class="challenge-card" aria-label="Friend challenge">
-		<!-- TODO: Place the 4D chess logo here once the logo is designed. -->
+		<HomeLink />
 		{#if !ready || (token && preview.isLoading)}
 			<div class="challenge-loading"><Spinner label="Loading challenge" /></div>
 		{:else if !token || preview.error}
@@ -51,7 +52,6 @@
 			</p>
 			<a href={resolve('/')}>Create a challenge</a>
 		{:else if preview.data}
-			<p class="eyebrow">4D chess · Friendly game</p>
 			<h1>{preview.data.availableSeat ? 'Accept challenge' : 'Room invitation'}</h1>
 			<div class="challenger">
 				<p>Challenge from</p>
@@ -110,9 +110,6 @@
 		margin: 0;
 		font-size: 14px;
 		color: var(--muted);
-	}
-	.eyebrow {
-		font-size: 12px;
 	}
 	.challenger {
 		display: grid;

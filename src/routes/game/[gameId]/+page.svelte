@@ -7,7 +7,9 @@
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
-	import { onMount, untrack } from 'svelte';
+	import { onMount, untrack, getContext } from 'svelte';
+	import { homeRoomKey, type HomeRoomState } from '$lib/home-room';
+	const homeRoom = getContext<HomeRoomState>(homeRoomKey);
 	import { useAuth, useQuery, useConvexClient } from 'convex-svelte';
 	import { ConvexError } from 'convex/values';
 	import type { FunctionReturnType } from 'convex/server';
@@ -32,6 +34,12 @@
 	const roomId = $derived((page.params.roomId ?? page.params.gameId) as Id<'games'>);
 	const match = useQuery(api.games.get, () => (auth.isAuthenticated ? { gameId: roomId } : 'skip'));
 	const gameId = $derived(match.data?.game._id ?? roomId);
+	$effect(() => {
+		if (match.data) {
+			homeRoom.roomId = roomId;
+			homeRoom.room = match.data;
+		}
+	});
 	const score = useQuery(api.games.roomScore, () => (match.data ? { roomId } : 'skip'));
 	const invitation = useQuery(api.games.getInvitation, () =>
 		match.data?.game.status === 'waiting' &&
