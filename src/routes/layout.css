@@ -20,9 +20,7 @@ input,
 select {
 	font: inherit;
 }
-button,
-.button,
-select {
+.button {
 	min-height: 42px;
 	border: 1px solid #ccd3c8;
 	border-radius: 5px;
@@ -31,21 +29,8 @@ select {
 	color: inherit;
 	cursor: pointer;
 }
-button:hover:not(:disabled),
 .button:hover {
 	background: #edf1e8;
-}
-button:disabled {
-	opacity: 0.55;
-	cursor: default;
-}
-button.primary {
-	background: #315b40;
-	color: #fff;
-	border-color: #315b40;
-}
-button.primary:hover:not(:disabled) {
-	background: #244630;
 }
 a {
 	color: inherit;
@@ -70,20 +55,6 @@ h2 {
 	max-width: 1440px;
 	padding: 24px 32px;
 	margin: 0 auto;
-}
-.site-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 12px;
-	border-bottom: 1px solid #dce0d8;
-	padding-bottom: 16px;
-	margin-bottom: 24px;
-}
-.site-header > a {
-	font-size: 18px;
-	font-weight: 650;
-	text-decoration: none;
 }
 .flow {
 	width: min(100%, 420px);
@@ -114,31 +85,9 @@ h2 {
 	display: grid;
 	gap: 12px;
 }
-dialog {
-	margin: auto;
-	max-width: min(620px, calc(100% - 32px));
-	max-height: calc(100dvh - 48px);
-	border: 1px solid #ccd3c8;
-	border-radius: 8px;
-	background: #fafbf9;
-	color: #24342b;
-	padding: 24px;
-}
-dialog::backdrop {
-	background: #14251b66;
-}
-dialog h2 {
-	margin-bottom: 16px;
-}
-dialog p {
-	margin-bottom: 16px;
-}
 @media (max-width: 700px) {
 	.shell {
 		padding: 16px 12px;
-	}
-	.site-header {
-		margin-bottom: 18px;
 	}
 	.flow {
 		margin: 36px auto;

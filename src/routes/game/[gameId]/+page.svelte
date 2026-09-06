@@ -4,11 +4,19 @@
 	import { onMount, untrack } from 'svelte';
 	import { useAuth, useQuery, useConvexClient } from 'convex-svelte';
 	import { ConvexError } from 'convex/values';
+	import type { FunctionReturnType } from 'convex/server';
 	import { api } from '../../../convex/_generated/api';
 	import type { Id } from '../../../convex/_generated/dataModel';
 	import { inCheck, type Move } from '$lib/chess';
 	import { errorMessage } from '$lib/multiplayer';
 	import ChessBoard from '$lib/components/ChessBoard.svelte';
+	import Button from '$lib/components/Button.svelte';
+	import GameHeader from '$lib/components/GameHeader.svelte';
+	import GameStatus from '$lib/components/GameStatus.svelte';
+	import GameMenu from '$lib/components/GameMenu.svelte';
+	import Modal from '$lib/components/Modal.svelte';
+	import RulesDialog from '$lib/components/RulesDialog.svelte';
+	import ExportGame from '$lib/components/ExportGame.svelte';
 	import MoveHistory from '$lib/components/MoveHistory.svelte';
 	const auth = useAuth(),
 		client = useConvexClient();
@@ -30,11 +38,32 @@
 		error = $state(''),
 		copied = $state(false),
 		origin = $state('');
-	let rulesDialog: HTMLDialogElement,
-		historyDialog: HTMLDialogElement,
-		resignDialog: HTMLDialogElement;
+	let rulesDialog: ReturnType<typeof RulesDialog>,
+		historyDialog: ReturnType<typeof Modal>,
+		resignDialog: ReturnType<typeof Modal>;
 	let showHistory = $state(false);
-	let optionsMenu: HTMLDetailsElement;
+	let exportDialog: ReturnType<typeof Modal>,
+		showExport = $state(false);
+	async function exportSnapshot() {
+		const snapshot = game;
+		if (!snapshot) throw new Error('Match unavailable');
+		let cursor: string | null = null;
+		const moves: { from: number; to: number; ply: number }[] = [];
+		do {
+			const page: FunctionReturnType<typeof api.moves.list> = await client.query(api.moves.list, {
+				gameId: snapshot._id,
+				paginationOpts: { numItems: 50, cursor }
+			});
+			moves.push(...page.page.filter((move) => move.ply <= snapshot.ply));
+			if (page.isDone || moves.length >= snapshot.ply) break;
+			cursor = page.continueCursor;
+		} while (cursor);
+		moves.sort((a, b) => a.ply - b.ply);
+		if (moves.length !== snapshot.ply || moves.some((move, index) => move.ply !== index + 1))
+			throw new Error('Incomplete history');
+		return { moves, result: snapshot.result, date: snapshot._creationTime };
+	}
+	let optionsMenu: ReturnType<typeof GameMenu>;
 	type Pending = {
 		gameId: Id<'games'>;
 		participantId: Id<'participants'>;
@@ -206,36 +235,39 @@
 
 <svelte:head><title>{status || 'Match'} · 4D chess</title></svelte:head>
 <main class="shell">
-	<header class="site-header">
-		<a href={resolve('/')}>4D chess</a>
-		<details class="game-menu" bind:this={optionsMenu}>
-			<summary aria-label="Game options">⋯</summary>
-			<div class="menu-items">
-				<button
-					disabled={!mounted}
+	<GameHeader>
+		<GameMenu bind:this={optionsMenu}>
+			{#if game}<Button
 					onclick={() => {
-						optionsMenu.open = false;
-						rulesDialog.showModal();
-					}}>Rules</button
-				>
-				{#if game && game.ply > 0}<button
-						onclick={() => {
-							optionsMenu.open = false;
-							showHistory = true;
-							historyDialog.showModal();
-						}}>Move history</button
-					>{/if}
-				{#if game?.status === 'active'}<button
-						disabled={sending || !!pending}
-						onclick={() => {
-							optionsMenu.open = false;
-							resignRequest = null;
-							resignDialog.showModal();
-						}}>Resign</button
-					>{/if}
-			</div>
-		</details>
-	</header>
+						optionsMenu.close();
+						showExport = true;
+						exportDialog.showModal();
+					}}>Export game</Button
+				>{/if}
+			<Button
+				disabled={!mounted}
+				onclick={() => {
+					optionsMenu.close();
+					rulesDialog.showModal();
+				}}>Rules</Button
+			>
+			{#if game && game.ply > 0}<Button
+					onclick={() => {
+						optionsMenu.close();
+						showHistory = true;
+						historyDialog.showModal();
+					}}>Move history</Button
+				>{/if}
+			{#if game?.status === 'active'}<Button
+					disabled={sending || !!pending}
+					onclick={() => {
+						optionsMenu.close();
+						resignRequest = null;
+						resignDialog.showModal();
+					}}>Resign</Button
+				>{/if}
+		</GameMenu>
+	</GameHeader>
 	{#if !mounted || auth.isLoading || (auth.isAuthenticated && match.isLoading)}<p role="status">
 			Loading match…
 		</p>
@@ -251,21 +283,22 @@
 		</section>
 	{:else if game && match.data}
 		<div class="match-topbar">
-			<div aria-live="polite" aria-atomic="true">
-				<h1>{status}</h1>
-				<p class="muted">
-					{game.result
-						? resultDetail
-						: `You are ${match.data.seat}. ${game.status === 'active' ? (ownTurn ? 'Your turn.' : 'Your friend’s turn.') : 'Untimed.'}`}
-				</p>
-			</div>
+			<GameStatus
+				heading={status}
+				board={game.board}
+				turn={game.turn}
+				result={game.result}
+				subtitle={game.result
+					? resultDetail
+					: `You are ${match.data.seat}. ${game.status === 'active' ? (ownTurn ? 'Your turn.' : 'Your friend’s turn.') : 'Untimed.'}`}
+			/>
 			{#if game.status === 'finished'}<a class="button" href={resolve('/')}>New match</a>{/if}
 		</div>
 		{#if game.status === 'waiting'}<div class="invite-panel stack">
 				{#if invitationUrl}<div class="row">
-						<button class="primary" onclick={copy}
-							>{copied ? 'Link copied' : 'Copy invitation'}</button
-						><button onclick={cancel} disabled={sending}>Cancel match</button>
+						<Button variant="primary" onclick={copy}
+							>{copied ? 'Link copied' : 'Copy invitation'}</Button
+						><Button onclick={cancel} disabled={sending}>Cancel match</Button>
 					</div>
 					<input
 						aria-label="Invitation link"
@@ -284,7 +317,7 @@
 		{#if sending}<p class="notice" role="status">Waiting for server confirmation…</p>{/if}
 		{#if error}<div class="notice row" role="alert">
 				<p class="error">{error}</p>
-				{#if pending && !sending}<button onclick={submitPending}>Retry move</button>{/if}
+				{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 			</div>{/if}
 		<ChessBoard
 			board={game.board}
@@ -297,108 +330,44 @@
 	{/if}
 </main>
 
-<dialog
-	bind:this={rulesDialog}
-	aria-labelledby="rules-title"
-	onclose={() => optionsMenu.querySelector('summary')?.focus()}
+<RulesDialog bind:this={rulesDialog} onclose={() => optionsMenu.focus()} />
+<Modal
+	bind:this={exportDialog}
+	title="Export game"
+	onclose={() => {
+		showExport = false;
+		optionsMenu.focus();
+	}}
+	>{#if showExport}<ExportGame load={exportSnapshot} />{/if}<Button
+		class="close-dialog"
+		onclick={() => exportDialog.close()}>Close export</Button
+	></Modal
 >
-	<h2 id="rules-title">4D chess rules</h2>
-	<div class="stack">
-		<p>
-			Win by checkmate. White moves first. The board has four coordinates: X and Y have four
-			positions; Z and W each have two.
-		</p>
-		<dl>
-			<dt>Rook</dt>
-			<dd>Change exactly one coordinate by any distance.</dd>
-			<dt>Bishop</dt>
-			<dd>Change exactly two coordinates by equal distances.</dd>
-			<dt>Knight</dt>
-			<dd>Jump two steps along one coordinate and one along another.</dd>
-			<dt>Queen</dt>
-			<dd>Change any nonempty combination of coordinates by equal distances.</dd>
-			<dt>King</dt>
-			<dd>Change any combination of coordinates by one step, without entering check.</dd>
-			<dt>Pawn</dt>
-			<dd>
-				Advance one empty square along Y. Capture one Y step forward plus one step along exactly one
-				of X, Z, or W. White advances to rank 4, Black to rank 1. Promotion is automatically to a
-				queen.
-			</dd>
-		</dl>
-		<p>
-			Sliders cannot pass through pieces. There is no castling, en passant, or opening pawn double
-			move. Stalemate, third repetition, 100 halfmoves without a pawn move or capture, and bare
-			kings are draws.
-		</p>
-		<button onclick={() => rulesDialog.close()}>Close rules</button>
-	</div>
-</dialog>
-<dialog
+<Modal
 	bind:this={historyDialog}
-	aria-labelledby="history-title"
+	title="Move history"
 	onclose={() => {
 		showHistory = false;
-		optionsMenu.querySelector('summary')?.focus();
+		optionsMenu.focus();
 	}}
 >
-	<h2 id="history-title">Move history</h2>
-	{#if showHistory}<MoveHistory {gameId} />{/if}<button
+	{#if showHistory}<MoveHistory {gameId} />{/if}<Button
 		class="close-dialog"
-		onclick={() => historyDialog.close()}>Close history</button
+		onclick={() => historyDialog.close()}>Close history</Button
 	>
-</dialog>
-<dialog
-	bind:this={resignDialog}
-	aria-labelledby="resign-title"
-	onclose={() => optionsMenu.querySelector('summary')?.focus()}
->
-	<h2 id="resign-title">Resign this match?</h2>
+</Modal>
+<Modal bind:this={resignDialog} title="Resign this match?" onclose={() => optionsMenu.focus()}>
 	<p>Your opponent will win. This cannot be undone.</p>
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
 	<div class="row">
-		<button onclick={() => resignDialog.close()} disabled={sending}>Keep playing</button><button
+		<Button onclick={() => resignDialog.close()} disabled={sending}>Keep playing</Button><Button
 			onclick={resign}
-			disabled={sending}>{sending ? 'Confirming…' : 'Resign match'}</button
+			disabled={sending}>{sending ? 'Confirming…' : 'Resign match'}</Button
 		>
 	</div>
-</dialog>
+</Modal>
 
 <style>
-	.game-menu {
-		position: relative;
-	}
-	.game-menu summary {
-		cursor: pointer;
-		list-style: none;
-		border: 1px solid #ccd3c8;
-		border-radius: 5px;
-		background: white;
-		min-width: 42px;
-		min-height: 42px;
-		display: grid;
-		place-items: center;
-		font-size: 24px;
-	}
-	.game-menu summary::-webkit-details-marker {
-		display: none;
-	}
-	.menu-items {
-		position: absolute;
-		right: 0;
-		top: 48px;
-		display: grid;
-		min-width: 170px;
-		padding: 6px;
-		background: #fafbf9;
-		border: 1px solid #ccd3c8;
-		border-radius: 5px;
-		z-index: 10;
-	}
-	.menu-items button {
-		border: 0;
-		text-align: left;
-	}
 	.match-topbar {
 		display: flex;
 		justify-content: space-between;
@@ -422,14 +391,7 @@
 		margin-bottom: 16px;
 		padding: 12px 0;
 	}
-	dt {
-		font-weight: 650;
-		margin-top: 10px;
-	}
-	dd {
-		margin: 2px 0 10px;
-	}
-	.close-dialog {
+	:global(.close-dialog) {
 		margin-top: 20px;
 	}
 </style>

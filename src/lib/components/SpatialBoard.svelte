@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onDestroy } from 'svelte';
 	import {
 		squareCoordinates,
 		squareIndex,
@@ -8,18 +9,28 @@
 		type Coordinates
 	} from '$lib/chess';
 	import { pieceNames } from '$lib/pieces';
+	import Piece from './Piece.svelte';
+	import Button from './Button.svelte';
+	import type { PieceMotion } from './motion';
+	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
 		board,
 		selected,
 		moves,
 		lastMove,
-		onselect
+		onselect,
+		oninspect,
+		motion,
+		inspection
 	}: {
 		board: Board;
 		selected: number | null;
 		moves: Move[];
 		lastMove: Move | null;
 		onselect: (square: number) => void;
+		oninspect: (square: number) => void;
+		motion: PieceMotion | null;
+		inspection: ThreatInspection | null;
 	} = $props();
 	let yaw = $state(-0.48),
 		pitch = $state(0.26);
@@ -30,8 +41,13 @@
 		lastX: number;
 		lastY: number;
 		moved: boolean;
+		inspected?: boolean;
 		square: number | null;
 	} | null = null;
+	let holdTimer: ReturnType<typeof setTimeout> | undefined;
+	onDestroy(() => clearTimeout(holdTimer));
+	const componentId = $props.id();
+	const arrowId = componentId + '-spatial-threat';
 	function project([x, y, z, w]: Coordinates) {
 		const wScale = 2.05 / (2.7 - (w * 2 - 1));
 		const px = (x / 1.5 - 1) * wScale,
@@ -45,6 +61,20 @@
 		return { x: 220 + rx * 86 * scale, y: 220 - ry * 86 * scale, depth, scale };
 	}
 	const points = $derived(Array.from({ length: 64 }, (_, i) => project(squareCoordinates(i))));
+	const mover = $derived.by(() => {
+		if (!motion) return null;
+		const a = squareCoordinates(motion.from),
+			b = squareCoordinates(motion.to),
+			t = motion.progress;
+		const p = project([
+			a[0] + (b[0] - a[0]) * t,
+			a[1] + (b[1] - a[1]) * t,
+			a[2] + (b[2] - a[2]) * t,
+			a[3] + (b[3] - a[3]) * t
+		]);
+		if (motion.piece.t === 'n') p.y -= Math.sin(Math.PI * t) * 21;
+		return p;
+	});
 	const faces = $derived(
 		[0, 1]
 			.flatMap((w) =>
@@ -88,11 +118,20 @@
 			square: target ? Number(target.getAttribute('data-node')) : null
 		};
 		(event.currentTarget as SVGSVGElement).setPointerCapture(event.pointerId);
+		if (event.pointerType !== 'mouse' && gesture.square !== null) {
+			holdTimer = setTimeout(() => {
+				if (gesture?.square !== null && gesture) {
+					gesture.inspected = true;
+					oninspect(gesture.square);
+				}
+			}, 500);
+		}
 	}
 	function drag(event: PointerEvent) {
 		if (!gesture || gesture.id !== event.pointerId) return;
 		if (Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 5) gesture.moved = true;
-		if (gesture.moved) {
+		if (gesture.moved) clearTimeout(holdTimer);
+		if (gesture.moved && !gesture.inspected) {
 			yaw += (event.clientX - gesture.lastX) * 0.009;
 			pitch = Math.max(-1.35, Math.min(1.35, pitch + (event.clientY - gesture.lastY) * 0.009));
 		}
@@ -100,14 +139,21 @@
 		gesture.lastY = event.clientY;
 	}
 	function up(event: PointerEvent) {
+		clearTimeout(holdTimer);
 		if (!gesture || gesture.id !== event.pointerId) return;
 		const previous = gesture;
 		gesture = null;
 		const svg = event.currentTarget as SVGSVGElement;
 		if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
-		if (!previous.moved && previous.square !== null) onselect(previous.square);
+		if (!previous.moved && !previous.inspected && previous.square !== null)
+			onselect(previous.square);
 	}
 	function key(event: KeyboardEvent) {
+		if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
+			event.preventDefault();
+			if (selected !== null) oninspect(selected);
+			return;
+		}
 		if (event.key === 'Home') {
 			event.preventDefault();
 			reset();
@@ -123,7 +169,7 @@
 
 <section class="spatial" aria-label="Tesseract projection">
 	<div class="row spatial-toolbar">
-		<span>Tesseract projection</span><button onclick={reset}>Reset view</button>
+		<span>Tesseract projection</span><Button onclick={reset}>Reset view</Button>
 	</div>
 	<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions (This SVG is a keyboard-operable orbit control. Native board buttons provide keyboard access to every move.) -->
 	<svg
@@ -133,17 +179,39 @@
 		tabindex="0"
 		aria-label="Rotatable tesseract. Drag or use arrow keys to rotate. Home resets the view."
 		onpointerdown={down}
+		oncontextmenu={(event) => {
+			event.preventDefault();
+			clearTimeout(holdTimer);
+			if (gesture?.inspected) return;
+			if (gesture) gesture.inspected = true;
+			const node = (event.target as Element).closest('[data-node]');
+			if (node) oninspect(Number(node.getAttribute('data-node')));
+		}}
 		onpointermove={drag}
 		onpointerup={up}
 		onpointercancel={() => {
+			clearTimeout(holdTimer);
 			gesture = null;
 		}}
 		onlostpointercapture={() => {
+			clearTimeout(holdTimer);
 			gesture = null;
 		}}
 		onkeydown={key}
 	>
 		<title>Four-dimensional chess position projected into 3D</title>
+		<defs
+			><marker
+				id={arrowId}
+				viewBox="0 0 10 10"
+				refX="9"
+				refY="5"
+				markerWidth="6"
+				markerHeight="6"
+				orient="auto"
+				><path d="M1 1L9 5L1 9" fill="none" stroke="context-stroke" stroke-width="1.5" /></marker
+			></defs
+		>
 		{#each faces as face (face.w * 2 + face.z)}
 			<polygon
 				points={face.ids.map((i) => `${points[i].x},${points[i].y}`).join(' ')}
@@ -185,7 +253,16 @@
 						stroke-dasharray="4 4"
 					/>
 				{/each}{/each}{/each}
-		{#if selected !== null}
+		{#if inspection}{#each inspection.attackers as from (from)}<line
+					x1={points[from].x}
+					y1={points[from].y}
+					x2={points[inspection.target].x}
+					y2={points[inspection.target].y}
+					stroke={inspection.position[from]?.c === 'w' ? '#9b542f' : '#426f89'}
+					stroke-width="2"
+					marker-end={`url(#${arrowId})`}
+				/>{/each}
+		{:else if selected !== null}
 			{#each moves as move (move.to)}<line
 					x1={points[selected].x}
 					y1={points[selected].y}
@@ -196,7 +273,7 @@
 					stroke-dasharray="3 4"
 					opacity=".65"
 				/>{/each}
-		{:else if lastMove}<line
+		{:else if lastMove && !motion}<line
 				x1={points[lastMove.from].x}
 				y1={points[lastMove.from].y}
 				x2={points[lastMove.to].x}
@@ -215,6 +292,20 @@
 						: 'empty'}</title
 				>
 				<circle cx={point.x} cy={point.y} r="12" fill="transparent" />
+				{#if inspection?.target === i}<rect
+						x={point.x - 16}
+						y={point.y - 16}
+						width="32"
+						height="32"
+						rx="5"
+						fill="#c9dce6"
+						stroke="#426f89"
+					/>{:else if inspection?.attackers.includes(i)}<circle
+						cx={point.x}
+						cy={point.y}
+						r="15"
+						fill="#e9c6b9"
+					/>{/if}
 				{#if selected === i}<circle
 						cx={point.x}
 						cy={point.y}
@@ -230,15 +321,16 @@
 						stroke={p ? '#ac4e2e' : '#315c46'}
 						stroke-width="2"
 					/>{/if}
-				{#if p}<use
-						class:white={p.c === 'w'}
-						class:black={p.c === 'b'}
-						href={`/pieces.svg#piece-${p.t}`}
+				{#if p}<Piece
+						piece={p}
 						x={point.x - size / 2}
 						y={point.y - size / 2}
-						width={size}
-						height={size}
-						pointer-events="none"
+						{size}
+						opacity={motion?.to === i
+							? 1 - Math.max(0, (motion.progress - 0.8) / 0.2)
+							: inspection?.preview && inspection.target === i
+								? 0.65
+								: 1}
 					/>
 				{:else if !legal}<circle
 						cx={point.x}
@@ -249,6 +341,10 @@
 					/>{/if}
 			</g>
 		{/each}
+		{#if motion && mover}{@const size = 26 * Math.min(1.15, mover.scale)}<g
+				data-animation="spatial-piece"
+				><Piece piece={motion.piece} x={mover.x - size / 2} y={mover.y - size / 2} {size} /></g
+			>{/if}
 	</svg>
 	<p class="muted caption">W = 0 is the inner cube. W = 1 is the outer cube.</p>
 </section>
@@ -270,16 +366,6 @@
 	}
 	.space-svg:active {
 		cursor: grabbing;
-	}
-	.white {
-		color: #fff9e8;
-		--stroke: #405344;
-		--detail: #405344;
-	}
-	.black {
-		color: #284739;
-		--stroke: #1c3228;
-		--detail: #bed0b6;
 	}
 	.caption {
 		font-size: 12px;

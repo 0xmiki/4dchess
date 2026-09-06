@@ -37,7 +37,7 @@ Opening an invitation does not claim a seat. This also prevents link previews fr
 
 The first release has no chess clocks. Active matches do not expire because someone disconnects. Waiting matches expire after 24 hours.
 
-Accounts, matchmaking, ratings, spectators, draw offers, takebacks, and rematches are later discussions. The multiplayer policy for the prototype's threat previews and other assistance remains to be decided.
+Accounts, matchmaking, ratings, spectators, draw offers, takebacks, and rematches are later discussions. Threat inspection is enabled for unrated friend matches and computer play. It previews a separate position and does not change the authoritative game.
 
 ## System boundaries
 
@@ -240,7 +240,7 @@ Creation stores the waiting deadline and schedules an internal expiry mutation. 
 
 The expiry mutation cancels only a match that is still waiting and whose deadline has passed. If the match has become active, it does nothing. Expiry and joining use the same game record so competing transitions cannot both succeed.
 
-Expiration invalidates an invitation; it does not delete its records. A separate proposed retention policy deletes expired, never-started games, their invitations, and related temporary records after seven days. This retention period is not yet agreed. Completed played games remain available for history.
+Expiration invalidates an invitation. Maintenance deletes expired or cancelled, never-started matches and their invitations after seven days. It checks that no moves or commands exist before deletion. Active and completed played games remain available. See [operations.md](docs/operations.md) for quotas, the bounded cleanup job, and monitoring.
 
 ## Queries and reconnection
 

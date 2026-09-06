@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import Button from '$lib/components/Button.svelte';
+	import GameHeader from '$lib/components/GameHeader.svelte';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { useQuery } from 'convex-svelte';
@@ -37,7 +39,7 @@
 	/></svelte:head
 >
 <main class="shell">
-	<header class="site-header"><a href={resolve('/')}>4D chess</a></header>
+	<GameHeader />
 	<section class="flow" aria-label="Join friend match">
 		{#if !ready || (token && preview.isLoading)}<p role="status">Loading invitation…</p>
 		{:else if !token}<p class="error" role="alert">This invitation is invalid.</p>
@@ -51,8 +53,8 @@
 				</p>{:else}<p>
 					This invitation has no open seat. If you already joined, you can return to the match.
 				</p>{/if}
-			<button class="primary" onclick={join} disabled={busy}
-				>{busy ? 'Joining…' : preview.data.availableSeat ? 'Join match' : 'Return to match'}</button
+			<Button variant="primary" onclick={join} disabled={busy}
+				>{busy ? 'Joining…' : preview.data.availableSeat ? 'Join match' : 'Return to match'}</Button
 			>
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}

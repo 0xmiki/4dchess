@@ -15,6 +15,7 @@ async function friends(browser: Browser) {
 	const white = await whiteContext.newPage(),
 		black = await blackContext.newPage();
 	await white.goto(process.env.E2E_BASE_URL!);
+	await white.getByRole('button', { name: 'Play with friend', exact: true }).click();
 	await white.getByRole('button', { name: 'Create friend match' }).click();
 	await expect(white.getByRole('heading', { name: 'Waiting for your friend' })).toBeVisible();
 	const invitation = await white.getByRole('textbox', { name: 'Invitation link' }).inputValue();
@@ -96,12 +97,93 @@ test('friends synchronize, recover a lost acknowledgement, reconnect, and finish
 		await black.getByRole('button', { name: 'Move history' }).click();
 		await expect(black.locator('.moves li')).toHaveCount(8);
 		await black.getByRole('button', { name: 'Close history' }).click();
+		await black.getByLabel('Game options', { exact: true }).click();
+		await black.getByRole('button', { name: 'Export game', exact: true }).click();
+		await expect(black.getByRole('textbox', { name: '4D PGN notation' })).toBeVisible();
+		await expect
+			.poll(() => black.getByRole('textbox', { name: '4D PGN notation' }).inputValue())
+			.toContain('1/2-1/2');
+		await black.getByRole('button', { name: 'Close export' }).click();
 		await black.reload();
 		await expect(black.getByRole('heading', { name: 'Game drawn' })).toBeVisible();
 	} finally {
 		await whiteContext.close();
 		await blackContext.close();
 	}
+});
+
+test('computer play uses no backend, supports threat inspection, animation, export, and restore', async ({
+	page
+}) => {
+	const backendRequests: string[] = [];
+	page.on('request', (request) => {
+		const url = new URL(request.url());
+		if (
+			url.hostname.endsWith('.convex.cloud') ||
+			url.hostname.endsWith('.convex.site') ||
+			url.pathname.startsWith('/api/auth/')
+		)
+			backendRequests.push(url.pathname);
+	});
+	await page.goto(process.env.E2E_BASE_URL!);
+	const choices = page.getByRole('region', { name: 'Choose how to play' }).getByRole('button');
+	await expect(choices).toHaveText(['Play with friend', 'Play computer']);
+	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
+	await page.getByRole('button', { name: 'Start game', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+	const before = await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'));
+	await page.locator('[data-square="2"]').click({ button: 'right' });
+	await expect(page.getByRole('region', { name: 'Threat inspection' })).toContainText(
+		'Defended by:'
+	);
+	expect(await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'))).toBe(before);
+	await page.getByRole('button', { name: 'Clear inspection' }).click();
+	await move(page, 0, 32);
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(1);
+	await expect(page.locator('[data-animation="spatial-piece"]')).toHaveCount(1);
+	await expect
+		.poll(() =>
+			page.evaluate(() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length)
+		)
+		.toBe(2);
+	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+	await page.reload();
+	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();
+	expect(
+		await page.evaluate(
+			() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length
+		)
+	).toBe(2);
+	await page.getByLabel('Game options', { exact: true }).click();
+	await page.getByRole('button', { name: 'Export game', exact: true }).click();
+	await expect
+		.poll(() => page.getByRole('textbox', { name: '4D PGN notation' }).inputValue())
+		.toContain('[Black "Computer (Easy)"]');
+	const download = page.waitForEvent('download');
+	await page.getByRole('button', { name: 'Download PGN' }).click();
+	expect((await download).suggestedFilename()).toBe('4d-chess.pgn');
+	expect(backendRequests).toEqual([]);
+});
+
+test('computer can play White and reduced-motion preference disables moving overlays', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+	await page
+		.getByRole('region', { name: 'Computer game settings' })
+		.getByLabel('Your side')
+		.selectOption('b');
+	await page.getByRole('button', { name: 'Start game', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Black to move', exact: true })).toBeVisible();
+	await expect(page.locator('[data-animation]')).toHaveCount(0);
+	expect(
+		await page.evaluate(
+			() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length
+		)
+	).toBe(1);
+	await page.reload();
+	await expect(page.getByRole('heading', { name: 'Black to move', exact: true })).toBeVisible();
 });
 
 test('resignation requires confirmation and updates both players', async ({ browser }) => {

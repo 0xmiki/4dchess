@@ -1,6 +1,6 @@
 # 4D chess
 
-Multiplayer 4D chess built with SvelteKit and Convex. The first release will support untimed friend matches through guest invitation links. See [architecture.md](architecture.md) for the agreed design.
+4D chess built with SvelteKit and Convex, with untimed friend matches and local computer play. See [architecture.md](architecture.md) for the agreed design.
 
 ## Development
 
@@ -76,7 +76,17 @@ Friend matches can now be played end to end: create a match, share its invitatio
 
 Invitation tokens travel in the URL fragment rather than the request path. The browser creates a guest only after an explicit create/join action and coordinates guest establishment across tabs when the browser supports Web Locks. The board waits for server-confirmed state. Pending moves retain their request ID in session storage, so refreshing after a lost acknowledgement retries the original request. Disconnecting disables input without forfeiting the match.
 
-Computer play, import/export, undo/takebacks, and threat-analysis tools remain outside this multiplayer release. The original prototype is unchanged.
+The start screen offers **Play with friend** followed by **Play computer**. Friend settings live at `/friend`; computer settings and play live at `/computer`.
+
+Threat inspection is available in both modes through right-click, long-press, Shift+F10, or the selected piece's inspection button. It identifies enemy attackers and friendly defenders on both board views. Inspecting a destination previews the selected piece there without changing the game, including a warning when that move leaves the king in check.
+
+Moves animate across the flat boards and tesseract from one shared progress value. Multiplayer animations start only after server confirmation. Promotion displays the moving pawn until arrival. Reduced-motion preferences and hidden tabs skip or finish animations.
+
+Computer play uses a local Web Worker with iterative deepening, alpha-beta search, capture search, and bounded caches. Easy, Medium, Hard, and Extreme use progressively larger time/depth budgets. It creates no guest sessions or backend matches. The move history and settings are saved locally and validated by replay on restoration. A retry action handles worker failures. Search is paused when the tab is hidden and cancelled when a new game starts. Search choices can vary with device speed because its time budget is bounded.
+
+**Export game** in the options menu copies or downloads 4D PGN, including coordinates, variant/rules metadata, promotions, checks, and the game result. Friend exports collect a complete move prefix matching the selected match snapshot. Computer exports use local history. Import and undo/takebacks remain deferred. The original prototype is unchanged.
+
+Reusable controls and board elements live in [`src/lib/components`](src/lib/components/README.md). Control-specific styles live with the components; global typography and layout utilities remain in `src/routes/layout.css`.
 
 ## Guest and lobby API
 
@@ -98,7 +108,7 @@ Use `authClient.signIn.anonymous()` from `src/lib/auth-client.ts` when a player 
 | `moves.latest`        | Return the latest move for highlighting, for members only.                                                                           |
 | `moves.list`          | Paginate move history, newest first, for members only.                                                                               |
 
-Joining increments the revision from 0 to 1 while keeping `ply` at 0. Repeated requests do not increment it. Expiry only affects waiting matches; active matches remain intact when clients disconnect. The seven-day cleanup retention proposal is not implemented yet.
+Joining increments the revision from 0 to 1 while keeping `ply` at 0. Repeated requests do not increment it. Expiry only affects waiting matches; active matches remain intact when clients disconnect. Expired or cancelled, never-started matches are removed after seven days. See [operations.md](docs/operations.md) for limits, retention, and monitoring.
 
 The backend derives each invitation token using HMAC-SHA-256 with `INVITE_SECRET`, the participant ID, and the creation request ID. It stores only a SHA-256 hash of the token in `invites`. This allows retry and creator recovery without storing the raw token. Keep the invitation secret stable while invitations are open. Account linking is not enabled yet.
 
@@ -108,6 +118,7 @@ Set these values in the Convex deployment, never in public frontend variables:
 
 - `BETTER_AUTH_SECRET`: a cryptographically random secret of at least 32 bytes.
 - `INVITE_SECRET`: a separate cryptographically random secret of at least 32 bytes.
+- `AUTH_PROXY_SECRET`: a separate secret shared with the Worker, used to verify the website's anonymous-signup requests. Configure the same value in the ignored local `.env.local` for development and as a Worker secret for deployment.
 - `SITE_URL`: `https://4dchess.justglow.dev` for the current development site.
 - `TRUSTED_ORIGINS`: the site origin and explicitly permitted local development origins, separated by commas.
 
@@ -121,7 +132,7 @@ With the app running against a development backend:
 E2E_BASE_URL=http://localhost:5173 bun run test:multiplayer
 ```
 
-Install Chromium with `bunx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an existing Chromium executable. The tests require an explicit URL because they create guest sessions and completed matches on that backend. They verify isolated players, opposite board orientation, synchronized moves, refresh after a lost acknowledgement, offline recovery, repetition draws, history, and resignation confirmation. Test reports remain in the ignored `test-results` directory.
+Install Chromium with `bunx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an existing Chromium executable. The tests require an explicit URL because friend tests create guest sessions and completed matches on that backend. They verify isolated players, synchronized moves, refresh after a lost acknowledgement, reconnection, repetition, resignation, threat inspection, animations, reduced motion, exports, and local computer-game restoration without backend requests. Signup limits apply to browser tests too; avoid repeatedly creating guests in a short period. Test reports remain in the ignored `test-results` directory.
 
 ## Development site
 
@@ -134,4 +145,4 @@ bun run build
 bun run deploy:frontend
 ```
 
-The Worker only needs the asset binding. Authentication and invitation secrets live in Convex. `.env*` files, `.dev.vars*`, private keys, and logs are ignored by Git; only `.env.example` is tracked. Local checkpoint commits use a GitHub noreply address.
+The Worker uses the asset and guest-signup rate-limit bindings plus `AUTH_PROXY_SECRET`. Authentication and invitation secrets live in Convex. `.env*` files, `.dev.vars*`, private keys, and logs are ignored by Git; only `.env.example` is tracked. Local checkpoint commits use a GitHub noreply address.
