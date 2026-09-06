@@ -35,6 +35,7 @@ export const gameFields = {
 	roomRootId: v.optional(v.id('games')),
 	currentGameId: v.optional(v.id('games')),
 	round: v.optional(v.number()),
+	rematchRequestedBy: v.optional(color),
 	creatorParticipantId: v.id('participants'),
 	createRequestId: v.string(),
 	whiteParticipantId: v.union(v.id('participants'), v.null()),

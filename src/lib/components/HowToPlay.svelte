@@ -100,7 +100,7 @@
 
 <section class="guide match-layout" aria-label="Learn and practice">
 	<aside class="game-info learning-tools">
-		<div class="mode-switch" aria-label="Learning mode">
+		<div class="mode-switch pill-rail" style:--pill-index={free ? 1 : 0} aria-label="Learning mode">
 			<button
 				disabled={!ready}
 				class:chosen={!free}
@@ -121,7 +121,11 @@
 		</div>
 		{#if free}
 			<h1>Free practice</h1>
-			<div class="mode-switch" aria-label="Practice tool">
+			<div
+				class="mode-switch pill-rail"
+				style:--pill-index={placing ? 1 : 0}
+				aria-label="Practice tool"
+			>
 				<button
 					class:chosen={!placing}
 					aria-pressed={!placing}
@@ -239,7 +243,6 @@
 		font-size: 13px;
 	}
 	.mode-switch .chosen {
-		background: var(--line);
 		color: var(--text);
 	}
 	.learning-tools :global(.side-toggle) {

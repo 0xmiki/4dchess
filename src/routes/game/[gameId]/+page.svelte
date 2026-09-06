@@ -19,6 +19,9 @@
 	import Button from '$lib/components/Button.svelte';
 	import TurnIndicator from '$lib/components/TurnIndicator.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
+	import CopyIcon from 'phosphor-svelte/lib/CopyIcon';
+	import CheckIcon from 'phosphor-svelte/lib/CheckIcon';
+	import TrashIcon from 'phosphor-svelte/lib/TrashIcon';
 	import Modal from '$lib/components/Modal.svelte';
 	import ExportGame from '$lib/components/ExportGame.svelte';
 	import MoveHistory from '$lib/components/MoveHistory.svelte';
@@ -27,6 +30,7 @@
 	const roomId = $derived((page.params.roomId ?? page.params.gameId) as Id<'games'>);
 	const match = useQuery(api.games.get, () => (auth.isAuthenticated ? { gameId: roomId } : 'skip'));
 	const gameId = $derived(match.data?.game._id ?? roomId);
+	const score = useQuery(api.games.roomScore, () => (match.data ? { roomId } : 'skip'));
 	const invitation = useQuery(api.games.getInvitation, () =>
 		match.data?.game.status === 'waiting' &&
 		match.data.game.creatorParticipantId ===
@@ -43,7 +47,7 @@
 		error = $state(''),
 		copied = $state(false),
 		origin = $state('');
-	let resignDialog: ReturnType<typeof Modal>;
+	let resignDialog: ReturnType<typeof Modal>, deleteDialog: ReturnType<typeof Modal>;
 	let exportDialog: ReturnType<typeof Modal>,
 		showExport = $state(false);
 	async function exportSnapshot() {
@@ -118,8 +122,16 @@
 				}
 			};
 	}
-	function leave() {
+	async function leave() {
 		if (game?.status === 'active') return;
+		if (game?.rematchRequestedBy) {
+			try {
+				await client.mutation(api.games.dismissRematch, { gameId });
+			} catch (cause) {
+				error = errorMessage(cause);
+				return;
+			}
+		}
 		leaving = true;
 		leaveMatch();
 		void goto(resolve('/'));
@@ -134,7 +146,7 @@
 		if (game.status === 'waiting') return 'Waiting for your friend';
 		if (game.result) {
 			if (game.result.reason === 'cancellation')
-				return game.result.detail === 'inviteExpired' ? 'Invitation expired' : 'Room closed';
+				return game.result.detail === 'inviteExpired' ? 'Invitation expired' : 'Room deleted';
 			if (game.result.reason === 'draw') return 'Game drawn';
 			return `${game.result.winner === 'white' ? 'White' : 'Black'} wins`;
 		}
@@ -273,6 +285,16 @@
 		void submitPending();
 	}
 	let roundStarting = $state(false);
+	async function dismissRematch() {
+		roundStarting = true;
+		try {
+			await client.mutation(api.games.dismissRematch, { gameId });
+		} catch (cause) {
+			error = errorMessage(cause);
+		} finally {
+			roundStarting = false;
+		}
+	}
 	async function newRound() {
 		if (!game || game.status !== 'finished' || roundStarting) return;
 		roundStarting = true;
@@ -285,6 +307,13 @@
 			roundStarting = false;
 		}
 	}
+	$effect(() => {
+		if (!copied) return;
+		const timer = setTimeout(() => {
+			copied = false;
+		}, 1800);
+		return () => clearTimeout(timer);
+	});
 	async function copy() {
 		try {
 			await navigator.clipboard.writeText(invitationUrl);
@@ -294,11 +323,12 @@
 		}
 	}
 	async function cancel() {
-		if (!game) return;
+		if (!game || game.status !== 'waiting' || sending) return;
 		sending = true;
 		error = '';
 		try {
 			await client.mutation(api.games.cancel, { gameId, expectedRevision: game.revision });
+			deleteDialog.close();
 			leave();
 		} catch (cause) {
 			error = errorMessage(cause);
@@ -363,23 +393,41 @@
 				/>
 			</div>
 			<aside class="game-info">
-				{#if game.status === 'waiting'}<div class="invite-panel stack">
-						{#if invitationUrl}<div class="row">
-								<Button variant="primary" onclick={copy}
-									>{copied ? 'Link copied' : 'Copy invitation'}</Button
-								><Button onclick={cancel} disabled={sending}>Close room</Button>
-							</div>
+				{#if game.status === 'waiting'}
+					<div class="invite-panel stack">
+						<TurnIndicator label={status} turn={game.turn} text="Waiting for friend" />
+						{#if invitationUrl}
+							<Button variant="primary" onclick={copy}>
+								{#if copied}<CheckIcon size={18} />{:else}<CopyIcon size={18} />{/if}
+								Copy invitation
+							</Button>
+							<span class="sr-only" role="status">{copied ? 'Invitation copied' : ''}</span>
 							<input
 								aria-label="Invitation link"
 								readonly
 								value={invitationUrl}
 								onclick={(e) => e.currentTarget.select()}
 							/>
-							<p class="muted">Invitation expires {new Date(game.expiresAt).toLocaleString()}.</p>
+							<p class="invite-expiry">
+								Expires {new Date(game.expiresAt).toLocaleString(undefined, {
+									month: 'short',
+									day: 'numeric',
+									hour: 'numeric',
+									minute: '2-digit'
+								})}
+							</p>
 						{:else if invitation.error}<p class="error" role="alert">
 								{errorMessage(invitation.error)}
 							</p>{/if}
-					</div>{/if}
+						{#if game.creatorParticipantId === (match.data.seat === 'white' ? game.whiteParticipantId : game.blackParticipantId)}
+							<button
+								class="delete-room"
+								onclick={() => deleteDialog.showModal()}
+								disabled={sending}><TrashIcon size={16} />Delete room</button
+							>
+						{/if}
+					</div>
+				{/if}
 				{#if !online}<p class="notice" role="status">
 						Connection lost. Your room is saved. Reconnecting…
 					</p>{/if}
@@ -389,49 +437,69 @@
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
 				<GameOutcome result={game.result} side={match.data.seat} />
+				{#if score.data && score.data.games > 0}
+					<div class="room-score" aria-label="Room score">
+						<span>You <strong>{score.data[match.data.seat]}</strong></span>
+						<span
+							>Friend <strong>{score.data[match.data.seat === 'white' ? 'black' : 'white']}</strong
+							></span
+						>
+					</div>
+				{/if}
 				{#if game.status === 'active'}<Button
 						disabled={sending || !!pending}
 						onclick={() => {
 							resignRequest = null;
 							resignDialog.showModal();
 						}}>Resign</Button
-					>{:else if game.status === 'finished' && game.result?.reason !== 'cancellation'}<Button
-						variant="primary"
-						onclick={newRound}
-						disabled={roundStarting}
-						>{#if roundStarting}<Spinner label="Starting game" />{:else}New game{/if}</Button
-					>{/if}
-				<MovesPanel
-					onexport={() => {
-						showExport = true;
-						exportDialog.showModal();
-					}}
-					>{#snippet indicator()}<TurnIndicator
-							label={status}
-							turn={game.turn}
-							text={review
-								? `Move ${review.ply}`
-								: provisional
-									? 'Confirming…'
-									: game.status === 'waiting'
-										? 'Waiting for friend'
-										: game.status === 'finished'
-											? 'Game over'
-											: ownTurn
-												? 'Your turn'
-												: 'Friend’s turn'}
-						/>{/snippet}<MoveHistory
-						{gameId}
-						board={liveBoard!}
-						ply={livePly}
-						selectedPly={review?.ply ?? livePly}
-						pendingMove={provisional?.move ?? null}
-						onreview={(value) => {
-							review = value;
+					>{:else if game.status === 'finished' && game.result?.reason !== 'cancellation'}
+					{#if game.rematchRequestedBy === match.data.seat}
+						<p role="status" class="muted">Rematch requested</p>
+						<Button onclick={dismissRematch} disabled={roundStarting}>Cancel request</Button>
+					{:else if game.rematchRequestedBy}
+						<p role="status">Your friend wants a rematch.</p>
+						<Button variant="primary" onclick={newRound} disabled={roundStarting}
+							>{#if roundStarting}<Spinner label="Accepting rematch" />{/if}Accept rematch</Button
+						>
+						<Button onclick={dismissRematch} disabled={roundStarting}>Decline</Button>
+					{:else}
+						<Button variant="primary" onclick={newRound} disabled={roundStarting}
+							>{#if roundStarting}<Spinner label="Requesting rematch" />{/if}Rematch</Button
+						>
+					{/if}
+				{/if}
+				{#if game.status !== 'waiting'}<MovesPanel
+						onexport={() => {
+							showExport = true;
+							exportDialog.showModal();
 						}}
-					/></MovesPanel
-				>
-				{#if game.status !== 'active'}<button class="leave-match" onclick={leave}>Leave room</button
+						>{#snippet indicator()}<TurnIndicator
+								label={status}
+								turn={game.turn}
+								text={review
+									? `Move ${review.ply}`
+									: provisional
+										? 'Confirming…'
+										: game.status === 'waiting'
+											? 'Waiting for friend'
+											: game.status === 'finished'
+												? 'Game over'
+												: ownTurn
+													? 'Your turn'
+													: 'Friend’s turn'}
+							/>{/snippet}<MoveHistory
+							{gameId}
+							board={liveBoard!}
+							ply={livePly}
+							selectedPly={review?.ply ?? livePly}
+							pendingMove={provisional?.move ?? null}
+							onreview={(value) => {
+								review = value;
+							}}
+						/></MovesPanel
+					>{/if}
+				{#if game.status === 'finished'}<button class="leave-match" onclick={leave}
+						>Leave room</button
 					>{/if}
 			</aside>
 		</div>
@@ -447,6 +515,17 @@
 	}}
 	>{#if showExport}<ExportGame load={exportSnapshot} />{/if}</Modal
 >
+<Modal bind:this={deleteDialog} title="Delete this room?" dismissOnBackdrop>
+	<p>The invitation will stop working.</p>
+	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<div class="row">
+		<Button onclick={() => deleteDialog.close()} disabled={sending}>Keep room</Button><Button
+			onclick={cancel}
+			disabled={sending}
+			>{#if sending}<Spinner label="Deleting room" />{/if}Delete room</Button
+		>
+	</div>
+</Modal>
 <Modal bind:this={resignDialog} title="Resign this game?">
 	<p>Your opponent will win. This cannot be undone.</p>
 	{#if error}<p class="error" role="alert">{error}</p>{/if}
@@ -459,6 +538,37 @@
 </Modal>
 
 <style>
+	.room-score {
+		display: flex;
+		justify-content: space-between;
+		gap: 16px;
+		color: var(--muted);
+		font-size: 14px;
+	}
+	.room-score strong {
+		color: var(--text);
+		font-variant-numeric: tabular-nums;
+		margin-left: 8px;
+	}
+	.delete-room {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+		min-height: 40px;
+		color: var(--muted);
+		cursor: pointer;
+		border-radius: var(--radius-control);
+	}
+	.delete-room:hover {
+		background: var(--surface);
+		color: var(--text);
+	}
+	.invite-expiry {
+		color: var(--muted);
+		font-size: 12px;
+		margin: 0;
+	}
 	.invite-panel {
 		max-width: 640px;
 		margin-bottom: 24px;

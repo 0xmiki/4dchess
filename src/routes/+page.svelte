@@ -27,33 +27,25 @@
 		resuming = true;
 		resumeError = false;
 		const active = activeMatch();
-		if (!active) {
+		if (!active || active.kind === 'computer') {
 			resuming = false;
 			ready = true;
 			return;
 		}
 		try {
-			if (active.kind === 'computer') {
-				if (localStorage.getItem('fourfold-computer-v1')) {
-					await goto(resolve('/computer'), { replaceState: true });
+			const client = await existingGuestClient();
+			if (!alive) return;
+			if (client) {
+				const match = await client.query(api.games.get, { gameId: active.gameId as Id<'games'> });
+				if (!alive) return;
+				if (match.game.status !== 'finished') {
+					await goto(resolve('/room/[roomId]', { roomId: active.gameId }), {
+						replaceState: true
+					});
 					return;
 				}
-				leaveMatch();
-			} else {
-				const client = await existingGuestClient();
-				if (!alive) return;
-				if (client) {
-					const match = await client.query(api.games.get, { gameId: active.gameId as Id<'games'> });
-					if (!alive) return;
-					if (match.game.status !== 'finished') {
-						await goto(resolve('/room/[roomId]', { roomId: active.gameId }), {
-							replaceState: true
-						});
-						return;
-					}
-				}
-				leaveMatch();
 			}
+			leaveMatch();
 		} catch (cause) {
 			if (!alive) return;
 			if (cause instanceof ConvexError) leaveMatch();

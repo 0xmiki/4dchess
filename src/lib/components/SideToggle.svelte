@@ -14,8 +14,8 @@
 </script>
 
 <fieldset {disabled} class="side-toggle">
-	<legend>{label}</legend>
-	<div class="rail" class:black={value === 'black'}>
+	<legend class:hidden-label={label === 'Your side'}>{label}</legend>
+	<div class="pill-rail" style:--pill-index={value === 'black' ? 1 : 0}>
 		{#each ['white', 'black'] as side (side)}<label
 				><input
 					type="radio"
@@ -32,25 +32,13 @@
 </fieldset>
 
 <style>
-	.rail::before {
-		content: '';
+	.hidden-label {
 		position: absolute;
-		left: 4px;
-		top: 4px;
-		bottom: 4px;
-		width: calc((100% - 8px) / 2);
-		background: var(--line);
-		border-radius: 8px;
-		transform: translateX(0);
-		transition: transform var(--motion-selection) var(--ease-selection);
-	}
-	.rail.black::before {
-		transform: translateX(100%);
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.rail::before {
-			transition: none;
-		}
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
 	}
 	fieldset {
 		border: 0;

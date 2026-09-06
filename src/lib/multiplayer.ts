@@ -43,7 +43,7 @@ const messages: Record<string, string> = {
 		'Your guest session is unavailable. Reopen the game in the browser where you joined.',
 	MATCH_NOT_FOUND: 'This game is not available to your guest session.',
 	MATCH_FULL: 'This room is full.',
-	INVITE_CLOSED: 'This invitation is closed.',
+	INVITE_CLOSED: 'This room is no longer available. Ask your friend for a new invitation.',
 	INVITE_EXPIRED: 'This invitation has expired.',
 	INVALID_INVITE: 'This invitation is invalid.',
 	STALE_REVISION: 'The game changed. Review the latest position before trying again.',

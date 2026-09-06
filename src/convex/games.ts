@@ -287,6 +287,12 @@ export const rematch = mutation({
 			!current.blackParticipantId
 		)
 			throw new ConvexError('ROOM_CLOSED');
+		const seat = seatOf(current, participant._id)!;
+		if (!current.rematchRequestedBy) {
+			await ctx.db.patch(current._id, { rematchRequestedBy: seat });
+			return current._id;
+		}
+		if (current.rematchRequestedBy === seat) return current._id;
 		await limitCreation(ctx, participant._id);
 		const initial = createInitialState(),
 			round = (current.round ?? 1) + 1;
@@ -313,5 +319,44 @@ export const rematch = mutation({
 			round: root.round ?? 1
 		});
 		return gameId;
+	}
+});
+
+export const dismissRematch = mutation({
+	args: { gameId: v.id('games') },
+	returns: v.null(),
+	handler: async (ctx, { gameId }) => {
+		const { game } = await requireMatch(ctx, gameId);
+		if (game.status === 'finished' && game.rematchRequestedBy) {
+			await ctx.db.patch(gameId, { rematchRequestedBy: undefined });
+		}
+		return null;
+	}
+});
+
+export const roomScore = query({
+	args: { roomId: v.id('games') },
+	returns: v.object({ white: v.number(), black: v.number(), games: v.number() }),
+	handler: async (ctx, { roomId }) => {
+		const { game } = await requireMatch(ctx, roomId);
+		const root = game.roomRootId ? await ctx.db.get(game.roomRootId) : game;
+		if (!root) throw new ConvexError('MATCH_NOT_FOUND');
+		const rounds = await ctx.db
+			.query('games')
+			.withIndex('by_room_round', (q) => q.eq('roomRootId', root._id))
+			.collect();
+		if (!rounds.some((round) => round._id === root._id)) rounds.push(root);
+		const score = { white: 0, black: 0, games: 0 };
+		for (const round of rounds) {
+			if (round.status !== 'finished' || !round.result || round.result.reason === 'cancellation')
+				continue;
+			score.games++;
+			if (round.result.winner) score[round.result.winner]++;
+			else {
+				score.white += 0.5;
+				score.black += 0.5;
+			}
+		}
+		return score;
 	}
 });

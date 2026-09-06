@@ -49,7 +49,7 @@
 	);
 	const positions = $derived(game ? historyPositions(game.board, game.ply, history) : new Map());
 	function leave() {
-		if (!result) return;
+		save();
 		leaveMatch();
 		void goto(resolve('/'));
 	}
@@ -327,7 +327,7 @@
 								reviewPly = ply === game!.ply ? null : ply;
 							}}
 						/>{:else}<p class="muted">No moves yet.</p>{/if}</MovesPanel
-				>{#if result}<button class="leave-match" onclick={leave}>Leave room</button>{/if}
+				><button class="leave-match" onclick={leave}>Leave game</button>
 			</aside>
 		</div>
 	{/if}

@@ -356,16 +356,18 @@
 						r="15"
 						fill="var(--board-selected)"
 						fill-opacity=".2"
-						stroke="none"
+						stroke="var(--spatial-selection-outline)"
+						stroke-opacity=".42"
+						stroke-width="1.5"
 					/>{/if}
 				{#if legal}<circle
 						in:fade={markerFade()}
 						cx={point.x}
 						cy={point.y}
 						r={p ? 14 : 5}
-						fill={p ? 'none' : 'var(--legal)'}
+						fill={p ? 'none' : 'var(--spatial-destination)'}
 						opacity=".42"
-						stroke={p ? 'var(--legal)' : 'none'}
+						stroke={p ? 'var(--spatial-destination)' : 'none'}
 						stroke-width="2"
 					/>{/if}
 				{#if focusMove && (i === focusMove.from || i === focusMove.to)}<circle

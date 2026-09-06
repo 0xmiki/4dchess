@@ -35,8 +35,20 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 	await expect(
 		outsider.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
 	).rejects.toThrow('MATCH_NOT_FOUND');
+	const offer = { roomId: room.gameId, expectedGameId: room.gameId };
+	expect(await white.mutation(api.games.rematch, offer)).toBe(room.gameId);
+	expect(await white.mutation(api.games.rematch, offer)).toBe(room.gameId);
+	expect((await black.query(api.games.get, { gameId: room.gameId })).game).toMatchObject({
+		status: 'finished',
+		rematchRequestedBy: 'white'
+	});
+	await black.mutation(api.games.dismissRematch, { gameId: room.gameId });
+	expect(
+		(await white.query(api.games.get, { gameId: room.gameId })).game.rematchRequestedBy
+	).toBeUndefined();
+	await white.mutation(api.games.rematch, offer);
 	const games = await Promise.all(
-		[white, black].map((player) =>
+		[black, black].map((player) =>
 			player.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
 		)
 	);
@@ -61,6 +73,22 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 		});
 	}
 	const joined = await black.mutation(api.games.join, { token: room.token });
+	expect(await white.query(api.games.roomScore, { roomId: room.gameId })).toEqual({
+		white: 1,
+		black: 0,
+		games: 1
+	});
+	await t.run((ctx) =>
+		ctx.db.patch(games[0], {
+			status: 'finished',
+			result: { reason: 'draw', detail: 'stalemate', winner: null }
+		})
+	);
+	expect(await black.query(api.games.roomScore, { roomId: room.gameId })).toEqual({
+		white: 1.5,
+		black: 0.5,
+		games: 2
+	});
 	expect(joined.gameId).toBe(room.gameId);
 	const old = await t.run((ctx) => ctx.db.get(room.gameId));
 	expect(old?.status).toBe('finished');

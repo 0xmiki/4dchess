@@ -226,7 +226,10 @@ test('resignation requires confirmation and updates both players', async ({ brow
 	}
 });
 
-test('home creates an invitation directly for the selected Black side', async ({ page }) => {
+test('waiting rooms persist, copy without relabeling, and delete cleanly', async ({
+	page,
+	context
+}) => {
 	await page.goto(process.env.E2E_BASE_URL!);
 	const white = page.getByRole('radio', { name: 'White', exact: true });
 	await expect(white).toBeEnabled();
@@ -235,9 +238,25 @@ test('home creates an invitation directly for the selected Black side', async ({
 	await expect(page.getByRole('radio', { name: 'Black', exact: true })).toBeChecked();
 	await page.getByRole('button', { name: 'Play with friend', exact: true }).click();
 	await expect(page.getByLabel('Waiting for your friend', { exact: true })).toBeVisible();
-	await expect(page.getByText('You are black. Untimed.', { exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Leave room', exact: true })).toHaveCount(0);
 	await expect(page.getByRole('textbox', { name: 'Invitation link' })).not.toHaveValue('');
-	await page.getByRole('button', { name: 'Close room', exact: true }).click();
+	const roomUrl = page.url();
+	const invite = await page.getByRole('textbox', { name: 'Invitation link' }).inputValue();
+	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+	const copy = page.getByRole('button', { name: 'Copy invitation', exact: true });
+	await copy.click();
+	await expect(page.getByRole('status').filter({ hasText: 'Invitation copied' })).toHaveText(
+		'Invitation copied'
+	);
+	await expect(copy).toHaveText('Copy invitation');
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(invite);
+	await expect(page.getByRole('status').filter({ hasText: 'Invitation copied' })).toHaveCount(0);
+	await page.goto(process.env.E2E_BASE_URL!);
+	await expect(page).toHaveURL(roomUrl);
+	await expect(page.getByRole('textbox', { name: 'Invitation link' })).toHaveValue(invite);
+	await page.screenshot({ path: '/tmp/waiting-room-refined.png' });
+	await page.getByRole('button', { name: 'Delete room', exact: true }).click();
+	await page.getByRole('dialog').getByRole('button', { name: 'Delete room', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
 });
 
@@ -376,7 +395,7 @@ test('home and game use identical tesseract canvas dimensions', async ({ page })
 		if (page.url().includes('/computer')) {
 			await page.getByRole('button', { name: 'Resign', exact: true }).click();
 			await page.getByRole('button', { name: 'Resign game', exact: true }).click();
-			await page.getByRole('button', { name: 'Leave room', exact: true }).click();
+			await page.getByRole('button', { name: 'Leave game', exact: true }).click();
 			await page.evaluate(() => localStorage.removeItem('fourfold-computer-v1'));
 		}
 		await page.setViewportSize({ width, height: 1080 });
@@ -463,9 +482,7 @@ test('home and game start with identical piece projection and neutral transparen
 	await expect(page.getByRole('button', { name: 'Resign', exact: true })).toBeVisible();
 });
 
-test('computer history is selectable and home resumes until the player leaves', async ({
-	page
-}) => {
+test('computer history stays saved while players freely leave and resume', async ({ page }) => {
 	await page.goto(process.env.E2E_BASE_URL!);
 	const primary = page.getByRole('button', { name: 'Play with friend', exact: true });
 	expect(await primary.evaluate((el) => getComputedStyle(el).color)).toBe(
@@ -483,14 +500,24 @@ test('computer history is selectable and home resumes until the player leaves', 
 	await page.getByRole('button', { name: 'Live', exact: true }).click();
 	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
 	await page.goto(process.env.E2E_BASE_URL!);
-	await expect(page).toHaveURL(/\/computer$/);
+	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
+	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
+	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
+	const saved = await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'));
+	await page.getByRole('button', { name: 'Leave game', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
+	await page.reload();
+	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
+	expect(await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'))).toBe(saved);
+	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
+	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
 	await page.getByRole('button', { name: 'Resign', exact: true }).click();
 	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Resign', exact: true })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'New game', exact: true })).toBeVisible();
 	await page.reload();
 	await expect(page.getByRole('heading', { name: 'You lost', exact: true })).toBeVisible();
-	await page.getByRole('button', { name: 'Leave room', exact: true }).click();
+	await page.getByRole('button', { name: 'Leave game', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
 	await page.reload();
 	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
@@ -625,7 +652,16 @@ test('friends replay in the same room and recover a second-round move after relo
 		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
 		await expect(white.getByRole('button', { name: 'Leave room', exact: true })).toBeVisible();
-		await white.getByRole('button', { name: 'New game', exact: true }).click();
+		await expect(white.getByLabel('Room score')).toHaveText('You 1 Friend 0');
+		await expect(black.getByLabel('Room score')).toHaveText('You 0 Friend 1');
+		await white.getByRole('button', { name: 'Rematch', exact: true }).click();
+		await expect(white.getByText('Rematch requested', { exact: true })).toBeVisible();
+		await expect(black.getByText('Your friend wants a rematch.', { exact: true })).toBeVisible();
+		await black.screenshot({ path: '/tmp/rematch-request.png' });
+		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+		await black.getByRole('button', { name: 'Decline', exact: true }).click();
+		await white.getByRole('button', { name: 'Rematch', exact: true }).click();
+		await black.getByRole('button', { name: 'Accept rematch', exact: true }).click();
 		for (const player of [white, black]) {
 			await expect(player.getByLabel('White to move', { exact: true })).toBeVisible();
 			await expect(player).toHaveURL(roomUrl);

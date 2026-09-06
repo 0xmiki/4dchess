@@ -15,6 +15,8 @@
 	--focus: #ffffff;
 	--axis-w: #b8b3a0;
 	--legal: #9bac85;
+	--spatial-destination: #b1c39f;
+	--spatial-selection-outline: #c4a36d;
 	--legal-ink: #354c38;
 	--danger: #ffad99;
 	--danger-ink: #943623;
@@ -77,5 +79,28 @@
 	:root {
 		--sidebar-width: 200px;
 		--sidebar-gap: 16px;
+	}
+}
+
+/* All pill selectors share one sliding highlight and motion token. */
+.pill-rail {
+	position: relative;
+	isolation: isolate;
+}
+.pill-rail::before {
+	content: '';
+	position: absolute;
+	z-index: -1;
+	inset: 4px auto 4px 4px;
+	width: calc((100% - 8px) / var(--pill-count, 2));
+	border-radius: 8px;
+	background: var(--line);
+	transform: translateX(calc(var(--pill-index, 0) * 100%));
+	transition: transform var(--motion-selection) var(--ease-selection);
+	pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+	.pill-rail::before {
+		transition: none;
 	}
 }
