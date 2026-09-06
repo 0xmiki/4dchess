@@ -5,6 +5,7 @@ import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
 
 export default defineConfig({
+	ssr: { noExternal: ['@mmailaender/convex-better-auth-svelte'] },
 	plugins: [
 		tailwindcss(),
 		sveltekit({

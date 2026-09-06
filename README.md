@@ -72,7 +72,11 @@ The shared `fourfold-v1` rules engine is implemented in `src/lib/chess/` with mo
 
 Guest authentication and the match lobby backend are implemented. Better Auth runs as a Convex component, and SvelteKit proxies `/api/auth/*` so browser sessions use cookies on the app's own domain. The client integration is configured in the root layout. Opening a page does not automatically create a guest.
 
-The homepage is still the starter. Multiplayer screens and authoritative move submission are the next checkpoints.
+Friend matches can now be played end to end: create a match, share its invitation, join in another browser, play, and finish by the variant's automatic outcomes or resignation. The Svelte board preserves the prototype's piece artwork, four flat boards, legal-move markers, and rotatable tesseract projection. Black sees the flat boards from the opposite side. Rules and paginated move history open in dialogs.
+
+Invitation tokens travel in the URL fragment rather than the request path. The browser creates a guest only after an explicit create/join action and coordinates guest establishment across tabs when the browser supports Web Locks. The board waits for server-confirmed state. Pending moves retain their request ID in session storage, so refreshing after a lost acknowledgement retries the original request. Disconnecting disables input without forfeiting the match.
+
+Computer play, import/export, undo/takebacks, and threat-analysis tools remain outside this multiplayer release. The original prototype is unchanged.
 
 ## Guest and lobby API
 
@@ -88,10 +92,17 @@ Use `authClient.signIn.anonymous()` from `src/lib/auth-client.ts` when a player 
 | `games.get`           | Return the stored match and the caller's seat, for members only.                                                                     |
 | `games.getInvitation` | Recover an open invitation token, for its creator only.                                                                              |
 | `games.cancel`        | Cancel a waiting match, for its creator only, with a revision check.                                                                 |
+| `games.resign`        | End an active match with the other side as winner. Requires an expected revision and request ID.                                     |
+| `moves.submit`        | Validate membership, turn, revision, and move legality; atomically save the move, next position, and any result.                     |
+| `moves.receipt`       | Recover the caller's accepted move receipt by request ID.                                                                            |
+| `moves.latest`        | Return the latest move for highlighting, for members only.                                                                           |
+| `moves.list`          | Paginate move history, newest first, for members only.                                                                               |
 
 Joining increments the revision from 0 to 1 while keeping `ply` at 0. Repeated requests do not increment it. Expiry only affects waiting matches; active matches remain intact when clients disconnect. The seven-day cleanup retention proposal is not implemented yet.
 
 The backend derives each invitation token using HMAC-SHA-256 with `INVITE_SECRET`, the participant ID, and the creation request ID. It stores only a SHA-256 hash of the token in `invites`. This allows retry and creator recovery without storing the raw token. Keep the invitation secret stable while invitations are open. Account linking is not enabled yet.
+
+Move requests contain `{ gameId, move: { from, to }, expectedRevision, requestId }`. Accepted moves store their original revision and result as a receipt. The server checks that receipt before current turn, revision, or terminal-state checks. Retries therefore still succeed after an opponent reply or game ending. Reusing a request ID with different contents fails. Resignation receipts live in a separate `commands` table.
 
 Set these values in the Convex deployment, never in public frontend variables:
 
@@ -101,6 +112,16 @@ Set these values in the Convex deployment, never in public frontend variables:
 - `TRUSTED_ORIGINS`: the site origin and explicitly permitted local development origins, separated by commas.
 
 This workspace's values are saved in the ignored `.env.convex.local`. Upload that file with `bunx convex env set --from-file .env.convex.local`; the command refuses conflicting existing values by default. Do not copy actual secrets into documentation or commit them.
+
+## Browser verification
+
+With the app running against a development backend:
+
+```sh
+E2E_BASE_URL=http://localhost:5173 bun run test:multiplayer
+```
+
+Install Chromium with `bunx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an existing Chromium executable. The tests require an explicit URL because they create guest sessions and completed matches on that backend. They verify isolated players, opposite board orientation, synchronized moves, refresh after a lost acknowledgement, offline recovery, repetition draws, history, and resignation confirmation. Test reports remain in the ignored `test-results` directory.
 
 ## Development site
 

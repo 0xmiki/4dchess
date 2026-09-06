@@ -159,10 +159,11 @@ Invariants:
 
 | Table          | Contents                                                                                                                                 |
 | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `participants` | Stable participant ID, display name, and authentication identity binding.                                                                |
+| `participants` | Stable participant ID and authentication identity binding. Display names are deferred.                                                   |
 | `games`        | Creator, seats, status, rules version, current board, side to move, revision, ply, draw state, waiting deadline, result, and timestamps. |
 | `moves`        | Game ID, ply, participant ID, source and destination, request ID, accepted revision, and server timestamp.                               |
 | `invites`      | Game ID, invitation token hash, deadline, and consumption or revocation state.                                                           |
+| `commands`     | Accepted resignation request IDs, participants, expected revisions, and resulting revisions for idempotent retries.                      |
 
 Authentication session records belong to the selected authentication integration.
 

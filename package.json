@@ -21,6 +21,7 @@
 		"test:unit": "vitest",
 		"test:rules": "vitest run --project server src/lib/chess",
 		"test:backend": "vitest run --project server src/lib/server",
+		"test:multiplayer": "playwright test --config playwright.multiplayer.config.ts",
 		"test": "bun run test:unit -- --run",
 		"gen": "wrangler types"
 	},
