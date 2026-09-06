@@ -244,6 +244,7 @@
 	>
 	{#if !ready}<p role="status">Loading computer game…</p>
 	{:else if !game}<section class="flow" aria-label="Computer game settings">
+			<h1>Play computer</h1>
 			<SelectField label="Your side" bind:value={setupSide} options={sideOptions} /><SelectField
 				label="Difficulty"
 				bind:value={setupDifficulty}

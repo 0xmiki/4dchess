@@ -78,6 +78,10 @@ Invitation tokens travel in the URL fragment rather than the request path. The b
 
 The start screen offers **Play with friend** followed by **Play computer**. Friend settings live at `/friend`; computer settings and play live at `/computer`.
 
+The home page offers friend and computer play above the starting position. The separate `/how-to-play` page includes an interactive guide adapted from the original prototype: all six pieces, linked 3D/4D diagrams, common mistakes, playback and scrubbing, coordinate changes, and matching flat-board examples. Learning does not create a guest session or change a game.
+
+The shared visual foundation is documented in [design-language.md](docs/design-language.md). Colors, typography stacks, and shape tokens live in `src/lib/design.css`. The tesseract mark, violet dashed W links, coordinate labels, and state colors have consistent meanings across the guide and game. Automated checks cover the primary text/graphic contrast pairs and the legality of the teaching examples.
+
 Threat inspection is available in both modes through right-click, long-press, Shift+F10, or the selected piece's inspection button. It identifies enemy attackers and friendly defenders on both board views. Inspecting a destination previews the selected piece there without changing the game, including a warning when that move leaves the king in check.
 
 Moves animate across the flat boards and tesseract from one shared progress value. Multiplayer animations start only after server confirmation. Promotion displays the moving pawn until arrival. Reduced-motion preferences and hidden tabs skip or finish animations.

@@ -45,7 +45,21 @@
 	});
 </script>
 
-<div aria-live="polite" aria-atomic="true">
+<div class="game-status" class:finished={!!result} aria-live="polite" aria-atomic="true">
 	<h1>{title}</h1>
 	{#if ending || subtitle}<p class="muted">{ending || subtitle}</p>{/if}
 </div>
+
+<style>
+	.game-status {
+		border-left: 4px solid var(--accent);
+		padding-left: var(--space-4);
+	}
+	h1 {
+		font-size: 24px;
+		line-height: 1.3;
+	}
+	.finished h1 {
+		color: var(--accent);
+	}
+</style>

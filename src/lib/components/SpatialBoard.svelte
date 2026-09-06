@@ -11,6 +11,7 @@
 	import { pieceNames } from '$lib/pieces';
 	import Piece from './Piece.svelte';
 	import Button from './Button.svelte';
+	import AxisGizmo from './AxisGizmo.svelte';
 	import type { PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
@@ -48,7 +49,7 @@
 	onDestroy(() => clearTimeout(holdTimer));
 	const componentId = $props.id();
 	const arrowId = componentId + '-spatial-threat';
-	function project([x, y, z, w]: Coordinates) {
+	function rawProject([x, y, z, w]: Coordinates) {
 		const wScale = 2.05 / (2.7 - (w * 2 - 1));
 		const px = (x / 1.5 - 1) * wScale,
 			py = (y / 1.5 - 1) * wScale,
@@ -58,9 +59,35 @@
 		const ry = py * Math.cos(pitch) - rz * Math.sin(pitch),
 			depth = py * Math.sin(pitch) + rz * Math.cos(pitch);
 		const scale = 5.5 / (5.5 - depth);
-		return { x: 220 + rx * 86 * scale, y: 220 - ry * 86 * scale, depth, scale };
+		return { x: 220 + rx * 101 * scale, y: 220 - ry * 101 * scale, depth, scale };
+	}
+	const cameraFit = $derived.by(() => {
+		let extent = 0;
+		for (const x of [0, 3])
+			for (const y of [0, 3])
+				for (const z of [0, 1]) {
+					const point = rawProject([x, y, z, 1]);
+					extent = Math.max(extent, Math.abs(point.x - 220), Math.abs(point.y - 220));
+				}
+		return Math.min(1, 198 / extent);
+	});
+	function project(coordinate: Coordinates) {
+		const point = rawProject(coordinate);
+		return { ...point, x: 220 + (point.x - 220) * cameraFit, y: 220 + (point.y - 220) * cameraFit };
 	}
 	const points = $derived(Array.from({ length: 64 }, (_, i) => project(squareCoordinates(i))));
+	const orientation = $derived.by(() => {
+		const origin = project([1.5, 1.5, 0.5, 1]);
+		const tips: Coordinates[] = [
+			[2.15, 1.5, 0.5, 1],
+			[1.5, 2.15, 0.5, 1],
+			[1.5, 1.5, 0.825, 1]
+		];
+		return tips.map((coordinate, i) => {
+			const tip = project(coordinate);
+			return { label: 'XYZ'[i], dx: (tip.x - origin.x) * 0.6, dy: (tip.y - origin.y) * 0.6 };
+		});
+	});
 	const mover = $derived.by(() => {
 		if (!motion) return null;
 		const a = squareCoordinates(motion.from),
@@ -215,7 +242,7 @@
 		{#each faces as face (face.w * 2 + face.z)}
 			<polygon
 				points={face.ids.map((i) => `${points[i].x},${points[i].y}`).join(' ')}
-				fill="#e1e7dc"
+				fill="var(--plane)"
 				fill-opacity=".12"
 			/>
 			{#each [0, 1, 2, 3] as n (n)}
@@ -226,7 +253,7 @@
 					y1={a.y}
 					x2={b.x}
 					y2={b.y}
-					stroke="#a4b09c"
+					stroke="var(--grid)"
 					stroke-width={n === 0 || n === 3 ? 1.3 : 0.7}
 				/>
 				<line
@@ -234,7 +261,7 @@
 					y1={c.y}
 					x2={d.x}
 					y2={d.y}
-					stroke="#a4b09c"
+					stroke="var(--grid)"
 					stroke-width={n === 0 || n === 3 ? 1.3 : 0.7}
 				/>
 			{/each}
@@ -242,13 +269,13 @@
 		{#each [0, 3] as x (x)}{#each [0, 3] as y (y)}{#each [0, 1] as layer (layer)}
 					{@const a = project([x, y, 0, layer])}{@const b = project([x, y, 1, layer])}
 					{@const c = project([x, y, layer, 0])}{@const d = project([x, y, layer, 1])}
-					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#889c80" stroke-width="1.2" />
+					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--grid)" stroke-width="1.2" />
 					<line
 						x1={c.x}
 						y1={c.y}
 						x2={d.x}
 						y2={d.y}
-						stroke="#b27b4f"
+						stroke="var(--axis-w)"
 						stroke-width="1.2"
 						stroke-dasharray="4 4"
 					/>
@@ -258,8 +285,12 @@
 					y1={points[from].y}
 					x2={points[inspection.target].x}
 					y2={points[inspection.target].y}
-					stroke={inspection.position[from]?.c === 'w' ? '#9b542f' : '#426f89'}
-					stroke-width="2"
+					stroke={inspection.position[from]?.c === inspection.color
+						? 'var(--threat-defend)'
+						: 'var(--threat-attack)'}
+					stroke-dasharray={inspection.position[from]?.c === inspection.color ? '6 4' : undefined}
+					class="threat-arrow"
+					stroke-width="3"
 					marker-end={`url(#${arrowId})`}
 				/>{/each}
 		{:else if selected !== null}
@@ -268,7 +299,7 @@
 					y1={points[selected].y}
 					x2={points[move.to].x}
 					y2={points[move.to].y}
-					stroke="#427444"
+					stroke="var(--legal)"
 					stroke-width="1.3"
 					stroke-dasharray="3 4"
 					opacity=".65"
@@ -278,7 +309,7 @@
 				y1={points[lastMove.from].y}
 				x2={points[lastMove.to].x}
 				y2={points[lastMove.to].y}
-				stroke="#ad7837"
+				stroke="var(--accent)"
 				stroke-width="2"
 			/>{/if}
 		{#each nodes as i (i)}
@@ -298,30 +329,31 @@
 						width="32"
 						height="32"
 						rx="5"
-						fill="#c9dce6"
-						stroke="#426f89"
+						fill="var(--board-target)"
+						stroke="var(--defender)"
 					/>{:else if inspection?.attackers.includes(i)}<circle
 						cx={point.x}
 						cy={point.y}
 						r="15"
-						fill="#e9c6b9"
+						fill={p?.c === inspection.color ? 'var(--board-target)' : 'var(--board-threat)'}
 					/>{/if}
 				{#if selected === i}<circle
 						cx={point.x}
 						cy={point.y}
 						r="15"
-						fill="#f4dda8"
-						stroke="#a57029"
+						fill="var(--board-selected)"
+						stroke="var(--accent)"
 					/>{/if}
 				{#if legal}<circle
 						cx={point.x}
 						cy={point.y}
 						r={p ? 14 : 5}
-						fill={p ? 'none' : '#427444'}
-						stroke={p ? '#ac4e2e' : '#315c46'}
+						fill={p ? 'none' : 'var(--legal)'}
+						stroke={p ? 'var(--danger)' : 'var(--legal)'}
 						stroke-width="2"
 					/>{/if}
 				{#if p}<Piece
+						onDark
 						piece={p}
 						x={point.x - size / 2}
 						y={point.y - size / 2}
@@ -336,20 +368,31 @@
 						cx={point.x}
 						cy={point.y}
 						r="2"
-						fill="#86977c"
+						fill="var(--grid)"
 						pointer-events="none"
 					/>{/if}
 			</g>
 		{/each}
 		{#if motion && mover}{@const size = 26 * Math.min(1.15, mover.scale)}<g
 				data-animation="spatial-piece"
-				><Piece piece={motion.piece} x={mover.x - size / 2} y={mover.y - size / 2} {size} /></g
+				><Piece
+					onDark
+					piece={motion.piece}
+					x={mover.x - size / 2}
+					y={mover.y - size / 2}
+					{size}
+				/></g
 			>{/if}
+		<AxisGizmo axes={orientation} x={39} y={395} />
 	</svg>
 	<p class="muted caption">W = 0 is the inner cube. W = 1 is the outer cube.</p>
 </section>
 
 <style>
+	.threat-arrow {
+		filter: drop-shadow(0 1px 0 var(--threat-outline)) drop-shadow(0 -1px 0 var(--threat-outline))
+			drop-shadow(1px 0 0 var(--threat-outline)) drop-shadow(-1px 0 0 var(--threat-outline));
+	}
 	.spatial {
 		min-width: 0;
 	}
@@ -363,6 +406,14 @@
 		touch-action: none;
 		user-select: none;
 		cursor: grab;
+	}
+	.space-svg:focus {
+		outline: none;
+		box-shadow: none;
+	}
+	.space-svg:focus-visible {
+		background: var(--surface);
+		border-radius: var(--radius-panel);
 	}
 	.space-svg:active {
 		cursor: grabbing;

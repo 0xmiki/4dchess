@@ -21,14 +21,14 @@
 		margin: auto;
 		max-width: min(620px, calc(100% - 32px));
 		max-height: calc(100dvh - 48px);
-		border: 1px solid #ccd3c8;
-		border-radius: 8px;
-		background: #fafbf9;
-		color: #24342b;
-		padding: 24px;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+		color: var(--text);
+		padding: var(--space-5);
 	}
 	dialog::backdrop {
-		background: #14251b66;
+		background: var(--overlay);
 	}
 	h2 {
 		margin-bottom: 16px;

@@ -23,11 +23,11 @@
 
 <style>
 	select {
-		min-height: 42px;
-		border: 1px solid #ccd3c8;
-		border-radius: 5px;
-		padding: 9px 14px;
-		background: #fff;
+		min-height: var(--control-height);
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-control);
+		padding: var(--space-3) var(--space-4);
+		background: var(--surface);
 		color: inherit;
 		cursor: pointer;
 	}

@@ -22,11 +22,11 @@
 	.game-menu summary {
 		cursor: pointer;
 		list-style: none;
-		border: 1px solid #ccd3c8;
-		border-radius: 5px;
-		background: white;
-		min-width: 42px;
-		min-height: 42px;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-control);
+		background: var(--surface);
+		min-width: 44px;
+		min-height: var(--control-height);
 		display: grid;
 		place-items: center;
 		font-size: 24px;
@@ -41,12 +41,13 @@
 		display: grid;
 		min-width: 170px;
 		padding: 6px;
-		background: #fafbf9;
-		border: 1px solid #ccd3c8;
-		border-radius: 5px;
+		background: var(--page);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-control);
 		z-index: 10;
 	}
 	.menu-items :global(button) {
+		justify-content: flex-start;
 		border: 0;
 		text-align: left;
 	}

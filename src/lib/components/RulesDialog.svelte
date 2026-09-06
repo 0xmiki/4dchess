@@ -1,6 +1,7 @@
 <script lang="ts">
 	import Modal from './Modal.svelte';
 	import Button from './Button.svelte';
+	import { resolve } from '$app/paths';
 	let { onclose }: { onclose?: () => void } = $props();
 	let modal: ReturnType<typeof Modal>;
 	export function showModal() {
@@ -13,6 +14,7 @@
 
 <Modal bind:this={modal} title="4D chess rules" {onclose}>
 	<div class="stack">
+		<a href={resolve('/how-to-play')}>Open the interactive guide</a>
 		<p>
 			Win by checkmate. White moves first. The board has four coordinates: X and Y have four
 			positions; Z and W each have two.

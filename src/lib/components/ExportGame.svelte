@@ -85,9 +85,9 @@
 		font:
 			12px/1.6 ui-monospace,
 			monospace;
-		border: 1px solid #ccd3c8;
-		border-radius: 5px;
-		background: white;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-control);
+		background: var(--surface);
 		color: inherit;
 		padding: 12px;
 	}

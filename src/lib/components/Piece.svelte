@@ -5,14 +5,23 @@
 		size = '76%',
 		x,
 		y,
-		opacity = 1
-	}: { piece: Piece; size?: number | string; x?: number; y?: number; opacity?: number } = $props();
+		opacity = 1,
+		onDark = false
+	}: {
+		piece: Piece;
+		size?: number | string;
+		x?: number;
+		y?: number;
+		opacity?: number;
+		onDark?: boolean;
+	} = $props();
 </script>
 
 <svg
 	class="piece"
 	class:white={piece.c === 'w'}
 	class:black={piece.c === 'b'}
+	class:on-dark={onDark}
 	{x}
 	{y}
 	width={size}
@@ -29,13 +38,16 @@
 		pointer-events: none;
 	}
 	.white {
-		color: #fff9e8;
-		--stroke: #405344;
-		--detail: #405344;
+		color: var(--piece-white);
+		--stroke: var(--piece-white-outline);
+		--detail: var(--piece-white-outline);
 	}
 	.black {
-		color: #284739;
-		--stroke: #1c3228;
-		--detail: #bed0b6;
+		color: var(--piece-black);
+		--stroke: var(--piece-black-outline);
+		--detail: var(--piece-black-detail);
+	}
+	.black.on-dark {
+		--stroke: var(--piece-black-detail);
 	}
 </style>

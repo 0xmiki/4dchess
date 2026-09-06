@@ -66,6 +66,7 @@
 <main class="shell">
 	<GameHeader />
 	<section class="flow" aria-label="Create friend match">
+		<h1>Play with friend</h1>
 		<SelectField
 			label="Your side"
 			bind:value={seat}

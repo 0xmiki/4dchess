@@ -37,7 +37,7 @@
 <style>
 	.threat-summary {
 		margin-top: 16px;
-		border-top: 1px solid #ccd3c8;
+		border-top: 1px solid var(--line);
 		padding-top: 12px;
 		font-size: 13px;
 		display: grid;

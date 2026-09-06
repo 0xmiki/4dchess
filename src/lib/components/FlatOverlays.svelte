@@ -63,12 +63,17 @@
 					y1={boxes[from].y}
 					x2={boxes[inspection.target].x}
 					y2={boxes[inspection.target].y}
-					stroke={inspection.position[from]?.c === 'w' ? '#9b542f' : '#426f89'}
-					stroke-width="2"
+					stroke={inspection.position[from]?.c === inspection.color
+						? 'var(--threat-defend)'
+						: 'var(--threat-attack)'}
+					stroke-dasharray={inspection.position[from]?.c === inspection.color ? '6 4' : undefined}
+					class="threat-arrow"
+					stroke-width="3"
 					marker-end="url(#flat-threat-arrow)"
 				/>{/each}{/if}
 		{#if motion && point}<g data-animation="piece"
 				><Piece
+					onDark
 					piece={motion.piece}
 					x={point.x - point.size / 2}
 					y={point.y - point.size / 2}
@@ -79,6 +84,10 @@
 {/if}
 
 <style>
+	.threat-arrow {
+		filter: drop-shadow(0 1px 0 var(--threat-outline)) drop-shadow(0 -1px 0 var(--threat-outline))
+			drop-shadow(1px 0 0 var(--threat-outline)) drop-shadow(-1px 0 0 var(--threat-outline));
+	}
 	.overlay {
 		position: absolute;
 		inset: 0;

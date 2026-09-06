@@ -5,6 +5,49 @@ test.skip(
 	'Set E2E_BASE_URL explicitly. These checks create guest matches on its backend.'
 );
 
+test('the dedicated guide teaches moves with linked diagrams, mistake cases, and keyboard playback', async ({
+	page
+}) => {
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.goto(process.env.E2E_BASE_URL!);
+	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
+	await expect(page.getByRole('button', { name: 'Play computer', exact: true })).toBeVisible();
+	await expect(page.locator('.move-explorer')).toHaveCount(0);
+	await expect(page.locator('[data-square]')).toHaveCount(64);
+	await page.getByRole('link', { name: 'How to play', exact: true }).click();
+	await expect(page).toHaveURL(/\/how-to-play$/);
+	await expect(
+		page.getByRole('heading', { name: 'How to play 4D chess', exact: true })
+	).toBeVisible();
+	const explorer = page.locator('.move-explorer');
+	await explorer.getByRole('button', { name: 'Knight', exact: true }).click();
+	await expect(explorer.getByRole('button', { name: 'Knight', exact: true })).toHaveAttribute(
+		'aria-pressed',
+		'true'
+	);
+	await expect(explorer.locator('.lesson-explanation')).toContainText('2 + 1');
+	const slider = explorer.getByRole('slider', { name: 'Move progress', exact: true });
+	await slider.focus();
+	await slider.press('End');
+	await expect(explorer.locator('output')).toHaveText('After');
+	await explorer.getByLabel('Show a common mistake').check();
+	await expect(explorer.locator('.case-label')).toHaveText('Not a legal move');
+	await expect(explorer.getByRole('slider')).toBeDisabled();
+	await explorer.getByLabel('Show a common mistake').uncheck();
+	const projections = explorer.locator('svg.projection');
+	const before = await projections.nth(1).locator('polygon').first().getAttribute('points');
+	await projections.nth(0).focus();
+	await projections.nth(0).press('ArrowRight');
+	await expect(projections.nth(1).locator('polygon').first()).not.toHaveAttribute(
+		'points',
+		before!
+	);
+	await explorer.getByRole('button', { name: 'Reset views', exact: true }).click();
+	await expect(projections.nth(1).locator('polygon').first()).toHaveAttribute('points', before!);
+	await page.setViewportSize({ width: 390, height: 844 });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 async function friends(browser: Browser) {
 	const whiteContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 	const blackContext = await browser.newContext({
@@ -127,7 +170,9 @@ test('computer play uses no backend, supports threat inspection, animation, expo
 	});
 	await page.goto(process.env.E2E_BASE_URL!);
 	const choices = page.getByRole('region', { name: 'Choose how to play' }).getByRole('button');
-	await expect(choices).toHaveText(['Play with friend', 'Play computer']);
+	await expect(choices).toHaveCount(2);
+	await expect(choices.nth(0)).toHaveAccessibleName('Play with friend');
+	await expect(choices.nth(1)).toHaveAccessibleName('Play computer');
 	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
 	await page.getByRole('button', { name: 'Start game', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'White to move', exact: true })).toBeVisible();

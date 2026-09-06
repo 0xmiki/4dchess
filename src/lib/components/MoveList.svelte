@@ -40,11 +40,11 @@
 	.moves li {
 		display: flex;
 		gap: 14px;
-		border-bottom: 1px solid #dce0d8;
+		border-bottom: 1px solid var(--line);
 		padding-bottom: 12px;
 	}
 	.moves small {
 		display: block;
-		color: #5a6958;
+		color: var(--muted);
 	}
 </style>

@@ -1,39 +1,74 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import type { HTMLButtonAttributes } from 'svelte/elements';
 	let {
 		children,
 		variant = 'default',
 		...attributes
 	}: HTMLButtonAttributes & { variant?: 'default' | 'primary' } = $props();
+	let hydrated = $state(false);
+	onMount(() => {
+		hydrated = true;
+	});
 </script>
 
-<button {...attributes} type={attributes.type ?? 'button'} class:primary={variant === 'primary'}
-	>{@render children?.()}</button
+<button
+	{...attributes}
+	disabled={attributes.disabled || !hydrated}
+	type={attributes.type ?? 'button'}
+	class:primary={variant === 'primary'}>{@render children?.()}</button
 >
 
 <style>
 	button {
-		min-height: 42px;
-		border: 1px solid #ccd3c8;
-		border-radius: 5px;
-		padding: 9px 14px;
-		background: #fff;
-		color: inherit;
+		min-height: var(--control-height);
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: var(--space-2);
+		font-weight: 750;
+		border: 1px solid var(--line-strong);
+		border-radius: var(--radius-control);
+		padding: var(--space-3) var(--space-5);
+		background: var(--surface-raised);
+		color: var(--text);
 		cursor: pointer;
+		box-shadow:
+			0 var(--press-depth) 0 var(--button-base),
+			inset 0 1px 0 #ffffff12;
+		transition:
+			transform var(--motion-press),
+			box-shadow var(--motion-press),
+			background var(--motion-press);
 	}
 	button:hover:not(:disabled) {
-		background: #edf1e8;
+		background: var(--line);
+	}
+	button:active:not(:disabled) {
+		transform: translateY(var(--press-depth));
+		box-shadow: 0 0 0 var(--button-base);
 	}
 	button:disabled {
 		opacity: 0.55;
 		cursor: default;
 	}
 	button.primary {
-		background: #315b40;
-		color: #fff;
-		border-color: #315b40;
+		background: var(--accent);
+		color: var(--on-accent);
+		border-color: var(--accent);
+		box-shadow:
+			0 var(--press-depth) 0 var(--accent-base),
+			inset 0 1px 0 #ffffff40;
 	}
 	button.primary:hover:not(:disabled) {
-		background: #244630;
+		background: var(--accent-hover);
+	}
+	button.primary:active:not(:disabled) {
+		box-shadow: 0 0 0 var(--accent-base);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		button {
+			transition: none;
+		}
 	}
 </style>
