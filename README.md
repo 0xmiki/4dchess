@@ -123,7 +123,7 @@ Set these values in the Convex deployment, never in public frontend variables:
 - `BETTER_AUTH_SECRET`: a cryptographically random secret of at least 32 bytes.
 - `INVITE_SECRET`: a separate cryptographically random secret of at least 32 bytes.
 - `AUTH_PROXY_SECRET`: a separate secret shared with the Worker, used to verify the website's anonymous-signup requests. Configure the same value in the ignored local `.env.local` for development and as a Worker secret for deployment.
-- `SITE_URL`: `https://4dchess.justglow.dev` for the current development site.
+- `SITE_URL`: `https://4dchess.lol` for the current development site.
 - `TRUSTED_ORIGINS`: the site origin and explicitly permitted local development origins, separated by commas.
 
 This workspace's values are saved in the ignored `.env.convex.local`. Upload that file with `bunx convex env set --from-file .env.convex.local`; the command refuses conflicting existing values by default. Do not copy actual secrets into documentation or commit them.
@@ -140,9 +140,9 @@ Install Chromium with `bunx playwright install chromium`, or set `PLAYWRIGHT_CHR
 
 ## Development site
 
-The Cloudflare Worker uses the custom domain [4dchess.justglow.dev](https://4dchess.justglow.dev). It currently connects to the Convex development deployment. Set up a separate production backend before treating this as the public game service.
+The Cloudflare Worker `4dchess-lol` serves [4dchess.lol](https://4dchess.lol). It currently connects to the Convex development deployment. Set up a separate production backend before treating this as the public game service.
 
-The custom-domain route is in `wrangler.jsonc`. Build with the intended Convex public URLs, then deploy:
+The `4dchess.lol/*` Worker route is in `wrangler.jsonc`. It uses the existing proxied apex DNS record, which must remain proxied. Build with the intended Convex public URLs, then deploy:
 
 ```sh
 bun run build
@@ -150,3 +150,5 @@ bun run deploy:frontend
 ```
 
 The Worker uses the asset and guest-signup rate-limit bindings plus `AUTH_PROXY_SECRET`. Authentication and invitation secrets live in Convex. `.env*` files, `.dev.vars*`, private keys, and logs are ignored by Git; only `.env.example` is tracked. Local checkpoint commits use a GitHub noreply address.
+
+The previous Worker, `4dchess`, only redirects requests from `4dchess.justglow.dev` to `4dchess.lol`, preserving the path and query. Its separate configuration is in `infrastructure/legacy-domain/wrangler.jsonc`. Deploy it with `bunx wrangler deploy --config infrastructure/legacy-domain/wrangler.jsonc`. Guest cookies and browser saves are origin-specific; they do not transfer automatically between these domains.
