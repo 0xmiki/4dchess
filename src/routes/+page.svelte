@@ -15,6 +15,7 @@
 	import AutoplayTesseract from '$lib/components/AutoplayTesseract.svelte';
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
 	import GithubLogoIcon from 'phosphor-svelte/lib/GithubLogoIcon';
+	import XLogoIcon from 'phosphor-svelte/lib/XLogoIcon';
 
 	let seat = $state<'white' | 'black'>('white'),
 		busy = $state(false),
@@ -146,6 +147,14 @@
 			<a href="https://github.com/0xmiki/4dchess" target="_blank" rel="noopener noreferrer">
 				<GithubLogoIcon size={20} weight="fill" aria-hidden="true" />GitHub
 			</a>
+			<a
+				href="https://x.com/miki_code"
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label="Made by miki_code on X"
+			>
+				Made by <XLogoIcon size={18} aria-hidden="true" />
+			</a>
 		</footer>
 	</main>{/if}
 
@@ -157,6 +166,10 @@
 		flex-direction: column;
 	}
 	.home-footer {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-4);
 		margin-top: auto;
 		padding-top: var(--space-2);
 	}
