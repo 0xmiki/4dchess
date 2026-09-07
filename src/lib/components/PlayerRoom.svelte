@@ -3,7 +3,9 @@
 	import { rememberMatch, leaveMatch } from '$lib/active-match';
 	import type { HistoryMove } from '$lib/chess/history';
 	import MovesPanel from '$lib/components/MovesPanel.svelte';
-	import GameOutcome from '$lib/components/GameOutcome.svelte';
+	import GameOverDialog from '$lib/components/GameOverDialog.svelte';
+	import MatchSidebar from '$lib/components/MatchSidebar.svelte';
+	let resultDialog = $state<GameOverDialog>();
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -560,6 +562,50 @@
 </script>
 
 <svelte:head><title>{status || 'Room'} · 4D chess</title></svelte:head>
+{#snippet roundActions()}{#if game && match.data}
+		{#if game.kind === 'matchmaking' && game.status === 'finished'}
+			<Button
+				variant="primary"
+				disabled={roundStarting}
+				loading={findingOpponent}
+				onclick={findNewOpponent}>New game</Button
+			>
+		{/if}
+		{#if game.status === 'active'}<Button
+				disabled={sending || !!pending}
+				loading={resigning}
+				onclick={resign}>Resign</Button
+			>{:else if game.status === 'finished' && !isUnscoredResult(game.result)}
+			{#if game.rematchRequestedBy === match.data.seat}
+				<p role="status" class="muted">Rematch requested</p>
+				<Button onclick={dismissRematch} disabled={roundStarting} loading={dismissingRound}
+					>Cancel request</Button
+				>
+			{:else if game.rematchRequestedBy}
+				<p role="status">
+					{game.kind === 'matchmaking'
+						? 'Your opponent wants a rematch.'
+						: 'Your friend wants a rematch.'}
+				</p>
+				<Button
+					variant={game.kind === 'matchmaking' ? 'default' : 'primary'}
+					onclick={newRound}
+					disabled={roundStarting}
+					loading={roundStarting && !dismissingRound && !findingOpponent}>Accept rematch</Button
+				>
+				<Button onclick={dismissRematch} disabled={roundStarting} loading={dismissingRound}
+					>Decline</Button
+				>
+			{:else}
+				<Button
+					variant={game.kind === 'matchmaking' ? 'default' : 'primary'}
+					onclick={newRound}
+					disabled={roundStarting}
+					loading={roundStarting && !findingOpponent}>Rematch</Button
+				>
+			{/if}
+		{/if}
+	{/if}{/snippet}
 <main class="shell match-shell">
 	{#if !mounted || auth.isLoading || (auth.isAuthenticated && match.isLoading)}<LoadingScreen
 			label="Loading room"
@@ -575,6 +621,12 @@
 			<a href={resolve('/')}>Return home</a>
 		</section>
 	{:else if game && match.data}
+		<GameOverDialog
+			bind:this={resultDialog}
+			result={game.result}
+			side={match.data.seat}
+			gameKey={gameId}>{@render roundActions()}</GameOverDialog
+		>
 		<div class="match-layout">
 			<div class="match-position board-stage">
 				<PlayerProfile
@@ -651,7 +703,11 @@
 							/>{/if}{/snippet}</PlayerProfile
 				>
 			</div>
-			<aside class="game-info">
+			<MatchSidebar
+				waiting={game.status === 'waiting'}
+				notice={error || (!online ? 'Reconnecting to the game…' : '')}
+				onresult={game.result ? () => resultDialog?.show() : undefined}
+			>
 				<div class="game-heading">
 					<p class="time-control">
 						{timeControlLabel(game.timeControl)}{game.kind === 'matchmaking' ? ' · Unrated' : ''}
@@ -706,49 +762,8 @@
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
 				{#if presenceError}<p class="error" role="alert">{presenceError}</p>{/if}
-				<GameOutcome result={game.result} side={match.data.seat} />
-				{#if game.kind === 'matchmaking' && game.status === 'finished'}
-					<Button
-						variant="primary"
-						disabled={roundStarting}
-						loading={findingOpponent}
-						onclick={findNewOpponent}>New game</Button
-					>
-				{/if}
-				{#if game.status === 'active'}<Button
-						disabled={sending || !!pending}
-						loading={resigning}
-						onclick={resign}>Resign</Button
-					>{:else if game.status === 'finished' && !isUnscoredResult(game.result)}
-					{#if game.rematchRequestedBy === match.data.seat}
-						<p role="status" class="muted">Rematch requested</p>
-						<Button onclick={dismissRematch} disabled={roundStarting} loading={dismissingRound}
-							>Cancel request</Button
-						>
-					{:else if game.rematchRequestedBy}
-						<p role="status">
-							{game.kind === 'matchmaking'
-								? 'Your opponent wants a rematch.'
-								: 'Your friend wants a rematch.'}
-						</p>
-						<Button
-							variant={game.kind === 'matchmaking' ? 'default' : 'primary'}
-							onclick={newRound}
-							disabled={roundStarting}
-							loading={roundStarting && !dismissingRound && !findingOpponent}>Accept rematch</Button
-						>
-						<Button onclick={dismissRematch} disabled={roundStarting} loading={dismissingRound}
-							>Decline</Button
-						>
-					{:else}
-						<Button
-							variant={game.kind === 'matchmaking' ? 'default' : 'primary'}
-							onclick={newRound}
-							disabled={roundStarting}
-							loading={roundStarting && !findingOpponent}>Rematch</Button
-						>
-					{/if}
-				{/if}
+				{#if game.result}<Button onclick={() => resultDialog?.show()}>Game result</Button>{/if}
+				{@render roundActions()}
 				{#if game.status !== 'waiting'}<MovesPanel
 						onexport={() => {
 							showExport = true;
@@ -782,7 +797,7 @@
 				{#if game.status === 'finished'}<button class="leave-match" onclick={leave}
 						>Back to play</button
 					>{/if}
-			</aside>
+			</MatchSidebar>
 		</div>
 	{/if}
 </main>

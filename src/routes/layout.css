@@ -277,3 +277,43 @@ select:focus {
 .leave-match:hover {
 	color: var(--text);
 }
+
+/* Keep the four boards between the player rows when the tesseract stacks below. */
+.board-stage {
+	display: grid;
+	gap: 24px;
+}
+@media (max-width: 850px) {
+	.match-shell {
+		justify-content: flex-start;
+		padding-top: 72px;
+		padding-bottom: calc(96px + env(safe-area-inset-bottom));
+	}
+	.match-position.board-stage {
+		gap: 12px;
+	}
+	.match-shell .board-stage > .workspace {
+		display: contents;
+	}
+	.match-shell .board-stage > .player-profile:first-child {
+		grid-row: 1;
+	}
+	.match-shell .board-stage > .workspace > section[aria-label='Chess boards'] {
+		grid-row: 2;
+	}
+	.match-shell .board-stage > .player-profile:last-of-type {
+		grid-row: 3;
+	}
+	.match-shell .board-stage > .workspace > .spatial {
+		grid-row: 4;
+	}
+	.match-shell .board-stage > .player-profile {
+		margin-inline: 0;
+	}
+	.match-sidebar .move-content .history-controls {
+		display: none;
+	}
+	.match-sidebar .move-content {
+		max-height: 220px;
+	}
+}

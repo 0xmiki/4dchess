@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
+	import { previewEndSound } from '$lib/end-sound';
+	import SpeakerHighIcon from 'phosphor-svelte/lib/SpeakerHighIcon';
 	import Button from '$lib/components/Button.svelte';
 	import Logo from '$lib/components/Logo.svelte';
 	import Modal from '$lib/components/Modal.svelte';
@@ -18,9 +20,18 @@
 	let time = $state('10+5');
 	let dialog: Modal;
 	let feedback = $state('');
+	let soundFeedback = $state('');
+	async function previewSound(won: boolean) {
+		const played = await previewEndSound(won);
+		soundFeedback = played
+			? won
+				? 'Played the win sound.'
+				: 'Played the loss sound.'
+			: 'Audio is unavailable in this browser.';
+	}
 	let game = $state(createInitialState());
 	let last = $state<Move | null>(null);
-	const sections = ['Identity', 'Colors', 'Buttons', 'Forms', 'Players', 'Game'];
+	const sections = ['Identity', 'Colors', 'Buttons', 'Forms', 'Players', 'Sounds', 'Game'];
 	const colors = [
 		['Page', '--page'],
 		['Surface', '--surface'],
@@ -204,6 +215,33 @@
 			/><GameOutcome result={{ winner: null, reason: 'stalemate' }} side="white" />
 		</div>
 	</section>
+	<section id="sounds">
+		<div class="section-heading">
+			<h2>Game sounds</h2>
+			<p>Sound previews only. Game audio is currently off.</p>
+		</div>
+		<div class="two">
+			<div class="sample sound-sample">
+				<div>
+					<h3>Win</h3>
+					<p class="muted">Preview of the win cue.</p>
+				</div>
+				<Button aria-label="Play win sound" onclick={() => previewSound(true)}
+					><SpeakerHighIcon size={20} aria-hidden="true" />Play</Button
+				>
+			</div>
+			<div class="sample sound-sample">
+				<div>
+					<h3>Loss</h3>
+					<p class="muted">Preview of the loss cue.</p>
+				</div>
+				<Button aria-label="Play loss sound" onclick={() => previewSound(false)}
+					><SpeakerHighIcon size={20} aria-hidden="true" />Play</Button
+				>
+			</div>
+		</div>
+		<p class="muted sound-feedback" role="status">{soundFeedback}</p>
+	</section>
 	<section id="game">
 		<div class="section-heading">
 			<div>
@@ -381,6 +419,21 @@
 	}
 	.row :global(.clock) {
 		margin-left: 0;
+	}
+	.sound-sample {
+		display: grid;
+		gap: 20px;
+	}
+	.sound-sample h3 {
+		font-size: 18px;
+		margin-bottom: 4px;
+	}
+	.sound-sample p,
+	.sound-feedback {
+		font-size: 13px;
+	}
+	.sound-feedback {
+		min-height: 21px;
 	}
 	footer {
 		margin-top: 64px;

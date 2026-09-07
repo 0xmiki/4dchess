@@ -1,11 +1,14 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import type { ExportResult } from '$lib/chess/export';
-	import { playEndSound } from '$lib/end-sound';
 	import TrophyIcon from 'phosphor-svelte/lib/TrophyIcon';
 	import FlagIcon from 'phosphor-svelte/lib/FlagIcon';
 	import { isUnscoredResult } from '$lib/online/outcomes';
-	let { result, side }: { result: ExportResult; side: 'white' | 'black' } = $props();
+	let {
+		result,
+		side,
+		spectator = false
+	}: { result: ExportResult; side: 'white' | 'black'; spectator?: boolean } = $props();
 	const finished = $derived(result && result.reason !== 'cancellation');
 	const aborted = $derived(result?.reason === 'aborted');
 	const won = $derived(!isUnscoredResult(result) && result?.winner === side);
@@ -26,7 +29,6 @@
 			return;
 		}
 		untrack(() => {
-			if (result?.reason === 'checkmate') playEndSound(won);
 			if (won && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
 				confetti = true;
 				clearTimeout(timer);
@@ -42,7 +44,19 @@
 				size={32}
 				aria-hidden="true"
 			/>{/if}
-		<h2>{aborted ? 'Game aborted' : result?.winner ? (won ? 'You won!' : 'You lost') : 'Draw'}</h2>
+		<h2>
+			{aborted
+				? 'Game aborted'
+				: result?.winner
+					? spectator
+						? result.winner === 'white'
+							? 'White wins'
+							: 'Black wins'
+						: won
+							? 'You won!'
+							: 'You lost'
+					: 'Draw'}
+		</h2>
 		<p>
 			{aborted
 				? result?.detail === 'firstMoveNoShow'

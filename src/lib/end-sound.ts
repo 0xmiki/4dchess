@@ -1,21 +1,16 @@
 let context: AudioContext | null = null;
-export function prepareEndSound() {
-	const unlock = () => {
-		try {
-			context ??= new AudioContext();
-			void context.resume().catch(() => {});
-		} catch {
-			/* Audio may be unavailable. */
-		}
-	};
-	window.addEventListener('pointerdown', unlock, { once: true });
-	window.addEventListener('keydown', unlock, { once: true });
-	return () => {
-		window.removeEventListener('pointerdown', unlock);
-		window.removeEventListener('keydown', unlock);
-	};
+export async function previewEndSound(won: boolean) {
+	try {
+		context ??= new AudioContext();
+		await context.resume();
+		if (context.state !== 'running') return false;
+		playEndSound(won);
+		return true;
+	} catch {
+		return false;
+	}
 }
-export function playEndSound(won: boolean) {
+function playEndSound(won: boolean) {
 	if (!context || context.state !== 'running') return;
 	const notes = won ? [523.25, 659.25, 783.99] : [392, 329.63, 261.63];
 	notes.forEach((frequency, i) => {

@@ -276,9 +276,6 @@
 				{#each flipped ? [1, 0] : [0, 1] as z (z)}
 					<div class="slice">
 						<div class="board-wrap">
-							<div class="ranks" aria-hidden="true">
-								{#each ys as y (y)}<span>{y + 1}</span>{/each}
-							</div>
 							<div class="board" role="group" aria-label={`Board Z ${z}, W ${w}`}>
 								{#each ys as y (y)}{#each xs as x (x)}
 										{@const i = squareIndex([x, y, z, w])}{@const p = shown[i]}{@const legal =
@@ -317,6 +314,13 @@
 											onclick={() => select(i)}
 											onkeydown={(e) => navigate(e, i)}
 										>
+											{#if x === xs[0]}<span class="coordinate rank-coordinate" aria-hidden="true"
+													>{y + 1}</span
+												>{/if}
+											{#if y === ys[ys.length - 1]}<span
+													class="coordinate file-coordinate"
+													aria-hidden="true">{'abcd'[x]}</span
+												>{/if}
 											{#if p}<Piece
 													piece={p}
 													opacity={motion?.to === i
@@ -328,9 +332,6 @@
 										</button>
 									{/each}{/each}
 							</div>
-						</div>
-						<div class="files" aria-hidden="true">
-							{#each xs as x (x)}<span>{'abcd'[x]}</span>{/each}
 						</div>
 					</div>
 				{/each}
@@ -387,11 +388,8 @@
 		outline-offset: -5px;
 	}
 	.z-label,
-	.axis-w,
-	.ranks,
-	.files {
+	.axis-w {
 		font-family: var(--font-data);
-		font-variant-numeric: tabular-nums;
 	}
 	.workspace {
 		display: grid;
@@ -405,8 +403,8 @@
 		display: grid;
 		grid-template-columns: 20px 1fr 1fr;
 		gap: var(--slice-row-gap) 18px;
-		/* Match the top Z-label gutter to the bottom file-label gutter. */
-		padding-bottom: calc(var(--slice-row-gap) - 4px);
+		/* Balance the Z-label gutter above the boards for the player rows. */
+		padding-bottom: calc(var(--slice-row-gap) + 19px);
 	}
 	.z-label {
 		text-align: center;
@@ -424,18 +422,6 @@
 	}
 	.board-wrap {
 		position: relative;
-		padding-left: 13px;
-	}
-	.ranks {
-		position: absolute;
-		left: 0;
-		top: 0;
-		bottom: 0;
-		display: grid;
-		grid-template-rows: repeat(4, 1fr);
-		align-items: center;
-		font-size: 12px;
-		color: var(--muted);
 	}
 	.board {
 		display: grid;
@@ -456,6 +442,26 @@
 		border-radius: 0;
 		padding: 0;
 		background: var(--board-light);
+	}
+	.coordinate {
+		position: absolute;
+		z-index: 1;
+		pointer-events: none;
+		font-size: clamp(9px, 1.1vw, 12px);
+		font-weight: 750;
+		line-height: 1;
+		color: #536348;
+	}
+	.cell.dark .coordinate {
+		color: var(--piece-white);
+	}
+	.rank-coordinate {
+		top: 3px;
+		left: 3px;
+	}
+	.file-coordinate {
+		bottom: 3px;
+		right: 3px;
 	}
 	.cell.dark {
 		background: var(--board-dark);
@@ -499,14 +505,6 @@
 	.cell:focus-visible {
 		filter: brightness(1.25);
 		outline: none;
-	}
-	.files {
-		display: grid;
-		grid-template-columns: repeat(4, 1fr);
-		padding: 4px 0 0 13px;
-		text-align: center;
-		font-size: 12px;
-		color: var(--muted);
 	}
 	@media (max-width: 1000px) {
 		.workspace {

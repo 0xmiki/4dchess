@@ -16,6 +16,7 @@
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
 	import GithubLogoIcon from 'phosphor-svelte/lib/GithubLogoIcon';
 	import DiscordLogoIcon from 'phosphor-svelte/lib/DiscordLogoIcon';
+	import ArrowUpRightIcon from 'phosphor-svelte/lib/ArrowUpRightIcon';
 	import XLogoIcon from 'phosphor-svelte/lib/XLogoIcon';
 	import SelectField from '$lib/components/SelectField.svelte';
 	import { timeControls, type TimeControl } from '$lib/online/time-controls';
@@ -170,67 +171,74 @@
 				<p>{error}</p>
 				<Button variant="primary" onclick={resumeMatch}>Retry</Button>
 			</div>{:else}<div class="home-play">
-				<section class="play-options" aria-label="Choose how to play">
-					<div class="play-settings">
-						<SideToggle
-							allowRandom
-							iconOnly
-							bind:value={seat}
-							disabled={busy || !ready}
-							onchange={() => {
-								requestId = null;
-								assignedSeat = null;
-							}}
+				<div class="play-column">
+					<section class="play-options" aria-label="Choose how to play">
+						<div class="play-settings">
+							<SideToggle
+								allowRandom
+								iconOnly
+								bind:value={seat}
+								disabled={busy || !ready}
+								onchange={() => {
+									requestId = null;
+									assignedSeat = null;
+								}}
+							/>
+							<SelectField
+								label="Time"
+								hideLabel
+								options={timeOptions}
+								bind:value={selectedTime}
+								disabled={!ready || busy}
+							/>
+						</div>
+						<PlayOption
+							mode="matchmaking"
+							primary
+							disabled={!ready || busy || selectedTime === 'untimed'}
+							description={selectedTime === 'untimed'
+								? 'Choose a clock to find an opponent.'
+								: 'Play someone online.'}
+							onclick={() => goto(resolve(`/match?time=${encodeURIComponent(selectedTime)}`))}
 						/>
-						<SelectField
-							label="Time"
-							hideLabel
-							options={timeOptions}
-							bind:value={selectedTime}
+						<PlayOption
+							mode="friend"
+							primary={false}
+							{busy}
 							disabled={!ready || busy}
+							onclick={create}
 						/>
-					</div>
-					<PlayOption
-						mode="matchmaking"
-						primary
-						disabled={!ready || busy || selectedTime === 'untimed'}
-						description={selectedTime === 'untimed'
-							? 'Choose a clock to find an opponent.'
-							: 'Play someone online. Random side.'}
-						onclick={() => goto(resolve(`/match?time=${encodeURIComponent(selectedTime)}`))}
-					/>
-					<PlayOption
-						mode="friend"
-						primary={false}
-						{busy}
-						disabled={!ready || busy}
-						onclick={create}
-					/>
 
-					{#if error}<p class="error" role="alert">{error}</p>{/if}
-					<PlayOption
-						mode="computer"
-						disabled={!ready || busy}
-						onclick={() =>
-							goto(resolve(chooseSeat() === 'white' ? '/computer?side=w' : '/computer?side=b'))}
-					/>
-					<a class="learn" href={resolve('/how-to-play')}
-						><BookOpenIcon size={20} aria-hidden="true" />Learn how to play</a
+						{#if error}<p class="error" role="alert">{error}</p>{/if}
+						<PlayOption
+							mode="computer"
+							disabled={!ready || busy}
+							onclick={() =>
+								goto(resolve(chooseSeat() === 'white' ? '/computer?side=w' : '/computer?side=b'))}
+						/>
+						<a class="learn" href={resolve('/how-to-play')}
+							><BookOpenIcon size={20} aria-hidden="true" />Learn how to play</a
+						>
+					</section>
+					<a
+						class="community-button"
+						href="https://discord.gg/tyuGPQJRJ"
+						target="_blank"
+						rel="noopener noreferrer"
 					>
-				</section>
+						<DiscordLogoIcon size={30} weight="fill" aria-hidden="true" />
+						<span
+							><strong>Join the community</strong><small>Let's create Chess 2 together.</small
+							></span
+						>
+						<ArrowUpRightIcon size={20} aria-hidden="true" />
+					</a>
+				</div>
 				<AutoplayTesseract />
 			</div>{/if}
 		<footer class="home-footer">
 			<a href="https://github.com/0xmiki/4dchess" target="_blank" rel="noopener noreferrer">
 				<GithubLogoIcon size={20} weight="fill" aria-hidden="true" />GitHub
-			</a>
-			<a
-				href="https://discord.gg/tyuGPQJRJ"
-				target="_blank"
-				rel="noopener noreferrer"
-				aria-label="Join the 4D Chess Discord community"
-			>
-				<DiscordLogoIcon size={20} weight="fill" aria-hidden="true" />Discord
 			</a>
 			<a
 				href="https://x.com/miki_code"
@@ -318,6 +326,44 @@
 		.home-play :global(.autoplay) {
 			transform: translate(32px, -7.5%);
 		}
+	}
+	.play-column {
+		display: grid;
+		gap: 16px;
+		width: 100%;
+		max-width: 480px;
+		justify-self: center;
+	}
+	.community-button {
+		display: flex;
+		align-items: center;
+		gap: 16px;
+		padding: 20px 24px;
+		min-height: 88px;
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+		text-decoration: none;
+	}
+	.community-button:hover {
+		background: var(--surface-raised);
+		border-color: var(--game-primary);
+	}
+	.community-button > span {
+		flex: 1;
+		display: grid;
+		gap: 2px;
+	}
+	.community-button strong {
+		font-size: 18px;
+	}
+	.community-button small {
+		font-size: 13px;
+		color: var(--muted);
+	}
+	.community-button > :global(svg) {
+		flex-shrink: 0;
+		color: var(--game-primary);
 	}
 	.play-options {
 		display: grid;

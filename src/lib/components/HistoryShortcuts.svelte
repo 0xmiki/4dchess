@@ -34,7 +34,7 @@
 			if (
 				event.target instanceof Element &&
 				event.target.closest(
-					'.history-controls button, .score-sheet button, .variation-history button, .analysis-status button'
+					'.mobile-game-controls button, .history-controls button, .score-sheet button, .variation-history button, .analysis-status button'
 				)
 			)
 				motion?.record(performance.now(), false);

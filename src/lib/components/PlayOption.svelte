@@ -47,10 +47,10 @@
 			><strong>{title}</strong><span
 				>{description ??
 					(friend
-						? 'Share a link. No account needed.'
+						? 'Share a link.'
 						: mode === 'computer'
-							? 'Four difficulty levels. Untimed.'
-							: 'Play someone online. Random side.')}</span
+							? 'With four difficulty levels.'
+							: 'Play someone online.')}</span
 			></span
 		>
 		<span class="arrow" aria-hidden="true"

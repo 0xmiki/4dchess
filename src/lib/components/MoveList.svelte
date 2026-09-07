@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { tick } from 'svelte';
+	import { tick, getContext } from 'svelte';
+	import { matchNavigationKey, type MatchNavigation } from '$lib/match-navigation';
+	const navigation = getContext<MatchNavigation | undefined>(matchNavigationKey);
 	import HistoryShortcuts from './HistoryShortcuts.svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { moveNotation, type HistoryMove } from '$lib/chess/history';
@@ -43,6 +45,19 @@
 				else if (r.top < c.top) container.scrollTop -= c.top - r.top;
 			})()
 		);
+	});
+	$effect(() => {
+		if (!navigation) return;
+		navigation.previous = available.some((p) => p < selectedPly) ? () => step(-1) : null;
+		navigation.next = available.some((p) => p > selectedPly) ? () => step(1) : null;
+		navigation.live = selectedPly !== livePly ? () => onselect(livePly) : null;
+		navigation.label = selectedPly === livePly ? 'Live' : 'Move ' + selectedPly;
+		return () => {
+			navigation.previous = null;
+			navigation.next = null;
+			navigation.live = null;
+			navigation.label = 'Live';
+		};
 	});
 	function step(direction: number) {
 		const i = available.indexOf(selectedPly);

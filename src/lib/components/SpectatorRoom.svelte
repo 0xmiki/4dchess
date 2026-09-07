@@ -1,4 +1,7 @@
 <script lang="ts">
+	import MatchSidebar from './MatchSidebar.svelte';
+	import GameOverDialog from './GameOverDialog.svelte';
+	let resultDialog = $state<GameOverDialog>();
 	import { onMount, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
@@ -261,7 +264,23 @@
 							/>{/if}{/snippet}</PlayerProfile
 				>
 			</div>
-			<aside class="game-info" aria-label="Spectator controls">
+			<GameOverDialog
+				bind:this={resultDialog}
+				result={live.data?.result ?? null}
+				side="white"
+				spectator
+				gameKey={live.data?.id ?? ''}
+			/>
+			<MatchSidebar
+				label="Spectator controls"
+				onresult={live.data?.result ? () => resultDialog?.show() : undefined}
+				navigation={{
+					previous: node?.parent ? previous : null,
+					next: hasNext || selection ? next : null,
+					live: selection ? returnLive : null,
+					label: selection ? 'Move ' + (node?.state.ply ?? 0) : 'Live'
+				}}
+			>
 				<div class="watch-heading">
 					<span>Watching · Game {game.round}</span><button
 						onclick={() => {
@@ -338,7 +357,7 @@
 					</div>
 				</section>
 				<a class="back-link" href={resolve('/')}>Back to play</a>
-			</aside>
+			</MatchSidebar>
 		</div>
 	{/if}
 </main>

@@ -838,7 +838,6 @@ test('matchmaking pairs guests, starts clocks, and keeps them running across rel
 		await expect(black.getByRole('timer', { name: 'Black clock', exact: true })).toHaveClass(
 			/running/
 		);
-		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
 		await move(black, 63, 31);
 		await black.reload();
 		await expect(black.getByRole('timer', { name: 'White clock', exact: true })).toHaveClass(
@@ -847,8 +846,20 @@ test('matchmaking pairs guests, starts clocks, and keeps them running across rel
 		await expect(black.locator('[data-ply]')).toHaveCount(2);
 		await a.screenshot({ path: '/tmp/timed-match-desktop.png' });
 		await b.screenshot({ path: '/tmp/timed-match-mobile.png', fullPage: true });
+		if ((black.viewportSize()?.width ?? 1440) <= 850)
+			await black.getByRole('button', { name: 'Options', exact: true }).click();
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+		const result = white.getByRole('dialog', { name: 'Game result', exact: true });
+		await expect(result.getByRole('button', { name: 'New game', exact: true })).toHaveClass(
+			/primary/
+		);
+		await expect(result.getByRole('button', { name: 'Rematch', exact: true })).not.toHaveClass(
+			/primary/
+		);
+		await result.getByRole('button', { name: 'New game', exact: true }).click();
+		await expect(white).toHaveURL(/\/match\?time=10%2B5/);
+		await white.getByRole('button', { name: 'Cancel search', exact: true }).click();
 	} finally {
 		await aContext.close();
 		await bContext.close();
@@ -1429,4 +1440,53 @@ test('tesseract separates selection and pinned threats with colored one-pixel in
 	await expect(page.locator('.space-svg [data-state="selected"]')).toHaveCSS('opacity', '1');
 	await page.screenshot({ path: '/tmp/tesseract-ui/after-mobile.png', fullPage: true });
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('mobile game controls stay reachable and results can be closed and reopened', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
+	await expect(page.locator('.player-profile')).toHaveCount(2);
+	await expect(page.locator('.rank-coordinate')).toHaveCount(16);
+	await expect(page.locator('.file-coordinate')).toHaveCount(16);
+	await expect(page.locator('.ranks, .files')).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Resign', exact: true })).toBeHidden();
+	await move(page, 0, 32);
+	await expect(page.getByRole('button', { name: 'Previous move', exact: true })).toBeEnabled();
+	await page.getByRole('button', { name: 'Previous move', exact: true }).click();
+	await page.getByRole('button', { name: 'Return to live game', exact: true }).click();
+	await page.getByRole('button', { name: 'Options', exact: true }).click();
+	await page.getByRole('button', { name: 'Resign', exact: true }).click();
+	const result = page.getByRole('dialog', { name: 'Game result', exact: true });
+	await expect(result).toBeVisible();
+	await expect(result).toContainText('You lost');
+	await expect(result.getByRole('button', { name: 'Review game', exact: true })).toHaveCount(0);
+	await page.getByRole('button', { name: 'Close result', exact: true }).click();
+	await expect(result).toBeHidden();
+	await expect(page.getByRole('button', { name: 'Options', exact: true })).toHaveAttribute(
+		'aria-expanded',
+		'false'
+	);
+	await page.getByRole('button', { name: 'Result', exact: true }).click();
+	await expect(result).toBeVisible();
+	await result.getByRole('button', { name: 'New game', exact: true }).click();
+	await expect(result).toBeHidden();
+	const layout = await page.evaluate(() => {
+		const own = document.querySelector('.player-profile:last-of-type')!.getBoundingClientRect();
+		const controls = document.querySelector('.mobile-game-controls')!.getBoundingClientRect();
+		return {
+			ownBottom: own.bottom,
+			controlsTop: controls.top,
+			overflow: document.documentElement.scrollWidth > innerWidth
+		};
+	});
+	expect(layout.ownBottom).toBeLessThan(layout.controlsTop);
+	expect(layout.overflow).toBe(false);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.getByRole('button', { name: 'Resign', exact: true }).click();
+	await expect(result).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(result).toBeHidden();
 });

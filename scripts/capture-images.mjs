@@ -32,6 +32,8 @@ try {
 		const boards = [...document.querySelectorAll('.slice-grid .board')].map((board) =>
 			board.cloneNode(true)
 		);
+		for (const board of boards)
+			board.querySelectorAll('.coordinate').forEach((label) => label.remove());
 		const spatial = document.querySelector('.spatial').cloneNode(true);
 		spatial.querySelector('.caption')?.remove();
 		spatial.querySelector('.space-svg .axis-gizmo')?.remove();

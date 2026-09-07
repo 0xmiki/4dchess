@@ -1,12 +1,10 @@
 <script lang="ts">
-	import { onMount, setContext } from 'svelte';
+	import { setContext } from 'svelte';
 	import { historyMotionKey, createHistoryMotion } from '$lib/history-motion';
 	setContext(historyMotionKey, createHistoryMotion());
 	import { homeRoomKey, type HomeRoomState } from '$lib/home-room';
 	const homeRoom = $state<HomeRoomState>({ roomId: null, room: null });
 	setContext(homeRoomKey, homeRoom);
-	import { prepareEndSound } from '$lib/end-sound';
-	onMount(prepareEndSound);
 	import './layout.css';
 	import '$lib/design.css';
 	import favicon from '$lib/assets/favicon.svg';

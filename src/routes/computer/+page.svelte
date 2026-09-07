@@ -6,7 +6,11 @@
 	import { historyPositions } from '$lib/chess/history';
 	import SideToggle from '$lib/components/SideToggle.svelte';
 	import MovesPanel from '$lib/components/MovesPanel.svelte';
-	import GameOutcome from '$lib/components/GameOutcome.svelte';
+	import GameOverDialog from '$lib/components/GameOverDialog.svelte';
+	import MatchSidebar from '$lib/components/MatchSidebar.svelte';
+	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import BoardControls from '$lib/components/BoardControls.svelte';
+	let resultDialog = $state<GameOverDialog>();
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { onMount, untrack } from 'svelte';
 	import {
@@ -251,11 +255,38 @@
 </script>
 
 <svelte:head><title>Play computer · 4D chess</title></svelte:head>
+{#snippet computerActions()}{#if result}<div class="computer-settings">
+			<SideToggle
+				bind:value={
+					() => (setupSide === 'w' ? 'white' : 'black'),
+					(side) => {
+						setupSide = side === 'white' ? 'w' : 'b';
+					}
+				}
+			/><SelectField
+				label="Difficulty"
+				bind:value={setupDifficulty}
+				options={levelOptions}
+			/><Button variant="primary" onclick={start}>New game</Button>
+		</div>{:else}<Button onclick={resign}>Resign</Button>{/if}{/snippet}
 <main class="shell match-shell">
 	{#if !ready}<LoadingScreen label="Loading computer game" />
-	{:else if game}<div class="match-layout">
-			<div class="match-position">
+	{:else if game}<GameOverDialog
+			bind:this={resultDialog}
+			{result}
+			side={player === 'w' ? 'white' : 'black'}
+			gameKey={String(startedAt)}
+			><Button variant="primary" onclick={start}>New game</Button></GameOverDialog
+		>
+		<div class="match-layout">
+			<div class="match-position board-stage">
+				<PlayerProfile
+					name={'Computer (' + difficulties[difficulty].label + ')'}
+					side={player === 'w' ? 'black' : 'white'}
+					active={game.turn !== player && !result}
+				/>
 				<ChessBoard
+					showHint={false}
 					gameKey={String(startedAt)}
 					board={reviewPly === null ? game.board : positions.get(reviewPly)!}
 					turn={reviewPly === null ? game.turn : reviewPly % 2 === 0 ? 'w' : 'b'}
@@ -266,8 +297,14 @@
 						: (history.find((move) => move.ply === reviewPly) ?? null)}
 					onmove={move}
 				/>
+				<PlayerProfile
+					name="You"
+					own
+					side={player === 'w' ? 'white' : 'black'}
+					active={game.turn === player && !result}
+				/>
 			</div>
-			<aside class="game-info">
+			<MatchSidebar notice={error} onresult={result ? () => resultDialog?.show() : undefined}>
 				{#if error}<div class="notice row" role="alert">
 						<p class="error">{error}</p>
 						{#if game.turn !== player && !result && !thinking}<Button
@@ -276,21 +313,10 @@
 								}}>Retry computer</Button
 							>{/if}
 					</div>{/if}
-				<GameOutcome {result} side={player === 'w' ? 'white' : 'black'} />
-				{#if result}<div class="computer-settings">
-						<SideToggle
-							bind:value={
-								() => (setupSide === 'w' ? 'white' : 'black'),
-								(side) => {
-									setupSide = side === 'white' ? 'w' : 'b';
-								}
-							}
-						/><SelectField
-							label="Difficulty"
-							bind:value={setupDifficulty}
-							options={levelOptions}
-						/><Button variant="primary" onclick={start}>New game</Button>
-					</div>{:else}<Button onclick={resign}>Resign</Button>{/if}
+				<BoardControls />{#if result}<Button onclick={() => resultDialog?.show()}
+						>Game result</Button
+					>{/if}
+				{@render computerActions()}
 				<MovesPanel
 					onexport={() => {
 						showExport = true;
@@ -324,7 +350,7 @@
 							}}
 						/>{:else}<p class="muted">No moves yet.</p>{/if}</MovesPanel
 				><button class="leave-match" onclick={leave}>Leave game</button>
-			</aside>
+			</MatchSidebar>
 		</div>
 	{/if}
 </main>
