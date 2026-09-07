@@ -122,7 +122,7 @@
 	class="home-link"
 	aria-label="4D chess home"
 	aria-busy={busy}
-	onclick={home}><Logo wordmark={!corner} /></a
+	onclick={home}><Logo /></a
 >
 <Modal
 	bind:this={dialog}
@@ -179,6 +179,7 @@
 		position: absolute;
 		z-index: 10;
 		top: var(--space-4);
-		left: max(var(--space-4), calc((100vw - 1800px) / 2 + var(--space-5)));
+		left: 50%;
+		transform: translateX(-50%);
 	}
 </style>

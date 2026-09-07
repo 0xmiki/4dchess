@@ -54,16 +54,12 @@
 		void goto(resolve('/'));
 	}
 	function resign() {
-		if (result) {
-			resignDialog.close();
-			return;
-		}
+		if (result) return;
 		resigned = true;
 		reviewPly = null;
-		resignDialog.close();
 		save();
 	}
-	let resignDialog: ReturnType<typeof Modal>, exportDialog: ReturnType<typeof Modal>;
+	let exportDialog: ReturnType<typeof Modal>;
 	const levelOptions = Object.entries(difficulties).map(([value, level]) => ({
 		value: value as Difficulty,
 		label: level.label
@@ -294,7 +290,7 @@
 							bind:value={setupDifficulty}
 							options={levelOptions}
 						/><Button variant="primary" onclick={start}>New game</Button>
-					</div>{:else}<Button onclick={() => resignDialog.showModal()}>Resign</Button>{/if}
+					</div>{:else}<Button onclick={resign}>Resign</Button>{/if}
 				<MovesPanel
 					onexport={() => {
 						showExport = true;
@@ -332,14 +328,6 @@
 		</div>
 	{/if}
 </main>
-<Modal bind:this={resignDialog} title="Resign this game?"
-	><p>The computer will win.</p>
-	<div class="row">
-		<Button onclick={() => resignDialog.close()}>Keep playing</Button><Button onclick={resign}
-			>Resign game</Button
-		>
-	</div></Modal
->
 
 <Modal
 	bind:this={exportDialog}

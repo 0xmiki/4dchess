@@ -67,3 +67,29 @@ it('animates backward captures and promotions while preserving restored pieces',
 	expect(pawn[8]?.t).toBe('p');
 	expect(boardTransition(before, pawn, null, move)).toBeNull();
 });
+
+it('scales spatial arcs with distance and retraces them in reverse', () => {
+	const project = (coordinate: Parameters<typeof projectCoordinate>[0]) =>
+		projectCoordinate(coordinate, DEFAULT_CAMERA);
+	for (const move of [
+		{ from: 0, to: 32 },
+		{ from: 0, to: 16 },
+		{ from: 1, to: 35 }
+	]) {
+		const piece = { t: move.from === 1 ? 'n' : 'r', c: 'w' } as const;
+		for (const t of [0, 0.2, 0.5, 0.8, 1]) {
+			const forward = spatialMotionPoint(project, move, piece, t);
+			const backward = spatialMotionPoint(project, { from: move.to, to: move.from }, piece, 1 - t);
+			expect(forward.x).toBeCloseTo(backward.x);
+			expect(forward.y).toBeCloseTo(backward.y);
+		}
+	}
+	const simpleProject = ([x, y, z, w]: readonly number[]) => ({
+		x: x + z * 10,
+		y: y + w * 10,
+		depth: 0,
+		scale: 1
+	});
+	const tiny = spatialMotionPoint(simpleProject, { from: 0, to: 16 }, { t: 'r', c: 'w' }, 0.5);
+	expect(Math.abs(tiny.y)).toBeLessThan(2);
+});

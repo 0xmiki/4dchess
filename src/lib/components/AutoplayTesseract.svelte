@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { cameraForMove, DEFAULT_CAMERA } from '$lib/visuals/projection';
 	import { demoFrame, DEMO_CAMERA_IDLE, DEMO_TIMING } from '$lib/visuals/demo-timeline';
-	import { createInitialState, applyMove, legalMoves, type Move, type GameState } from '$lib/chess';
+	import { createInitialState, applyMove, type Move, type GameState } from '$lib/chess';
 	import ComputerWorker from '$lib/chess/computer.worker.ts?worker&inline';
 	import SpatialBoard from './SpatialBoard.svelte';
 	import { type PieceMotion } from './motion';
@@ -21,8 +21,10 @@
 	const selected = $derived(
 		sequence && (phase === 'selection' || phase === 'preview') ? sequence.move.from : null
 	);
-	const destinations = $derived(
-		phase === 'selection' ? legalMoves(game.board, game.turn, selected!) : []
+	const focusMove = $derived(
+		sequence && ['selection', 'preview', 'move'].includes(phase)
+			? { ...sequence.move, knight: game.board[sequence.move.from]?.t === 'n' }
+			: null
 	);
 	const motion: PieceMotion | null = $derived(
 		sequence && phase === 'move'
@@ -188,7 +190,8 @@
 		inspection={null}
 		board={shown}
 		{selected}
-		moves={destinations}
+		moves={[]}
+		{focusMove}
 		{motion}
 		onselect={() => {}}
 		oninspect={() => {}}

@@ -1,11 +1,9 @@
 <p align="center">
-  <img src="src/lib/assets/logo.svg" width="72" alt="" />
+  <img src="src/lib/assets/logo.svg" width="320" alt="4D Chess" />
 </p>
 
-<h1 align="center">4D chess</h1>
-
 <p align="center">
-  Play with your friends. Explore chess in four dimensions.
+  A new way to play chess.
 </p>
 
 <p align="center">

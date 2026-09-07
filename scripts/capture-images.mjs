@@ -78,16 +78,15 @@ try {
 		spatial.querySelector('.space-svg').setAttribute('viewBox', '0 0 440 440');
 		const card = document.createElement('main');
 		card.className = 'social-card';
-		card.innerHTML = `<div class="social-mark">${logo}</div><h1>4D chess</h1><p>Play with your friends</p>`;
+		card.innerHTML = `<div class="social-mark">${logo}</div>`;
 		card.append(spatial);
 		const style = document.createElement('style');
 		style.textContent = `
 			body { margin: 0; background: #171717; }
 			.social-card { position: relative; width: 1200px; height: 630px; overflow: hidden; color: #f3f3f3; }
-			.social-mark { position: absolute; left: 84px; top: 204px; }
-			.social-mark svg { width: 72px; height: 72px; }
-			.social-card h1 { position: absolute; left: 96px; top: 286px; margin: 0; font-family: 'TeX Gyre Pagella', serif; font-size: 94px; line-height: 1.1; font-weight: 400; letter-spacing: -2.5px; }
-			.social-card > p { position: absolute; left: 98px; top: 395px; margin: 0; font-family: Arial, sans-serif; font-size: 28px; line-height: 1.4; color: #aaa; letter-spacing: -.3px; }
+			.social-mark { position: absolute; left: 80px; top: 259px; }
+			.social-mark svg { display: block; width: 470px; height: auto; }
+
 			.social-tesseract { position: absolute; left: 580px; top: 20px; width: 600px; height: 600px; }
 			.social-tesseract .space-svg { width: 600px; height: 600px; }
 		`;

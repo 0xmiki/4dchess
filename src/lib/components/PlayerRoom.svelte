@@ -72,7 +72,7 @@
 		error = $state(''),
 		copied = $state(false),
 		origin = $state('');
-	let resignDialog: ReturnType<typeof Modal>, deleteDialog: ReturnType<typeof Modal>;
+	let deleteDialog: ReturnType<typeof Modal>;
 	let exportDialog: ReturnType<typeof Modal>,
 		showExport = $state(false);
 	async function exportSnapshot() {
@@ -523,14 +523,13 @@
 		}
 	}
 	async function resign() {
-		if (!game) return;
+		if (!game || sending || pending || game.status !== 'active') return;
 		sending = true;
 		error = '';
 		resignRequest ??= { gameId, expectedRevision: game.revision, requestId: crypto.randomUUID() };
 		try {
 			await client.mutation(api.games.resign, resignRequest);
 			resignRequest = null;
-			resignDialog.close();
 		} catch (cause) {
 			error = errorMessage(cause);
 			if (cause instanceof ConvexError) resignRequest = null;
@@ -700,10 +699,8 @@
 				{/if}
 				{#if game.status === 'active'}<Button
 						disabled={sending || !!pending}
-						onclick={() => {
-							resignRequest = null;
-							resignDialog.showModal();
-						}}>Resign</Button
+						loading={sending}
+						onclick={resign}>Resign</Button
 					>{:else if game.status === 'finished' && !isUnscoredResult(game.result)}
 					{#if game.rematchRequestedBy === match.data.seat}
 						<p role="status" class="muted">Rematch requested</p>
@@ -784,16 +781,6 @@
 		<Button onclick={() => deleteDialog.close()} disabled={sending}>Keep challenge</Button><Button
 			onclick={cancel}
 			loading={sending}>Delete challenge</Button
-		>
-	</div>
-</Modal>
-<Modal bind:this={resignDialog} title="Resign this game?">
-	<p>Your opponent will win. This cannot be undone.</p>
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
-	<div class="row">
-		<Button onclick={() => resignDialog.close()} disabled={sending}>Keep playing</Button><Button
-			onclick={resign}
-			loading={sending}>Resign game</Button
 		>
 	</div>
 </Modal>

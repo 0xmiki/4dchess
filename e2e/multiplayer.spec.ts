@@ -234,13 +234,10 @@ test('resignation requires confirmation and updates both players', async ({ brow
 	});
 	try {
 		await white.getByRole('button', { name: 'Resign', exact: true }).click();
-		await white.getByRole('button', { name: 'Keep playing' }).click();
-		await expect(white.getByLabel('White to move', { exact: true })).toBeVisible();
-		await white.getByRole('button', { name: 'Resign', exact: true }).click();
-		await white.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(white.getByRole('dialog', { name: 'Resign this game?' })).toHaveCount(0);
 		await expect.poll(() => !!sendResignation).toBe(true);
-		const confirm = white.getByRole('button', { name: 'Resign game', exact: true });
-		await expect(confirm).toHaveText('Resign game');
+		const confirm = white.getByRole('button', { name: 'Resign', exact: true });
+		await expect(confirm).toHaveText('Resign');
 		await expect(confirm).toHaveAttribute('aria-busy', 'true');
 		await expect(confirm).toBeDisabled();
 		sendResignation!();
@@ -349,7 +346,16 @@ test('the landing demo keeps playing after manual camera interaction', async ({ 
 	await page.goto(process.env.E2E_BASE_URL!);
 	const demo = page.locator('[data-demo-ply]');
 	await expect(page.getByRole('button', { name: /^(Pause|Play) demo$/ })).toHaveCount(0);
+	await expect(demo).toHaveAttribute('data-demo-phase', 'selection');
+	const route = page.locator('.demo-path');
+	await expect(route).toHaveCount(1);
+	const path = await route.getAttribute('d');
 	await expect(demo).toHaveAttribute('data-demo-phase', 'preview');
+	await expect(route).toHaveAttribute('d', path!);
+	await expect(demo).toHaveAttribute('data-demo-phase', 'move');
+	await expect(route).toHaveAttribute('d', path!);
+	await expect(demo).toHaveAttribute('data-demo-phase', 'settle');
+	await expect(route).toHaveCount(0);
 	await expect(page.locator('.threat-arrow, [data-state="inspection-target"]')).toHaveCount(0);
 	await page.locator('.space-svg').press('ArrowRight');
 	const point = page.locator('.space-svg [data-node="0"] circle').first();
@@ -359,9 +365,7 @@ test('the landing demo keeps playing after manual camera interaction', async ({ 
 		.toBeGreaterThanOrEqual(3);
 	await expect(point).toHaveAttribute('cx', manualX!);
 	await expect(
-		page.locator(
-			'.demo-path, .motion-path, .last-move-arrow, .demo-endpoint, [data-state="last-move"]'
-		)
+		page.locator('.motion-path, .last-move-arrow, .demo-endpoint, [data-state="last-move"]')
 	).toHaveCount(0);
 });
 
@@ -374,7 +378,6 @@ test('computer sidebar settings apply to new games and export dismisses outside'
 	await expect(page.getByText('Options', { exact: true })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'New game', exact: true })).toHaveCount(0);
 	await page.getByRole('button', { name: 'Resign', exact: true }).click();
-	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
 	await page.getByRole('radio', { name: 'White', exact: true }).focus();
 	await page.getByRole('radio', { name: 'White', exact: true }).press('ArrowRight');
 	await page.getByRole('combobox', { name: 'Difficulty', exact: true }).click();
@@ -428,7 +431,6 @@ test('duplicate kings only show the selected square’s moves', async ({ page })
 test('styled selects support keyboard choice and outside dismissal', async ({ page }) => {
 	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
 	await page.getByRole('button', { name: 'Resign', exact: true }).click();
-	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
 	const select = page.getByRole('combobox', { name: 'Difficulty', exact: true });
 	await select.click();
 	await expect(page.getByRole('listbox', { name: 'Difficulty' })).toBeVisible();
@@ -448,7 +450,6 @@ test('home and game use identical tesseract canvas dimensions', async ({ page })
 	for (const width of [1920, 1440, 900, 390]) {
 		if (page.url().includes('/computer')) {
 			await page.getByRole('button', { name: 'Resign', exact: true }).click();
-			await page.getByRole('button', { name: 'Resign game', exact: true }).click();
 			await page.getByRole('button', { name: 'Leave game', exact: true }).click();
 			await page.evaluate(() => localStorage.removeItem('fourfold-computer-v1'));
 		}
@@ -554,7 +555,6 @@ test('computer history stays saved while players freely leave and resume', async
 	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
 	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
 	await page.getByRole('button', { name: 'Resign', exact: true }).click();
-	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
 	await expect(page.getByRole('button', { name: 'Resign', exact: true })).toHaveCount(0);
 	await expect(page.getByRole('button', { name: 'New game', exact: true })).toBeVisible();
 	await page.reload();
@@ -618,7 +618,6 @@ test('online moves display immediately, roll back rejection, and reconcile witho
 		await white.goto(process.env.E2E_BASE_URL!);
 		await expect(white).toHaveURL(url);
 		await white.getByRole('button', { name: 'Resign', exact: true }).click();
-		await white.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await expect(white.getByLabel('Black wins', { exact: true })).toBeVisible();
 		await white.getByRole('button', { name: 'Back to play', exact: true }).click();
 		await expect(
@@ -671,7 +670,6 @@ test('finished score sheet exports, dismisses with Escape, and restores after re
 test('a concluded computer game stops automatic home redirection', async ({ page }) => {
 	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
 	await page.getByRole('button', { name: 'Resign', exact: true }).click();
-	await page.getByRole('button', { name: 'Resign game', exact: true }).click();
 	await expect(page.getByRole('heading', { name: 'You lost', exact: true })).toBeVisible();
 	await page.goto(process.env.E2E_BASE_URL!);
 	await expect(page.getByRole('button', { name: 'Play with friend', exact: true })).toBeVisible();
@@ -691,7 +689,6 @@ test('friends replay in the same room and recover a second-round move after relo
 		await move(white, 0, 32);
 		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
-		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
 		await expect(white.getByRole('button', { name: 'Back to play', exact: true })).toBeVisible();
 		await expect(white.locator('.player-profile').last().locator('.series-score')).toHaveText(
@@ -761,7 +758,6 @@ test('friends replay in the same room and recover a second-round move after relo
 			.toBe(false);
 		await expect(black.locator('[data-ply]')).toHaveCount(1);
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
-		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
 		await white.getByRole('button', { name: 'Back to play', exact: true }).click();
 		await expect(
@@ -844,7 +840,6 @@ test('matchmaking pairs guests, starts clocks, and keeps them running across rel
 		await a.screenshot({ path: '/tmp/timed-match-desktop.png' });
 		await b.screenshot({ path: '/tmp/timed-match-mobile.png', fullPage: true });
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
-		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
 	} finally {
 		await aContext.close();
@@ -887,7 +882,6 @@ test('friend challenges can remain untimed while matchmaking requires a clock', 
 		await move(a, 0, 32);
 		await expect(b.getByLabel('Black to move', { exact: true })).toBeVisible();
 		await b.getByRole('button', { name: 'Resign', exact: true }).click();
-		await b.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await expect(a.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
 	} finally {
 		await first.close();
@@ -1056,7 +1050,6 @@ test('spectators explore private branches and follow live moves and rematches', 
 		await expect(viewer.getByRole('button', { name: /^Variation move 1:/ })).toHaveCount(2);
 		await viewer.screenshot({ path: '/tmp/4d-spectator/branches-desktop.png', fullPage: true });
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
-		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await white.getByRole('button', { name: 'Rematch', exact: true }).click();
 		await black.getByRole('button', { name: 'Accept rematch', exact: true }).click();
 		await expect(viewer.getByText('Game 2 has started.', { exact: true })).toBeVisible();
@@ -1256,7 +1249,6 @@ test('a hidden playing tab remains present after another tab closes', async ({ b
 		await expect(black.locator('.reconnect-notice').first()).toHaveText('');
 		await expect(extra.getByRole('button', { name: 'Resign', exact: true })).toBeVisible();
 		await extra.getByRole('button', { name: 'Resign', exact: true }).click();
-		await extra.getByRole('button', { name: 'Resign game', exact: true }).click();
 		await expect(black.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
 	} finally {
 		await ac.close();
@@ -1323,7 +1315,6 @@ test('game profiles stay symmetric as notices appear and controls live in the si
 		await expect(a.getByRole('dialog', { name: 'Board controls', exact: true })).toBeVisible();
 		await a.keyboard.press('Escape');
 		await a.getByRole('button', { name: 'Resign', exact: true }).click();
-		await a.getByRole('button', { name: 'Resign game', exact: true }).click();
 	} finally {
 		await ac.close();
 		await bc.close();
@@ -1349,7 +1340,6 @@ test('profiles show captured pieces and material advantage for the reviewed posi
 		await expect(profile.locator('.material-advantage')).toHaveText('+5');
 		await white.screenshot({ path: '/tmp/profile-captures-desktop.png', fullPage: true });
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
-		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
 	} finally {
 		await whiteContext.close();
 		await blackContext.close();

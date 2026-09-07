@@ -96,16 +96,39 @@ export function spatialMotionPoint(
 	const a = squareCoordinates(move.from),
 		b = squareCoordinates(move.to);
 	const p = project(a.map((value, i) => value + (b[i] - value) * t) as unknown as Coordinates);
-	const wave = Math.sin(Math.PI * t);
-	if (piece.t === 'n') p.y -= wave * 21;
-	else if (crossesBoards(move)) {
-		const start = project(a),
-			end = project(b),
-			dx = end.x - start.x,
-			dy = end.y - start.y,
-			length = Math.hypot(dx, dy) || 1;
-		p.x -= (dy / length) * wave * 12;
-		p.y += (dx / length) * wave * 12;
+	const start = project(a),
+		end = project(b);
+	const dx = end.x - start.x,
+		dy = end.y - start.y;
+	const distance = Math.hypot(dx, dy);
+	if (distance < 0.001 || (piece.t !== 'n' && !crossesBoards(move))) return p;
+
+	// A quadratic arc keeps the preview and travelling piece on one smooth route.
+	// Scale the lift with distance so short moves do not make oversized detours.
+	const bow = 4 * t * (1 - t);
+	p.x = start.x + dx * t;
+	p.y = start.y + dy * t;
+	if (piece.t === 'n') {
+		p.y -= bow * Math.min(34, distance * 0.24);
+	} else {
+		// Canonical endpoint order makes backward review retrace the same curve.
+		const direction = move.from < move.to ? 1 : -1;
+		let nx = (-dy / distance) * direction,
+			ny = (dx / distance) * direction;
+		if (a[3] !== b[3]) {
+			// Layer changes bow away from the center of the two projected endpoints.
+			const center = project([1.5, 1.5, 0.5, (a[3] + b[3]) / 2]);
+			if (nx * ((start.x + end.x) / 2 - center.x) + ny * ((start.y + end.y) / 2 - center.y) < 0) {
+				nx = -nx;
+				ny = -ny;
+			}
+		} else if (ny > 0) {
+			nx = -nx;
+			ny = -ny;
+		}
+		const lift = Math.min(26, distance * 0.14);
+		p.x += nx * bow * lift;
+		p.y += ny * bow * lift;
 	}
 	return p;
 }

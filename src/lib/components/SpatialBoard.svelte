@@ -109,6 +109,19 @@
 				}).join(' ')
 			: ''
 	);
+	const focusRoute = $derived(
+		focusMove
+			? Array.from({ length: 25 }, (_, i) => {
+					const p = spatialMotionPoint(
+						project,
+						focusMove,
+						{ t: focusMove.knight ? 'n' : 'r', c: 'w' },
+						i / 24
+					);
+					return (i ? 'L' : 'M') + p.x + ',' + p.y;
+				}).join(' ')
+			: ''
+	);
 	const faces = $derived(
 		[0, 1]
 			.flatMap((w) =>
@@ -327,17 +340,15 @@
 				opacity=".9"
 				stroke-width="1"
 			/>{/if}
-		{#if showMoveTrail && focusMove}{@const a = points[focusMove.from]}{@const b =
-				points[focusMove.to]}<path
+		{#if focusMove}<path
 				in:fade={markerFade()}
 				class="demo-path"
-				d={focusMove.knight
-					? `M${a.x} ${a.y} Q${(a.x + b.x) / 2} ${(a.y + b.y) / 2 - 45} ${b.x} ${b.y}`
-					: `M${a.x} ${a.y} L${b.x} ${b.y}`}
+				d={focusRoute}
 				fill="none"
-				stroke="var(--demo-mark)"
+				stroke="var(--spatial-destination)"
 				opacity=".48"
 				stroke-width="1"
+				pointer-events="none"
 			/>{/if}
 		{#if showMoveTrail && motion && !focusMove}<path
 				class="motion-path"
