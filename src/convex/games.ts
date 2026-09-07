@@ -9,9 +9,12 @@ import { color, gameDocument, seatReceipt, timeControl } from './lib/validators'
 import { requireMatch, validateRevision } from './lib/access';
 import { limitCreation } from './lib/limits';
 
-import { initialClock, stoppedClock, START_DELAY_MS } from '../lib/online/time-controls';
-import { armClock, cancelClockJob, endIfTimedOut } from './lib/clocks';
+import { initialClock, START_DELAY_MS } from '../lib/online/time-controls';
+import { armClock, endIfTimedOut } from './lib/clocks';
 import { requireOnlineAvailable, settleWaitingSearches } from './lib/online_availability';
+
+import { finishGame } from './lib/lifecycle';
+import { CURRENT_LIFECYCLE_POLICY, isUnscoredResult } from '../lib/online/outcomes';
 
 const WAITING_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
@@ -56,16 +59,12 @@ export const resign = mutation({
 			});
 			return game.revision + 1;
 		}
-		await cancelClockJob(ctx, game.timeoutJob);
 		const revision = game.revision + 1;
-		await ctx.db.patch(gameId, {
-			status: 'finished',
+		await finishGame(ctx, {
+			gameId,
+			expectedRevision,
 			result: { reason: 'resignation', winner: seat === 'white' ? 'black' : 'white' },
-			...(game.clock
-				? { clock: stoppedClock(game.clock, game.turn, now), timeoutJob: undefined }
-				: {}),
-			finishedAt: Date.now(),
-			revision
+			now
 		});
 		await ctx.db.insert('commands', {
 			gameId,
@@ -133,6 +132,7 @@ export const create = mutation({
 		const initial = createInitialState();
 		const gameId = await ctx.db.insert('games', {
 			...initial,
+			lifecyclePolicy: CURRENT_LIFECYCLE_POLICY,
 			board: [...initial.board],
 			positionKeys: [...initial.positionKeys],
 			creatorParticipantId: participantId,
@@ -295,13 +295,13 @@ export const cancel = mutation({
 			return null;
 		if (game.revision !== expectedRevision) throw new ConvexError('STALE_REVISION');
 		if (game.status !== 'waiting') throw new ConvexError('MATCH_NOT_WAITING');
-		await ctx.db.patch(gameId, {
-			status: 'finished',
+		await finishGame(ctx, {
+			gameId,
+			expectedRevision,
 			result: { reason: 'cancellation', winner: null, detail: 'creatorCancelled' },
-			purgeAt: Date.now() + 7 * 86400000,
-			finishedAt: Date.now(),
-			revision: game.revision + 1
+			now: Date.now()
 		});
+		await ctx.db.patch(gameId, { purgeAt: Date.now() + 7 * 86400000 });
 		const invite = await ctx.db
 			.query('invites')
 			.withIndex('by_game', (q) => q.eq('gameId', gameId))
@@ -317,13 +317,13 @@ export const expireWaiting = internalMutation({
 	handler: async (ctx, { gameId }) => {
 		const game = await ctx.db.get(gameId);
 		if (!game || game.status !== 'waiting' || Date.now() < game.expiresAt) return null;
-		await ctx.db.patch(gameId, {
-			status: 'finished',
+		await finishGame(ctx, {
+			gameId,
+			expectedRevision: game.revision,
 			result: { reason: 'cancellation', winner: null, detail: 'inviteExpired' },
-			purgeAt: game.expiresAt + 7 * 86400000,
-			finishedAt: Date.now(),
-			revision: game.revision + 1
+			now: Date.now()
 		});
+		await ctx.db.patch(gameId, { purgeAt: game.expiresAt + 7 * 86400000 });
 		const invite = await ctx.db
 			.query('invites')
 			.withIndex('by_game', (q) => q.eq('gameId', gameId))
@@ -346,7 +346,7 @@ export const rematch = mutation({
 		if (current._id !== expectedGameId) return current._id;
 		if (current.status !== 'finished') throw new ConvexError('MATCH_NOT_FINISHED');
 		if (
-			current.result?.reason === 'cancellation' ||
+			isUnscoredResult(current.result) ||
 			!current.whiteParticipantId ||
 			!current.blackParticipantId
 		)
@@ -367,6 +367,7 @@ export const rematch = mutation({
 				: undefined;
 		const gameId = await ctx.db.insert('games', {
 			...initial,
+			lifecyclePolicy: CURRENT_LIFECYCLE_POLICY,
 			timeControl: current.timeControl,
 			kind: current.kind,
 			clock,
@@ -424,8 +425,7 @@ export const roomScore = query({
 		if (!rounds.some((round) => round._id === root._id)) rounds.push(root);
 		const score = { you: 0, opponent: 0, games: 0 };
 		for (const round of rounds) {
-			if (round.status !== 'finished' || !round.result || round.result.reason === 'cancellation')
-				continue;
+			if (round.status !== 'finished' || !round.result || isUnscoredResult(round.result)) continue;
 			score.games++;
 			if (round.result.winner) {
 				const winner =

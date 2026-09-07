@@ -47,3 +47,11 @@ A 30-second search lease is renewed every eight seconds while the search page is
 Search creation is limited to 12 requests per minute per participant; heartbeats are limited to 20 per minute. Cancelled and matched receipts are retained for at least one day. Search cleanup removes expired receipts in bounded batches. These are initial operating limits, not measured capacity claims.
 
 For this variant, flagging loses unless the opponent has only a king, in which case the game is drawn. Clocks start after a three-second countdown. No client-reported lag allowance or manual pause is supported in this release.
+
+## Lifecycle outcome records
+
+All game-ending paths use one revision-checked transition. It stores a terminal result and one `termination` record containing its cause, policy version, timestamp, revision, and responsible participant when established. A finished game cannot receive a second outcome. New games carry `lifecyclePolicy: online-v1`; games without that field retain legacy semantics, and already finished games are not backfilled.
+
+Search cancellation and lease expiry are recorded separately from game outcomes. Deleted and expired invitations retain their existing cancellation reasons. The result model also supports unscored aborts and distinct abandonment outcomes for future policies, but no first-move deadline, disconnect penalty, or automatic incident escalation is enabled yet.
+
+Aborted games retain their position and move history, award no room-score points, export with the `*` result marker, and do not offer a rematch. Normal completed games retain their original result and termination record when a new round begins. No-show and abandonment outcomes cannot be applied to legacy games by the lifecycle transition.

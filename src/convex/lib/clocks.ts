@@ -1,29 +1,9 @@
-import type { Doc, Id } from '../_generated/dataModel';
+import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { internal } from '../_generated/api';
-import { remainingTime, stoppedClock, type ClockState } from '../../lib/online/time-controls';
+import { remainingTime } from '../../lib/online/time-controls';
+import { finishGame } from './lifecycle';
+export { armClock, cancelClockJob } from './clock_jobs';
 
-export async function cancelClockJob(
-	ctx: MutationCtx,
-	id?: Id<'_scheduled_functions'>
-): Promise<void> {
-	if (!id) return;
-	const job = await ctx.db.system.get(id);
-	if (job?.state.kind === 'pending') await ctx.scheduler.cancel(id);
-}
-export async function armClock(
-	ctx: MutationCtx,
-	gameId: Id<'games'>,
-	clock: ClockState,
-	turn: 'w' | 'b',
-	revision: number,
-	previous?: Id<'_scheduled_functions'>
-): Promise<Id<'_scheduled_functions'> | undefined> {
-	await cancelClockJob(ctx, previous);
-	if (clock.turnStartedAt === null) return undefined;
-	const deadline = clock.turnStartedAt + (turn === 'w' ? clock.whiteMs : clock.blackMs);
-	return await ctx.scheduler.runAt(deadline, internal.clocks.expire, { gameId, revision });
-}
 export async function endIfTimedOut(
 	ctx: MutationCtx,
 	game: Doc<'games'>,
@@ -37,13 +17,12 @@ export async function endIfTimedOut(
 	const result: NonNullable<Doc<'games'>['result']> = hasMaterial
 		? { reason: 'timeout', winner: side === 'white' ? 'black' : 'white' }
 		: { reason: 'draw', winner: null, detail: 'timeoutNoMaterial' };
-	await ctx.db.patch(game._id, {
-		status: 'finished',
+	const finished = await finishGame(ctx, {
+		gameId: game._id,
+		expectedRevision: game.revision,
 		result,
-		finishedAt: now,
-		revision: game.revision + 1,
-		clock: stoppedClock(game.clock, game.turn, now),
-		timeoutJob: undefined
+		now,
+		cancelTimer: false
 	});
-	return result;
+	return finished ? result : null;
 }

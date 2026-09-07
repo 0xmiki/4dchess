@@ -4,9 +4,11 @@
 	import { playEndSound } from '$lib/end-sound';
 	import TrophyIcon from 'phosphor-svelte/lib/TrophyIcon';
 	import FlagIcon from 'phosphor-svelte/lib/FlagIcon';
+	import { isUnscoredResult } from '$lib/online/outcomes';
 	let { result, side }: { result: ExportResult; side: 'white' | 'black' } = $props();
 	const finished = $derived(result && result.reason !== 'cancellation');
-	const won = $derived(result?.winner === side);
+	const aborted = $derived(result?.reason === 'aborted');
+	const won = $derived(!isUnscoredResult(result) && result?.winner === side);
 	let confetti = $state(false),
 		seen: string | null | undefined = undefined,
 		timer: ReturnType<typeof setTimeout>;
@@ -40,23 +42,30 @@
 				size={32}
 				aria-hidden="true"
 			/>{/if}
-		<h2>{result?.winner ? (won ? 'You won!' : 'You lost') : 'Draw'}</h2>
+		<h2>{aborted ? 'Game aborted' : result?.winner ? (won ? 'You won!' : 'You lost') : 'Draw'}</h2>
 		<p>
-			{result?.reason === 'checkmate'
-				? 'Checkmate.'
-				: result?.reason === 'timeout'
-					? 'Game ended on time.'
-					: result?.reason === 'resignation'
-						? 'Game ended by resignation.'
-						: ((
-								{
-									stalemate: 'Stalemate.',
-									repetition: 'Draw by repetition.',
-									fiftyMove: 'Draw by the 50-move rule.',
-									bareKings: 'Only kings remain.',
-									timeoutNoMaterial: 'Draw on time. The player with time remaining has only a king.'
-								} as Record<string, string>
-							)[result?.detail ?? ''] ?? 'Game drawn.')}
+			{aborted
+				? result?.detail === 'firstMoveNoShow'
+					? 'A player did not make their first move in time.'
+					: 'The game was interrupted. No score was awarded.'
+				: result?.reason === 'abandonment'
+					? 'Game ended by abandonment.'
+					: result?.reason === 'checkmate'
+						? 'Checkmate.'
+						: result?.reason === 'timeout'
+							? 'Game ended on time.'
+							: result?.reason === 'resignation'
+								? 'Game ended by resignation.'
+								: ((
+										{
+											stalemate: 'Stalemate.',
+											repetition: 'Draw by repetition.',
+											fiftyMove: 'Draw by the 50-move rule.',
+											bareKings: 'Only kings remain.',
+											timeoutNoMaterial:
+												'Draw on time. The player with time remaining has only a king.'
+										} as Record<string, string>
+									)[result?.detail ?? ''] ?? 'Game drawn.')}
 		</p>
 	</section>{/if}
 {#if confetti}<div class="confetti" aria-hidden="true">

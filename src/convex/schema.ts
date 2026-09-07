@@ -8,6 +8,8 @@ export default defineSchema({
 		requestId: v.string(),
 		timeControl: timedControl,
 		status: v.union(v.literal('waiting'), v.literal('matched'), v.literal('cancelled')),
+		closeReason: v.optional(v.union(v.literal('userCancelled'), v.literal('leaseExpired'))),
+		closedAt: v.optional(v.number()),
 		expiresAt: v.number(),
 		gameId: v.optional(v.id('games'))
 	})

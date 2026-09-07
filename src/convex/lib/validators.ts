@@ -22,6 +22,16 @@ export const piece = v.object({
 export const result = v.union(
 	v.null(),
 	v.object({
+		reason: v.literal('aborted'),
+		winner: v.null(),
+		detail: v.union(v.literal('firstMoveNoShow'), v.literal('serviceInterruption'))
+	}),
+	v.object({
+		reason: v.literal('abandonment'),
+		winner: color,
+		detail: v.union(v.literal('disconnect'), v.literal('stalling'))
+	}),
+	v.object({
 		reason: v.union(v.literal('checkmate'), v.literal('resignation'), v.literal('timeout')),
 		winner: color
 	}),
@@ -43,6 +53,27 @@ export const result = v.union(
 	})
 );
 export const gameFields = {
+	lifecyclePolicy: v.optional(v.literal('online-v1')),
+	termination: v.optional(
+		v.object({
+			cause: v.union(
+				v.literal('checkmate'),
+				v.literal('boardDraw'),
+				v.literal('resignation'),
+				v.literal('clockTimeout'),
+				v.literal('challengeDeleted'),
+				v.literal('challengeExpired'),
+				v.literal('firstMoveNoShow'),
+				v.literal('serviceInterruption'),
+				v.literal('disconnectAbandonment'),
+				v.literal('stallingAbandonment')
+			),
+			policyVersion: v.union(v.literal('legacy-v1'), v.literal('online-v1')),
+			responsibleParticipantId: v.optional(v.id('participants')),
+			recordedAt: v.number(),
+			revision: v.number()
+		})
+	),
 	kind: v.optional(v.union(v.literal('friend'), v.literal('matchmaking'))),
 	timeControl: v.optional(timeControl),
 	clock: v.optional(clockState),

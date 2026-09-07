@@ -12,13 +12,17 @@ import { createInitialState } from '../lib/chess';
 import { armClock } from './lib/clocks';
 import { internal } from './_generated/api';
 
+import { CURRENT_LIFECYCLE_POLICY } from '../lib/online/outcomes';
+
 const LEASE_MS = 30000;
 const stateValidator = v.object({
 	id: v.id('matchSearches'),
 	status: v.union(v.literal('waiting'), v.literal('matched'), v.literal('cancelled')),
 	gameId: v.union(v.id('games'), v.null()),
 	timeControl: timedControl,
-	expiresAt: v.number()
+	expiresAt: v.number(),
+	closeReason: v.optional(v.union(v.literal('userCancelled'), v.literal('leaseExpired'))),
+	closedAt: v.optional(v.number())
 });
 function state(row: Doc<'matchSearches'>) {
 	return {
@@ -27,7 +31,12 @@ function state(row: Doc<'matchSearches'>) {
 			row.status === 'waiting' && row.expiresAt <= Date.now() ? ('cancelled' as const) : row.status,
 		gameId: row.gameId ?? null,
 		timeControl: row.timeControl,
-		expiresAt: row.expiresAt
+		expiresAt: row.expiresAt,
+		closeReason:
+			row.status === 'waiting' && row.expiresAt <= Date.now()
+				? ('leaseExpired' as const)
+				: row.closeReason,
+		closedAt: row.closedAt
 	};
 }
 async function match(
@@ -48,8 +57,9 @@ async function match(
 		.take(16);
 	for (const candidate of candidates) {
 		if (candidate.participantId === search.participantId) continue;
-		if (await activeOnlineGame(ctx, candidate.participantId)) {
-			await ctx.db.patch(candidate._id, { status: 'cancelled' });
+		const activeGame = await activeOnlineGame(ctx, candidate.participantId);
+		if (activeGame) {
+			await ctx.db.patch(candidate._id, { status: 'matched', gameId: activeGame });
 			continue;
 		}
 		const white = Math.random() < 0.5 ? candidate.participantId : search.participantId;
@@ -59,6 +69,7 @@ async function match(
 		const initial = createInitialState();
 		const gameId = await ctx.db.insert('games', {
 			...initial,
+			lifecyclePolicy: CURRENT_LIFECYCLE_POLICY,
 			board: [...initial.board],
 			positionKeys: [...initial.positionKeys],
 			kind: 'matchmaking',
@@ -126,7 +137,12 @@ export const join = mutation({
 			)
 			.first();
 		if (waiting && waiting.expiresAt > Date.now()) return state(waiting);
-		if (waiting) await ctx.db.patch(waiting._id, { status: 'cancelled' });
+		if (waiting)
+			await ctx.db.patch(waiting._id, {
+				status: 'cancelled',
+				closeReason: 'leaseExpired',
+				closedAt: Date.now()
+			});
 		if (!(await consume(ctx, `queue:${participantId}`, 12, 60000)).ok)
 			throw new ConvexError('RATE_LIMITED');
 		const id = await ctx.db.insert('matchSearches', {
@@ -160,8 +176,12 @@ export const heartbeat = mutation({
 		const row = await ownSearch(ctx, id);
 		if (row.status !== 'waiting') return state(row);
 		if (row.expiresAt <= Date.now()) {
-			await ctx.db.patch(id, { status: 'cancelled' });
-			return state({ ...row, status: 'cancelled' });
+			await ctx.db.patch(id, {
+				status: 'cancelled',
+				closeReason: 'leaseExpired',
+				closedAt: Date.now()
+			});
+			return state((await ctx.db.get(id))!);
 		}
 		if (!(await consume(ctx, `queue-heartbeat:${row.participantId}`, 20, 60000)).ok)
 			return state(row);
@@ -198,14 +218,20 @@ export const cancel = mutation({
 					requestId,
 					timeControl,
 					status: 'cancelled',
+					closeReason: 'userCancelled',
+					closedAt: Date.now(),
 					expiresAt: Date.now()
 				});
 				return state((await ctx.db.get(cancelled))!);
 			}
 		}
 		if (row.status === 'waiting') {
-			await ctx.db.patch(row._id, { status: 'cancelled' });
-			return state({ ...row, status: 'cancelled' });
+			await ctx.db.patch(row._id, {
+				status: 'cancelled',
+				closeReason: row.expiresAt <= Date.now() ? 'leaseExpired' : 'userCancelled',
+				closedAt: Date.now()
+			});
+			return state((await ctx.db.get(row._id))!);
 		}
 		return state(row);
 	}

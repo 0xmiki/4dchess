@@ -1,5 +1,6 @@
 import { applyMove, createInitialState, inCheck, squareAddress } from './fourfold-v1';
 import type { Move } from './types';
+import { resultMarker } from '../online/outcomes';
 
 export type ExportResult = {
 	reason: string;
@@ -37,14 +38,7 @@ export function exportGame(
 		state = next.state;
 	}
 	const result = options.result === undefined ? state.result : options.result;
-	const marker =
-		!result || result.reason === 'cancellation'
-			? '*'
-			: result.winner === 'white'
-				? '1-0'
-				: result.winner === 'black'
-					? '0-1'
-					: '1/2-1/2';
+	const marker = resultMarker(result);
 	const headers = {
 		Event: '4D chess',
 		Site: options.site ?? 'Local',

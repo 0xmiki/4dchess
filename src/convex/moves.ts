@@ -5,8 +5,9 @@ import { mutation, query } from './_generated/server';
 import { requireMatch, validateRevision } from './lib/access';
 import { validateRequestId } from './lib/invitations';
 import { moveDocument, moveReceipt } from './lib/validators';
-import { armClock, cancelClockJob, endIfTimedOut } from './lib/clocks';
-import { clockAfterMove, stoppedClock } from '../lib/online/time-controls';
+import { armClock, endIfTimedOut } from './lib/clocks';
+import { clockAfterMove } from '../lib/online/time-controls';
+import { finishGame } from './lib/lifecycle';
 
 export const submit = mutation({
 	args: {
@@ -82,7 +83,6 @@ export const submit = mutation({
 			game.clock && game.timeControl && game.timeControl !== 'untimed'
 				? clockAfterMove(game.clock, game.turn, game.timeControl, now)
 				: undefined;
-		if (next.result) await cancelClockJob(ctx, game.timeoutJob);
 		const timeoutJob =
 			clock && !next.result
 				? await armClock(ctx, gameId, clock, next.turn, revision, game.timeoutJob)
@@ -102,20 +102,32 @@ export const submit = mutation({
 			createdAt,
 			result: next.result
 		});
-		await ctx.db.patch(gameId, {
-			...(clock
-				? { clock: next.result ? stoppedClock(clock, next.turn, now) : clock, timeoutJob }
-				: {}),
+		const position = {
 			board: [...next.board],
 			turn: next.turn,
 			ply: next.ply,
 			halfmoveClock: next.halfmoveClock,
-			positionKeys: [...next.positionKeys],
-			result: next.result,
-			revision,
-			status: next.result ? 'finished' : 'active',
-			finishedAt: next.result ? createdAt : null
-		});
+			positionKeys: [...next.positionKeys]
+		};
+		if (next.result) {
+			if (
+				!(await finishGame(ctx, {
+					gameId,
+					expectedRevision,
+					result: next.result,
+					now,
+					position,
+					clock
+				}))
+			)
+				throw new ConvexError('STALE_REVISION');
+		} else {
+			await ctx.db.patch(gameId, {
+				...position,
+				...(clock ? { clock, timeoutJob } : {}),
+				revision
+			});
+		}
 		return { revision, ply: next.ply, result: next.result };
 	}
 });

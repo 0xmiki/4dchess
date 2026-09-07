@@ -29,6 +29,7 @@
 	import MoveHistory from '$lib/components/MoveHistory.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 	import InspectionHint from '$lib/components/InspectionHint.svelte';
+	import { isUnscoredResult } from '$lib/online/outcomes';
 	import {
 		remainingTime,
 		clockAfterMove,
@@ -239,6 +240,7 @@
 		if (provisional) return 'Confirming move…';
 		if (game.status === 'waiting') return 'Waiting for your friend';
 		if (game.result) {
+			if (game.result.reason === 'aborted') return 'Game aborted';
 			if (game.result.reason === 'cancellation')
 				return game.result.detail === 'inviteExpired' ? 'Invitation expired' : 'Room deleted';
 			if (game.result.reason === 'draw') return 'Game drawn';
@@ -577,7 +579,7 @@
 							resignRequest = null;
 							resignDialog.showModal();
 						}}>Resign</Button
-					>{:else if game.status === 'finished' && game.result?.reason !== 'cancellation'}
+					>{:else if game.status === 'finished' && !isUnscoredResult(game.result)}
 					{#if game.rematchRequestedBy === match.data.seat}
 						<p role="status" class="muted">Rematch requested</p>
 						<Button onclick={dismissRematch} disabled={roundStarting}>Cancel request</Button>
