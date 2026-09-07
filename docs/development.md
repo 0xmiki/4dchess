@@ -73,3 +73,11 @@ node scripts/capture-images.mjs
 ```
 
 Install TeX Gyre Pagella to reproduce the social card's serif title. Set `CAPTURE_URL` or `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a different local preview or browser. The capture does not create a guest session or multiplayer room.
+
+## Game stats preview
+
+After `bun run convex:push`, run `bunx convex run stats:refresh '{}'` to prepare the first development summary. Open `/stats` on the local frontend. Production deployment remains owned by CI.
+
+The stats cron refreshes every five minutes. Visitors read one anonymous summary; collection scans retained games in pages of at most 100 and publishes only after completion. Interrupted builds are replaced after 15 minutes, and the page labels old summaries as delayed. Collection cost grows with game history; replace periodic scans with incremental counters if scans become expensive or approach the refresh interval.
+
+Totals cover started multiplayer games and rematches, excluding cancelled and aborted games. Local computer games are not counted. Unfinished games may include abandoned sessions without a recorded result. Daily counts cover seven UTC dates, including the current partial day. Counts are periodic observations rather than a transactionally consistent snapshot. No player identities or room links are returned.

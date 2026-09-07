@@ -1,9 +1,12 @@
+import { statsValue } from './lib/stats';
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { gameFields, moveFields, timedControl } from './lib/validators';
 import { coverage, candidate } from './lib/presence_validators';
 
 export default defineSchema({
+	publicStats: defineTable({ name: v.string(), value: statsValue }).index('by_name', ['name']),
+	statsBuild: defineTable({ value: statsValue }),
 	onlinePolicy: defineTable({
 		key: v.literal('disconnect'),
 		enabled: v.boolean(),

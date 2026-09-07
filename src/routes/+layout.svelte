@@ -21,9 +21,20 @@
 	<link rel="icon" href={favicon} />
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content="4D chess" />
-	<meta property="og:title" content="4D chess" />
-	<meta property="og:description" content="Play with your friends." />
-	<meta property="og:url" content="https://4dchess.lol/" />
+	<meta
+		property="og:title"
+		content={page.route.id === '/stats' ? 'Game stats · 4D chess' : '4D chess'}
+	/>
+	<meta
+		property="og:description"
+		content={page.route.id === '/stats'
+			? 'Multiplayer game totals and daily activity.'
+			: 'Play with your friends.'}
+	/>
+	<meta
+		property="og:url"
+		content={page.route.id === '/stats' ? 'https://4dchess.lol/stats' : 'https://4dchess.lol/'}
+	/>
 	<meta property="og:image" content="https://4dchess.lol/social-preview.png" />
 	<meta property="og:image:type" content="image/png" />
 	<meta property="og:image:width" content="1200" />
@@ -41,7 +52,7 @@
 		content="4D chess. Play with your friends. A tesseract on a dark background."
 	/>
 </svelte:head>
-<HomeLink corner />
+{#if page.route.id !== '/stats'}<HomeLink corner />{/if}
 {#if page.route.id?.startsWith('/game/') || page.route.id?.startsWith('/room/') || page.route.id === '/join' || page.route.id === '/match'}<AuthProvider
 		>{@render children()}</AuthProvider
 	>{:else}{@render children()}{/if}

@@ -8,4 +8,5 @@ crons.interval(
 	{ minutes: 15 },
 	internal.operations.maintenance
 );
+crons.interval('public game statistics', { minutes: 5 }, internal.stats.refresh);
 export default crons;
