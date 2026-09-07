@@ -15,6 +15,7 @@
 	import AutoplayTesseract from '$lib/components/AutoplayTesseract.svelte';
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
 	import GithubLogoIcon from 'phosphor-svelte/lib/GithubLogoIcon';
+	import DiscordLogoIcon from 'phosphor-svelte/lib/DiscordLogoIcon';
 	import XLogoIcon from 'phosphor-svelte/lib/XLogoIcon';
 	import SelectField from '$lib/components/SelectField.svelte';
 	import { timeControls, type TimeControl } from '$lib/online/time-controls';
@@ -222,6 +223,14 @@
 		<footer class="home-footer">
 			<a href="https://github.com/0xmiki/4dchess" target="_blank" rel="noopener noreferrer">
 				<GithubLogoIcon size={20} weight="fill" aria-hidden="true" />GitHub
+			</a>
+			<a
+				href="https://discord.gg/tyuGPQJRJ"
+				target="_blank"
+				rel="noopener noreferrer"
+				aria-label="Join the 4D Chess Discord community"
+			>
+				<DiscordLogoIcon size={20} weight="fill" aria-hidden="true" />Discord
 			</a>
 			<a
 				href="https://x.com/miki_code"
