@@ -11,6 +11,12 @@ for (const name of [
 ]) {
 	if (!process.env[name]) throw new Error(`Missing deployment secret: ${name}`);
 }
+if (!process.env.CONVEX_DEPLOY_KEY.startsWith('prod:')) {
+	throw new Error('Production releases require a production Convex deploy key.');
+}
+if (!process.env.PRODUCTION_CONVEX_URL) {
+	throw new Error('Missing expected PRODUCTION_CONVEX_URL.');
+}
 function run(args) {
 	const result = spawnSync('bunx', args, { stdio: 'inherit' });
 	if (result.error) throw result.error;

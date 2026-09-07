@@ -2,6 +2,10 @@
 
 Install Bun, then run `bun install`. Create or select your own Convex project with `bunx convex dev --once`. The CLI saves deployment URLs to the ignored `.env.local` file. Use `.env.example` as a reference; do not replace the real URLs with its placeholders.
 
+`bun run dev:all` starts the frontend and syncs backend code to the selected development deployment. The development scripts reject production deployments, deploy keys, and mismatched frontend URLs. Keep `CONVEX_DEPLOY_KEY` out of local environment files. Development has its own database and authentication secrets; never copy production sessions into it for testing.
+
+The hosted project's development deployment is `tough-sardine-116`. The public site uses the separate production deployment `gregarious-parrot-749`. No `DEVELOPMENT=true` flag is needed: `.env.local` selects development, while CI selects production with a deployment-scoped key. Restart the frontend after changing these environment variables.
+
 ## Authentication setup
 
 Generate three separate random secrets. For each one, use a password manager or run:

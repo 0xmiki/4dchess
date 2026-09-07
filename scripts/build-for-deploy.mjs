@@ -5,6 +5,9 @@ const url = new URL(process.env.PUBLIC_CONVEX_URL ?? '');
 if (url.protocol !== 'https:' || !url.hostname.endsWith('.convex.cloud')) {
 	throw new Error('Expected a Convex cloud deployment URL.');
 }
+if (url.origin !== process.env.PRODUCTION_CONVEX_URL) {
+	throw new Error('Convex selected a different backend than PRODUCTION_CONVEX_URL.');
+}
 const site = new URL(url);
 site.hostname = site.hostname.replace(/\.convex\.cloud$/, '.convex.site');
 const env = { ...process.env, PUBLIC_CONVEX_SITE_URL: site.origin };
