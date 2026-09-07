@@ -1,6 +1,14 @@
+@font-face {
+	font-family: 'Outfit';
+	src: url('./assets/fonts/outfit-latin-variable.woff2') format('woff2');
+	font-style: normal;
+	font-weight: 100 900;
+	font-display: swap;
+}
+
 :root {
 	color-scheme: dark;
-	--font-ui: 'Segoe UI', Arial, Helvetica, sans-serif;
+	--font-ui: 'Outfit', 'Segoe UI', Arial, sans-serif;
 	--font-data: ui-monospace, 'SFMono-Regular', Consolas, monospace;
 	--page: #171717;
 	--surface: #212121;

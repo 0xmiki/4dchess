@@ -31,7 +31,16 @@
 	}
 	let game = $state(createInitialState());
 	let last = $state<Move | null>(null);
-	const sections = ['Identity', 'Colors', 'Buttons', 'Forms', 'Players', 'Sounds', 'Game'];
+	const sections = [
+		'Identity',
+		'Typography',
+		'Colors',
+		'Buttons',
+		'Forms',
+		'Players',
+		'Sounds',
+		'Game'
+	];
 	const colors = [
 		['Page', '--page'],
 		['Surface', '--surface'],
@@ -87,12 +96,29 @@
 				<p class="muted">Simple geometry. Room for the game.</p>
 			</div>
 			<div class="sample type">
+				<span class="font-label">Outfit · Interface typeface</span>
 				<h1>Play with your friends.</h1>
 				<h2>Your next move.</h2>
+				<p class="font-alphabet">Aa Bb Cc Dd Ee Ff Gg<br />0123456789</p>
 				<p>Four connected boards. One game.</p>
 				<small class="muted">Share a link. No account needed.</small>
-				<p class="data">Swift Falcon 7246 · 10:00</p>
+				<p class="data">a1[0,0] → b2[1,1] · 10:00</p>
 			</div>
+		</div>
+	</section>
+	<section id="typography">
+		<div class="section-heading">
+			<h2>Typography</h2>
+			<p>Outfit for the interface. Monospace for move notation.</p>
+		</div>
+		<div class="three">
+			{#each [{ weight: 400, label: 'Regular / Body' }, { weight: 600, label: 'Semibold / Labels' }, { weight: 700, label: 'Bold / Actions' }] as sample (sample.weight)}
+				<div class="sample font-specimen">
+					<span class="font-label">{sample.label}</span>
+					<p style:font-weight={sample.weight}>A new way to play chess.</p>
+					<span style:font-weight={sample.weight}>Find opponent · Join the community</span>
+				</div>
+			{/each}
 		</div>
 	</section>
 	<section id="colors">
@@ -385,6 +411,23 @@
 	}
 	.type h1 {
 		font-size: 30px;
+	}
+	.font-label {
+		font-size: 12px;
+		color: var(--muted);
+		letter-spacing: 0.04em;
+	}
+	.font-alphabet {
+		font-size: 22px;
+		font-weight: 500;
+	}
+	.font-specimen {
+		display: grid;
+		gap: 16px;
+	}
+	.font-specimen > p {
+		font-size: 24px;
+		line-height: 1.3;
 	}
 	.data,
 	code {

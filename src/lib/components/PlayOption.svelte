@@ -4,7 +4,6 @@
 	import UsersIcon from 'phosphor-svelte/lib/UsersIcon';
 	import CpuIcon from 'phosphor-svelte/lib/CpuIcon';
 	import ShuffleIcon from 'phosphor-svelte/lib/ShuffleIcon';
-	import ArrowRightIcon from 'phosphor-svelte/lib/ArrowRightIcon';
 	let {
 		mode,
 		onclick,
@@ -35,11 +34,11 @@
 		aria-label={title}
 	>
 		<span class="mode-icon" aria-hidden="true"
-			>{#if friend}<UsersIcon
-					size={30}
+			>{#if busy}<Spinner label="Loading" />{:else if friend}<UsersIcon
+					size={28}
 					weight="fill"
-				/>{:else if mode === 'matchmaking'}<ShuffleIcon size={30} />{:else}<CpuIcon
-					size={30}
+				/>{:else if mode === 'matchmaking'}<ShuffleIcon size={28} />{:else}<CpuIcon
+					size={28}
 					weight="duotone"
 				/>{/if}</span
 		>
@@ -52,12 +51,6 @@
 							? 'With four difficulty levels.'
 							: 'Play someone online.')}</span
 			></span
-		>
-		<span class="arrow" aria-hidden="true"
-			>{#if busy}<Spinner label="Creating invitation" />{:else}<ArrowRightIcon
-					size={20}
-					weight="bold"
-				/>{/if}</span
 		>
 	</Button>
 </div>
@@ -77,13 +70,15 @@
 		gap: var(--space-1);
 	}
 	strong {
-		font-size: 20px;
-		line-height: 1.2;
-		letter-spacing: -0.025em;
+		font-size: 18px;
+		font-weight: 700;
+		line-height: 1.35;
+		letter-spacing: 0;
 	}
 	.copy > span {
-		font-size: 14px;
-		font-weight: 450;
+		font-size: 13px;
+		font-weight: 400;
+		line-height: 1.5;
 		color: var(--muted);
 	}
 	.primary .copy > span {
@@ -92,18 +87,15 @@
 	.mode-icon {
 		display: flex;
 		flex-shrink: 0;
-	}
-	.arrow {
-		margin-left: auto;
-		font-size: 26px;
+		width: 28px;
+		height: 28px;
+		align-items: center;
+		justify-content: center;
 	}
 	@media (max-width: 600px) {
 		.play-option :global(button) {
 			min-height: 80px;
 			padding: var(--space-4);
-		}
-		strong {
-			font-size: 20px;
 		}
 		.copy > span {
 			font-size: 13px;

@@ -122,7 +122,7 @@
 		min-width: 0;
 	}
 	strong {
-		font: 700 13px/18px var(--font-data);
+		font: 600 14px/18px var(--font-ui);
 		overflow: hidden;
 		text-overflow: ellipsis;
 		white-space: nowrap;

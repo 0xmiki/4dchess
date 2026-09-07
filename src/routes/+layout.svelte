@@ -8,6 +8,7 @@
 	import './layout.css';
 	import '$lib/design.css';
 	import favicon from '$lib/assets/favicon.svg';
+	import uiFont from '$lib/assets/fonts/outfit-latin-variable.woff2?url';
 	import { page } from '$app/state';
 	import AuthProvider from '$lib/components/AuthProvider.svelte';
 	import HomeLink from '$lib/components/HomeLink.svelte';
@@ -16,6 +17,7 @@
 </script>
 
 <svelte:head>
+	<link rel="preload" href={uiFont} as="font" type="font/woff2" crossorigin="anonymous" />
 	<link rel="icon" href={favicon} />
 	<meta property="og:type" content="website" />
 	<meta property="og:site_name" content="4D chess" />

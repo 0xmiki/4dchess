@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 98 100"><title>4D chess</title><g fill="#7c8a6e" transform="translate(0 -10) scale(.65 1.15)">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="2 -21 146 146"><title>4D chess</title><g fill="#7c8a6e">
 <path d="M32 14H49L21 56H47V40L63 16V56H73V70H63V90H47V70H4V56Z"/>
 <path fill-rule="evenodd" d="M81 14H104C132 14 146 28 146 52S132 90 104 90H81ZM98 30V74H104C121 74 129 67 129 52S121 30 104 30Z"/>
 </g></svg>

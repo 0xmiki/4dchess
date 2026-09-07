@@ -16,7 +16,6 @@
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
 	import GithubLogoIcon from 'phosphor-svelte/lib/GithubLogoIcon';
 	import DiscordLogoIcon from 'phosphor-svelte/lib/DiscordLogoIcon';
-	import ArrowUpRightIcon from 'phosphor-svelte/lib/ArrowUpRightIcon';
 	import XLogoIcon from 'phosphor-svelte/lib/XLogoIcon';
 	import SelectField from '$lib/components/SelectField.svelte';
 	import { timeControls, type TimeControl } from '$lib/online/time-controls';
@@ -226,12 +225,8 @@
 						target="_blank"
 						rel="noopener noreferrer"
 					>
-						<DiscordLogoIcon size={30} weight="fill" aria-hidden="true" />
-						<span
-							><strong>Join the community</strong><small>Let's create Chess 2 together.</small
-							></span
-						>
-						<ArrowUpRightIcon size={20} aria-hidden="true" />
+						<DiscordLogoIcon size={28} weight="fill" aria-hidden="true" />
+						<span><strong>Join the community</strong><small>Let's create Chess 2</small></span>
 					</a>
 				</div>
 				<AutoplayTesseract />
@@ -258,8 +253,7 @@
 		justify-content: space-between;
 		align-items: end;
 		gap: var(--space-4);
-		padding-bottom: var(--space-4);
-		border-bottom: 1px solid var(--line);
+		padding-bottom: var(--space-2);
 	}
 	.home-shell {
 		max-width: 1800px;
@@ -338,7 +332,7 @@
 		display: flex;
 		align-items: center;
 		gap: 16px;
-		padding: 20px 24px;
+		padding: 20px calc(var(--space-5) + var(--space-4) + 1px);
 		min-height: 88px;
 		border: 1px solid var(--line);
 		border-radius: var(--radius-panel);
@@ -352,13 +346,18 @@
 	.community-button > span {
 		flex: 1;
 		display: grid;
-		gap: 2px;
+		gap: 4px;
 	}
 	.community-button strong {
 		font-size: 18px;
+		font-weight: 700;
+		line-height: 1.35;
+		letter-spacing: 0;
 	}
 	.community-button small {
 		font-size: 13px;
+		font-weight: 400;
+		line-height: 1.5;
 		color: var(--muted);
 	}
 	.community-button > :global(svg) {
@@ -367,7 +366,7 @@
 	}
 	.play-options {
 		display: grid;
-		gap: var(--space-3);
+		gap: var(--space-2);
 		width: 100%;
 		max-width: 480px;
 		justify-self: center;
@@ -391,7 +390,6 @@
 		background: transparent;
 		border-color: transparent;
 		box-shadow: none;
-		min-height: 68px;
 	}
 	.play-options :global(.play-option:not(.primary) button:hover:not(:disabled)),
 	.play-options :global(.play-option:not(.primary) button:focus-visible) {
@@ -405,8 +403,7 @@
 		min-height: var(--control-height);
 		text-decoration: none;
 		color: var(--text);
-		border-top: 1px solid var(--line);
-		padding-top: var(--space-3);
+		margin-top: var(--space-2);
 	}
 	.learn:hover {
 		text-decoration: underline;
@@ -420,11 +417,11 @@
 			min-height: 0;
 			padding-top: var(--space-8);
 		}
-		.play-options {
-			gap: var(--space-3);
-		}
 	}
 	@media (max-width: 500px) {
+		.community-button {
+			padding-inline: calc(2 * var(--space-4) + 1px);
+		}
 		.play-options {
 			padding: var(--space-4);
 		}
