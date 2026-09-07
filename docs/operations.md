@@ -52,6 +52,14 @@ For this variant, flagging loses unless the opponent has only a king, in which c
 
 All game-ending paths use one revision-checked transition. It stores a terminal result and one `termination` record containing its cause, policy version, timestamp, revision, and responsible participant when established. A finished game cannot receive a second outcome. New games carry `lifecyclePolicy: online-v1`; games without that field retain legacy semantics, and already finished games are not backfilled.
 
-Search cancellation and lease expiry are recorded separately from game outcomes. Deleted and expired invitations retain their existing cancellation reasons. The result model also supports unscored aborts and distinct abandonment outcomes for future policies, but no first-move deadline, disconnect penalty, or automatic incident escalation is enabled yet.
+Search cancellation and lease expiry are recorded separately from game outcomes. Deleted and expired invitations retain their existing cancellation reasons. New matchmaking games enforce the first-move policy below. Disconnect penalties and automatic incident escalation are not implemented.
 
 Aborted games retain their position and move history, award no room-score points, export with the `*` result marker, and do not offer a rematch. Normal completed games retain their original result and termination record when a new round begins. No-show and abandonment outcomes cannot be applied to legacy games by the lifecycle transition.
+
+## First-move deadlines
+
+New matchmaking games and matchmaking rematches give each player 30 seconds for their first legal move. White's window starts after the three-second start countdown. Black's starts when White's move is accepted. Friend challenges and games without `firstMoveDeadline` keep their existing clock rules.
+
+The current turn has one scheduled job for the earlier of the main clock and opening deadline. Exact ties resolve as unscored first-move aborts. Move submissions, resignations, and queue availability checks use the same deadline resolution. The first accepted move replaces the opening deadline with Black's deadline; the second removes it. Invalid moves and duplicate requests cannot extend it. Revision checks prevent old jobs from ending a later turn.
+
+The client displays the server deadline beside the affected profile and emphasizes the final ten seconds. Screen readers announce phase changes rather than every tick. Reloading or backgrounding the page does not pause the server deadline. After an abort, finding another opponent requires an explicit click and retains the previous clock preset. No penalty or cooldown is applied in this milestone.

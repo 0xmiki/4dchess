@@ -13,6 +13,7 @@ import { armClock } from './lib/clocks';
 import { internal } from './_generated/api';
 
 import { CURRENT_LIFECYCLE_POLICY } from '../lib/online/outcomes';
+import { FIRST_MOVE_MS } from '../lib/online/first-move';
 
 const LEASE_MS = 30000;
 const stateValidator = v.object({
@@ -66,6 +67,7 @@ async function match(
 		const black =
 			white === candidate.participantId ? search.participantId : candidate.participantId;
 		const clock = initialClock(search.timeControl, now + START_DELAY_MS);
+		const firstMoveDeadline = now + START_DELAY_MS + FIRST_MOVE_MS;
 		const initial = createInitialState();
 		const gameId = await ctx.db.insert('games', {
 			...initial,
@@ -75,6 +77,7 @@ async function match(
 			kind: 'matchmaking',
 			timeControl: search.timeControl,
 			clock,
+			firstMoveDeadline,
 			creatorParticipantId: candidate.participantId,
 			createRequestId: `queue:${candidate._id}:${search._id}`,
 			whiteParticipantId: white,
@@ -86,7 +89,9 @@ async function match(
 			finishedAt: null,
 			purgeAt: null
 		});
-		await ctx.db.patch(gameId, { timeoutJob: await armClock(ctx, gameId, clock, 'w', 0) });
+		await ctx.db.patch(gameId, {
+			timeoutJob: await armClock(ctx, gameId, clock, 'w', 0, undefined, firstMoveDeadline)
+		});
 		await ctx.db.patch(candidate._id, { status: 'matched', gameId });
 		await ctx.db.patch(search._id, { status: 'matched', gameId });
 		return (await ctx.db.get(search._id))!;

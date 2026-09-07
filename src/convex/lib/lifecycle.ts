@@ -107,6 +107,7 @@ export async function finishGame(
 		finishedAt: args.now,
 		termination: metadata(game, args.result, args.now),
 		rematchRequestedBy: undefined,
+		firstMoveDeadline: undefined,
 		...(clock ? { clock: stoppedClock(clock, args.position?.turn ?? game.turn, args.now) } : {}),
 		timeoutJob: undefined
 	});

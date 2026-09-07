@@ -932,3 +932,74 @@ test('home defaults to Random and friend challenges assign a concrete side', asy
 		.click();
 	await expect(page.getByRole('radio', { name: 'Random', exact: true })).toBeChecked();
 });
+
+for (const missingSide of ['white', 'black'] as const) {
+	test(`matchmaking ${missingSide} first-move deadline survives reload and aborts without points`, async ({
+		browser
+	}) => {
+		const aContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+		const bContext = await browser.newContext({
+			viewport: { width: 390, height: 844 },
+			isMobile: true,
+			hasTouch: true
+		});
+		const a = await aContext.newPage(),
+			b = await bContext.newPage();
+		try {
+			await a.goto(process.env.E2E_BASE_URL!);
+			await a.getByRole('button', { name: 'Find opponent', exact: true }).click();
+			await b.goto(process.env.E2E_BASE_URL!);
+			await b.getByRole('button', { name: 'Find opponent', exact: true }).click();
+			await expect(a).toHaveURL(/\/room\//);
+			await expect(b).toHaveURL(a.url());
+			await expect(a.locator('.player-profile').last()).toHaveAttribute(
+				'aria-label',
+				/, (white|black), you/
+			);
+			const white = (await a
+				.locator('.player-profile')
+				.last()
+				.getAttribute('aria-label'))!.includes(', white,')
+				? a
+				: b;
+			const black = white === a ? b : a;
+			await expect(white.getByText(/Make your first move ·/)).toBeVisible();
+			await expect(black.getByText(/Waiting for opponent ·/)).toBeVisible();
+			if (missingSide === 'black') {
+				await move(white, 0, 32);
+				await expect(black.getByText(/Make your first move ·/)).toBeVisible();
+				await expect(white.getByText(/Waiting for opponent ·/)).toBeVisible();
+			}
+			const idle = missingSide === 'white' ? white : black;
+			await idle.reload();
+			await expect(idle.getByText(/Make your first move ·/)).toBeVisible();
+			await expect(idle.getByText(/Move now ·/)).toBeVisible({ timeout: 35000 });
+			await idle.screenshot({ path: `/tmp/first-move-${missingSide}-warning.png` });
+			for (const player of [a, b]) {
+				await expect(
+					player.getByRole('heading', { name: 'Game aborted', exact: true })
+				).toBeVisible({ timeout: 20000 });
+				await expect(player.locator('.series-score')).toHaveCount(0);
+				await expect(
+					player.getByRole('button', { name: 'Find another opponent', exact: true })
+				).toBeVisible();
+				await expect(player.getByRole('button', { name: 'Rematch', exact: true })).toHaveCount(0);
+			}
+			await idle.reload();
+			await expect(idle.getByRole('heading', { name: 'Game aborted', exact: true })).toBeVisible();
+			await expect(
+				idle.getByRole('heading', { name: 'Finding an opponent', exact: true })
+			).toHaveCount(0);
+			await idle.getByRole('button', { name: 'Find another opponent', exact: true }).click();
+			await expect(
+				idle.getByRole('heading', { name: 'Finding an opponent', exact: true })
+			).toBeVisible();
+			await expect(idle.getByText('10 + 5 · Unrated · Random side')).toBeVisible();
+			await idle.getByRole('button', { name: 'Cancel search', exact: true }).click();
+			await expect(idle.getByRole('button', { name: 'Find opponent', exact: true })).toBeVisible();
+		} finally {
+			await aContext.close();
+			await bContext.close();
+		}
+	});
+}

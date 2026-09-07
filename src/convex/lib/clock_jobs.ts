@@ -17,10 +17,14 @@ export async function armClock(
 	clock: ClockState,
 	turn: 'w' | 'b',
 	revision: number,
-	previous?: Id<'_scheduled_functions'>
+	previous?: Id<'_scheduled_functions'>,
+	firstMoveDeadline?: number
 ): Promise<Id<'_scheduled_functions'> | undefined> {
 	await cancelClockJob(ctx, previous);
 	if (clock.turnStartedAt === null) return undefined;
-	const deadline = clock.turnStartedAt + (turn === 'w' ? clock.whiteMs : clock.blackMs);
+	const deadline = Math.min(
+		clock.turnStartedAt + (turn === 'w' ? clock.whiteMs : clock.blackMs),
+		firstMoveDeadline ?? Infinity
+	);
 	return await ctx.scheduler.runAt(deadline, internal.clocks.expire, { gameId, revision });
 }

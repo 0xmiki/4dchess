@@ -1,12 +1,15 @@
 <script lang="ts">
 	import UserIcon from 'phosphor-svelte/lib/UserIcon';
 	import GameClock from './GameClock.svelte';
+	import type { Snippet } from 'svelte';
 	let {
 		name,
 		side,
 		own = false,
 		active = false,
 		score,
+		notice,
+		showNotice = false,
 		remaining
 	}: {
 		name: string;
@@ -14,6 +17,8 @@
 		own?: boolean;
 		active?: boolean;
 		score?: number;
+		notice?: Snippet;
+		showNotice?: boolean;
 		remaining?: number;
 	} = $props();
 </script>
@@ -31,15 +36,20 @@
 		<strong>{name}</strong>
 	</div>
 	{#if remaining !== undefined}<GameClock {remaining} running={active} {side} />{/if}
+	{#if notice && showNotice}<div class="player-notice">{@render notice()}</div>{/if}
 </div>
 
 <style>
 	.player-profile {
-		display: flex;
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
 		align-items: center;
 		gap: var(--space-3);
 		min-height: 44px;
 		min-width: 0;
+	}
+	.player-notice {
+		grid-column: 1 / -1;
 	}
 	.avatar {
 		display: grid;

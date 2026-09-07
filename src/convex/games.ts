@@ -10,11 +10,12 @@ import { requireMatch, validateRevision } from './lib/access';
 import { limitCreation } from './lib/limits';
 
 import { initialClock, START_DELAY_MS } from '../lib/online/time-controls';
-import { armClock, endIfTimedOut } from './lib/clocks';
+import { armClock, endIfDeadlineExpired } from './lib/clocks';
 import { requireOnlineAvailable, settleWaitingSearches } from './lib/online_availability';
 
 import { finishGame } from './lib/lifecycle';
 import { CURRENT_LIFECYCLE_POLICY, isUnscoredResult } from '../lib/online/outcomes';
+import { FIRST_MOVE_MS } from '../lib/online/first-move';
 
 const WAITING_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
@@ -48,7 +49,7 @@ export const resign = mutation({
 		if (game.status !== 'active') throw new ConvexError('MATCH_NOT_ACTIVE');
 		if (game.revision !== expectedRevision) throw new ConvexError('STALE_REVISION');
 		const now = Date.now();
-		if (await endIfTimedOut(ctx, game, now)) {
+		if (await endIfDeadlineExpired(ctx, game, now)) {
 			await ctx.db.insert('commands', {
 				gameId,
 				participantId: participant._id,
@@ -371,6 +372,10 @@ export const rematch = mutation({
 			timeControl: current.timeControl,
 			kind: current.kind,
 			clock,
+			firstMoveDeadline:
+				current.kind === 'matchmaking' && clock?.turnStartedAt != null
+					? clock.turnStartedAt + FIRST_MOVE_MS
+					: undefined,
 			board: [...initial.board],
 			positionKeys: [...initial.positionKeys],
 			roomRootId: root._id,
@@ -389,7 +394,19 @@ export const rematch = mutation({
 		await settleWaitingSearches(ctx, current.whiteParticipantId, gameId);
 		await settleWaitingSearches(ctx, current.blackParticipantId, gameId);
 		if (clock)
-			await ctx.db.patch(gameId, { timeoutJob: await armClock(ctx, gameId, clock, 'w', 0) });
+			await ctx.db.patch(gameId, {
+				timeoutJob: await armClock(
+					ctx,
+					gameId,
+					clock,
+					'w',
+					0,
+					undefined,
+					current.kind === 'matchmaking' && clock.turnStartedAt != null
+						? clock.turnStartedAt + FIRST_MOVE_MS
+						: undefined
+				)
+			});
 		await ctx.db.patch(root._id, {
 			currentGameId: gameId,
 			roomRootId: root._id,

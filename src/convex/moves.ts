@@ -5,9 +5,10 @@ import { mutation, query } from './_generated/server';
 import { requireMatch, validateRevision } from './lib/access';
 import { validateRequestId } from './lib/invitations';
 import { moveDocument, moveReceipt } from './lib/validators';
-import { armClock, endIfTimedOut } from './lib/clocks';
+import { armClock, endIfDeadlineExpired } from './lib/clocks';
 import { clockAfterMove } from '../lib/online/time-controls';
 import { finishGame } from './lib/lifecycle';
+import { nextFirstMoveDeadline } from '../lib/online/first-move';
 
 export const submit = mutation({
 	args: {
@@ -62,7 +63,7 @@ export const submit = mutation({
 			now < game.clock.turnStartedAt
 		)
 			throw new ConvexError('GAME_NOT_STARTED');
-		const timeout = await endIfTimedOut(ctx, game, now);
+		const timeout = await endIfDeadlineExpired(ctx, game, now);
 		if (timeout) {
 			await ctx.db.insert('commands', {
 				gameId,
@@ -78,6 +79,7 @@ export const submit = mutation({
 		const applied = applyMove({ ...game, result: null }, move);
 		if (!applied.ok) throw new ConvexError(applied.error);
 		const next = applied.state;
+		const firstMoveDeadline = nextFirstMoveDeadline(game.firstMoveDeadline, next.ply, now);
 		const revision = game.revision + 1;
 		const clock =
 			game.clock && game.timeControl && game.timeControl !== 'untimed'
@@ -85,7 +87,15 @@ export const submit = mutation({
 				: undefined;
 		const timeoutJob =
 			clock && !next.result
-				? await armClock(ctx, gameId, clock, next.turn, revision, game.timeoutJob)
+				? await armClock(
+						ctx,
+						gameId,
+						clock,
+						next.turn,
+						revision,
+						game.timeoutJob,
+						firstMoveDeadline
+					)
 				: undefined;
 		const createdAt = Date.now();
 		await ctx.db.insert('moves', {
@@ -124,6 +134,7 @@ export const submit = mutation({
 		} else {
 			await ctx.db.patch(gameId, {
 				...position,
+				firstMoveDeadline,
 				...(clock ? { clock, timeoutJob } : {}),
 				revision
 			});

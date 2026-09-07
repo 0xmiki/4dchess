@@ -1,7 +1,7 @@
 import { ConvexError } from 'convex/values';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { endIfTimedOut } from './clocks';
+import { endIfDeadlineExpired } from './clocks';
 
 /** Indexed reads conflict with concurrent pairing/join transactions for the same participant. */
 export async function activeOnlineGame(
@@ -23,7 +23,7 @@ export async function activeOnlineGame(
 			.take(2)
 	]);
 	for (const game of games.flat())
-		if (!(await endIfTimedOut(ctx, game, Date.now()))) return game._id;
+		if (!(await endIfDeadlineExpired(ctx, game, Date.now()))) return game._id;
 	return null;
 }
 export async function requireOnlineAvailable(ctx: MutationCtx, participants: Id<'participants'>[]) {

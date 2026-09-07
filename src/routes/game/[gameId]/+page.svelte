@@ -27,6 +27,7 @@
 	import ExportGame from '$lib/components/ExportGame.svelte';
 	import MoveHistory from '$lib/components/MoveHistory.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import FirstMoveNotice from '$lib/components/FirstMoveNotice.svelte';
 	import InspectionHint from '$lib/components/InspectionHint.svelte';
 	import { isUnscoredResult } from '$lib/online/outcomes';
 	import {
@@ -162,6 +163,9 @@
 	});
 	const displayClock = $derived(provisional?.clock ?? game?.clock);
 	const displayTurn = $derived(provisional?.state.turn ?? game?.turn ?? 'w');
+	const firstMoveExpired = $derived(
+		clockSynced && game?.firstMoveDeadline !== undefined && clockNow >= game.firstMoveDeadline
+	);
 	function clockFor(side: 'white' | 'black') {
 		return displayClock
 			? remainingTime(
@@ -480,7 +484,14 @@
 						displayTurn !== (match.data.seat === 'white' ? 'w' : 'b')}
 					remaining={clockFor(match.data.seat === 'white' ? 'black' : 'white')}
 					score={score.data && score.data.games > 0 ? score.data.opponent : undefined}
-				/>
+					showNotice={game.kind === 'matchmaking'}
+					>{#snippet notice()}{#if game.kind === 'matchmaking'}<FirstMoveNotice
+								deadline={game.status === 'active' && !ownTurn ? game.firstMoveDeadline : undefined}
+								now={clockNow}
+								own={false}
+								synced={clockSynced}
+							/>{/if}{/snippet}</PlayerProfile
+				>
 				<ChessBoard
 					interruptibleMotion={!!game.clock}
 					showHint={false}
@@ -493,6 +504,7 @@
 						: (provisional?.state.turn ?? game.turn)}
 					seat={match.data.seat}
 					enabled={!review &&
+						!firstMoveExpired &&
 						!provisional &&
 						game.status === 'active' &&
 						ownTurn &&
@@ -512,7 +524,16 @@
 						displayTurn === (match.data.seat === 'white' ? 'w' : 'b')}
 					remaining={clockFor(match.data.seat)}
 					score={score.data && score.data.games > 0 ? score.data.you : undefined}
-				/>
+					showNotice={game.kind === 'matchmaking'}
+					>{#snippet notice()}{#if game.kind === 'matchmaking'}<FirstMoveNotice
+								deadline={game.status === 'active' && ownTurn && !provisional
+									? game.firstMoveDeadline
+									: undefined}
+								now={clockNow}
+								own
+								synced={clockSynced}
+							/>{/if}{/snippet}</PlayerProfile
+				>
 				<div class="board-hint"><InspectionHint /></div>
 			</div>
 			<aside class="game-info">
@@ -568,6 +589,15 @@
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
 				<GameOutcome result={game.result} side={match.data.seat} />
+				{#if game.kind === 'matchmaking' && game.result?.reason === 'aborted'}
+					<Button
+						variant="primary"
+						onclick={() => {
+							leaveMatch();
+							void goto(resolve(`/match?time=${encodeURIComponent(game.timeControl ?? '10+5')}`));
+						}}>Find another opponent</Button
+					>
+				{/if}
 				{#if game.status === 'active'}<Button
 						disabled={sending || !!pending}
 						onclick={() => {

@@ -78,6 +78,7 @@ export const gameFields = {
 	timeControl: v.optional(timeControl),
 	clock: v.optional(clockState),
 	timeoutJob: v.optional(v.id('_scheduled_functions')),
+	firstMoveDeadline: v.optional(v.number()),
 	roomRootId: v.optional(v.id('games')),
 	currentGameId: v.optional(v.id('games')),
 	round: v.optional(v.number()),
