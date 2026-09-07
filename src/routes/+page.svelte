@@ -183,6 +183,7 @@
 						/>
 						<SelectField
 							label="Time"
+							hideLabel
 							options={timeOptions}
 							bind:value={selectedTime}
 							disabled={!ready || busy}

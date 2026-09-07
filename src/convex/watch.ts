@@ -134,3 +134,18 @@ export const score = query({
 		return score;
 	}
 });
+
+// A normal game has at most 18 captures. The index avoids scanning quiet moves.
+export const captures = query({
+	args: { gameId: v.id('games'), throughPly: v.number() },
+	returns: v.array(v.object({ ply: v.number(), piece, captured: piece })),
+	handler: async (ctx, { gameId, throughPly }) => {
+		const moves = await ctx.db
+			.query('moves')
+			.withIndex('by_game_capture', (q) => q.eq('gameId', gameId).gt('captured', null))
+			.collect();
+		return moves
+			.filter((move) => move.ply <= throughPly && move.captured)
+			.map((move) => ({ ply: move.ply, piece: move.piece, captured: move.captured! }));
+	}
+});

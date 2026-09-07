@@ -412,7 +412,7 @@
 					{size}
 				/></g
 			>{/if}
-		{#if annotations}<AxisGizmo axes={orientation} x={39} y={395} />{/if}
+		{#if annotations}<g class="axis-gizmo"><AxisGizmo axes={orientation} x={380} y={395} /></g>{/if}
 	</svg>
 	{#if annotations}<p class="muted caption">
 			W = 0 is the inner cube. W = 1 is the outer cube.
@@ -424,6 +424,7 @@
 		stroke-linecap: butt;
 	}
 	.spatial {
+		position: relative;
 		--axis-w: #aaa;
 		--grid: #828282;
 		--grid-soft: #606060;
@@ -465,7 +466,15 @@
 	.space-svg:active {
 		cursor: grabbing;
 	}
+	.axis-gizmo {
+		opacity: 0.45;
+	}
 	.caption {
+		opacity: 0.5;
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		right: 0;
 		font-size: 12px;
 		text-align: center;
 	}

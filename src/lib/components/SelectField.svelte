@@ -4,12 +4,14 @@
 	import CheckIcon from 'phosphor-svelte/lib/CheckIcon';
 	let {
 		label,
+		hideLabel = false,
 		value = $bindable(),
 		options,
 		disabled = false,
 		onchange
 	}: {
 		label: string;
+		hideLabel?: boolean;
 		value: T;
 		options: readonly { value: T; label: string }[];
 		disabled?: boolean;
@@ -105,7 +107,7 @@
 
 <svelte:window onresize={close} onscroll={close} />
 <div class="select-field">
-	<span id={id + '-label'}>{label}</span><button
+	<span id={id + '-label'} class:sr-only={hideLabel}>{label}</span><button
 		bind:this={trigger}
 		role="combobox"
 		aria-labelledby={id + '-label'}

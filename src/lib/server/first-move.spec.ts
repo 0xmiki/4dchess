@@ -15,12 +15,18 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllEnvs();
 });
+const sessionId = '11111111-1111-4111-8111-111111111111';
 async function matched() {
 	const t = setup(),
 		a = await guest(t),
 		b = await guest(t);
-	await a.mutation(api.matchmaking.join, { requestId: randomUUID(), timeControl: '3+2' });
+	await a.mutation(api.matchmaking.join, {
+		presenceVersion: 1,
+		requestId: randomUUID(),
+		timeControl: '3+2'
+	});
 	const search = await b.mutation(api.matchmaking.join, {
+		presenceVersion: 1,
 		requestId: randomUUID(),
 		timeControl: '3+2'
 	});
@@ -28,6 +34,8 @@ async function matched() {
 	const view = await a.query(api.games.get, { gameId });
 	const white = view.seat === 'white' ? a : b,
 		black = view.seat === 'black' ? a : b;
+	await white.mutation(api.presence.heartbeat, { gameId, sessionId, sequence: 1, version: 1 });
+	await black.mutation(api.presence.heartbeat, { gameId, sessionId, sequence: 1, version: 1 });
 	const get = async () => (await white.query(api.games.get, { gameId })).game;
 	return { t, white, black, gameId, game: view.game, get };
 }
@@ -54,6 +62,7 @@ it.each([-1, 0, 1])(
 		const { white, gameId, game, get } = await matched();
 		vi.setSystemTime(game.firstMoveDeadline! + offset);
 		const request = {
+			sessionId,
 			gameId,
 			expectedRevision: 0,
 			requestId: randomUUID(),
@@ -74,6 +83,7 @@ it('gives Black a full window, ignores invalid moves, and stops only after both 
 	const { t, white, black, gameId, game, get } = await matched();
 	vi.setSystemTime(game.firstMoveDeadline! - 1);
 	await white.mutation(api.moves.submit, {
+		sessionId,
 		gameId,
 		expectedRevision: 0,
 		requestId: randomUUID(),
@@ -83,6 +93,7 @@ it('gives Black a full window, ignores invalid moves, and stops only after both 
 	expect(afterWhite.firstMoveDeadline).toBe(Date.now() + FIRST_MOVE_MS);
 	await expect(
 		black.mutation(api.moves.submit, {
+			sessionId,
 			gameId,
 			expectedRevision: 1,
 			requestId: randomUUID(),
@@ -95,6 +106,7 @@ it('gives Black a full window, ignores invalid moves, and stops only after both 
 	vi.setSystemTime(afterWhite.firstMoveDeadline! - 1);
 	const move = legalMoves(afterWhite.board, afterWhite.turn)[0];
 	await black.mutation(api.moves.submit, {
+		sessionId,
 		gameId,
 		expectedRevision: 1,
 		requestId: randomUUID(),
@@ -110,6 +122,7 @@ it('aborts a Black no-show while retaining White’s accepted move', async () =>
 	const { t, white, gameId, game, get } = await matched();
 	vi.setSystemTime(game.clock!.turnStartedAt!);
 	await white.mutation(api.moves.submit, {
+		sessionId,
 		gameId,
 		expectedRevision: 0,
 		requestId: randomUUID(),
@@ -142,6 +155,7 @@ it('serializes expiry, resignation, and a move into one immutable result', async
 		t.mutation(internal.clocks.expire, { gameId, revision: 0 }),
 		white.mutation(api.games.resign, { gameId, expectedRevision: 0, requestId: randomUUID() }),
 		white.mutation(api.moves.submit, {
+			sessionId,
 			gameId,
 			expectedRevision: 0,
 			requestId: randomUUID(),
@@ -158,8 +172,13 @@ it('does not retrofit legacy games; new matchmaking rematches get a fresh deadli
 	await t.mutation(internal.clocks.expire, { gameId, revision: 0 });
 	expect((await get()).status).toBe('active');
 	await black.mutation(api.games.resign, { gameId, expectedRevision: 0, requestId: randomUUID() });
-	await white.mutation(api.games.rematch, { roomId: gameId, expectedGameId: gameId });
+	await white.mutation(api.games.rematch, {
+		presenceVersion: 1,
+		roomId: gameId,
+		expectedGameId: gameId
+	});
 	const nextId = await black.mutation(api.games.rematch, {
+		presenceVersion: 1,
 		roomId: gameId,
 		expectedGameId: gameId
 	});

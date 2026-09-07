@@ -47,7 +47,13 @@
 		error = '';
 		try {
 			client ??= await guestClient();
-			receive(await client.mutation(api.matchmaking.join, { requestId, timeControl: control }));
+			receive(
+				await client.mutation(api.matchmaking.join, {
+					requestId,
+					timeControl: control,
+					presenceVersion: 1
+				})
+			);
 		} catch (cause) {
 			if (alive) error = errorMessage(cause);
 		}

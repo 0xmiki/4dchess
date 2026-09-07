@@ -49,7 +49,9 @@
 					? 'A player did not make their first move in time.'
 					: 'The game was interrupted. No score was awarded.'
 				: result?.reason === 'abandonment'
-					? 'Game ended by abandonment.'
+					? result?.detail === 'disconnect'
+						? 'Game abandoned after disconnection.'
+						: 'Game ended by abandonment.'
 					: result?.reason === 'checkmate'
 						? 'Checkmate.'
 						: result?.reason === 'timeout'
@@ -62,6 +64,7 @@
 											repetition: 'Draw by repetition.',
 											fiftyMove: 'Draw by the 50-move rule.',
 											bareKings: 'Only kings remain.',
+											disconnectNoMaterial: 'No mating material after disconnection.',
 											timeoutNoMaterial:
 												'Draw on time. The player with time remaining has only a king.'
 										} as Record<string, string>

@@ -15,16 +15,24 @@ afterEach(() => {
 	vi.useRealTimers();
 	vi.unstubAllEnvs();
 });
+const sessionId = '22222222-2222-4222-8222-222222222222';
 async function matched() {
 	const t = setup(),
 		a = await guest(t),
 		b = await guest(t);
-	await a.mutation(api.matchmaking.join, { requestId: randomUUID(), timeControl: '3+2' });
+	await a.mutation(api.matchmaking.join, {
+		presenceVersion: 1,
+		requestId: randomUUID(),
+		timeControl: '3+2'
+	});
 	const paired = await b.mutation(api.matchmaking.join, {
+		presenceVersion: 1,
 		requestId: randomUUID(),
 		timeControl: '3+2'
 	});
 	const gameId = paired.gameId!;
+	await a.mutation(api.presence.heartbeat, { gameId, sessionId, sequence: 1, version: 1 });
+	await b.mutation(api.presence.heartbeat, { gameId, sessionId, sequence: 1, version: 1 });
 	const view = await a.query(api.games.get, { gameId });
 	vi.setSystemTime(Date.now() + START_DELAY_MS + 1);
 	return { t, gameId, white: view.seat === 'white' ? a : b, black: view.seat === 'black' ? a : b };
@@ -63,6 +71,7 @@ it.each([0, 1])(
 		const moves = ply ? [{ from: 0, to: 32 }] : [];
 		if (ply)
 			await white.mutation(api.moves.submit, {
+				sessionId,
 				gameId,
 				expectedRevision: 0,
 				requestId: randomUUID(),
@@ -95,7 +104,11 @@ it.each([0, 1])(
 		expect(exportGame(moves, { result: ended.result })).toContain('[Result "*"]');
 		expect(exportGame(moves, { result: ended.result })).not.toContain('1/2-1/2');
 		await expect(
-			white.mutation(api.games.rematch, { roomId: gameId, expectedGameId: gameId })
+			white.mutation(api.games.rematch, {
+				presenceVersion: 1,
+				roomId: gameId,
+				expectedGameId: gameId
+			})
 		).rejects.toThrow('ROOM_CLOSED');
 		await t.mutation(internal.clocks.expire, { gameId, revision: before.revision });
 		expect((await white.query(api.games.get, { gameId })).game).toEqual(ended);
@@ -105,6 +118,7 @@ it('a move and a stale abort request cannot both apply', async () => {
 	const { t, gameId, white } = await matched();
 	await Promise.allSettled([
 		white.mutation(api.moves.submit, {
+			sessionId,
 			gameId,
 			expectedRevision: 0,
 			requestId: randomUUID(),
@@ -190,8 +204,8 @@ it('retains the old outcome when a rematch starts a new game and policy', async 
 	const old = await t.run((ctx) => ctx.db.get(gameId));
 	const args = { roomId: gameId, expectedGameId: gameId };
 	await Promise.all([
-		white.mutation(api.games.rematch, args),
-		black.mutation(api.games.rematch, args)
+		white.mutation(api.games.rematch, { ...args, presenceVersion: 1 }),
+		black.mutation(api.games.rematch, { ...args, presenceVersion: 1 })
 	]);
 	const current = (await white.query(api.games.get, { gameId })).game;
 	expect(current._id).not.toBe(gameId);
@@ -205,6 +219,7 @@ it('distinguishes a cancelled search from an expired lease without game outcomes
 	const t = setup(),
 		player = await guest(t);
 	const first = await player.mutation(api.matchmaking.join, {
+		presenceVersion: 1,
 		requestId: randomUUID(),
 		timeControl: '3+2'
 	});
@@ -212,6 +227,7 @@ it('distinguishes a cancelled search from an expired lease without game outcomes
 		'userCancelled'
 	);
 	const second = await player.mutation(api.matchmaking.join, {
+		presenceVersion: 1,
 		requestId: randomUUID(),
 		timeControl: '3+2'
 	});
@@ -225,12 +241,14 @@ it('distinguishes a cancelled search from an expired lease without game outcomes
 it('represents abandonment distinctly and does not apply no-show outcomes after opening moves', async () => {
 	const { t, gameId, white, black } = await matched();
 	await white.mutation(api.moves.submit, {
+		sessionId,
 		gameId,
 		expectedRevision: 0,
 		requestId: randomUUID(),
 		move: { from: 0, to: 32 }
 	});
 	await black.mutation(api.moves.submit, {
+		sessionId,
 		gameId,
 		expectedRevision: 1,
 		requestId: randomUUID(),

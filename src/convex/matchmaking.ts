@@ -14,6 +14,7 @@ import { internal } from './_generated/api';
 
 import { CURRENT_LIFECYCLE_POLICY } from '../lib/online/outcomes';
 import { FIRST_MOVE_MS } from '../lib/online/first-move';
+import { matchmakingPolicy } from './lib/presence';
 
 const LEASE_MS = 30000;
 const stateValidator = v.object({
@@ -45,6 +46,7 @@ async function match(
 	search: Doc<'matchSearches'>
 ): Promise<Doc<'matchSearches'>> {
 	const now = Date.now();
+	const disconnectEpoch = await matchmakingPolicy(ctx, search.presenceVersion);
 	const currentGame = await activeOnlineGame(ctx, search.participantId);
 	if (currentGame) {
 		await ctx.db.patch(search._id, { status: 'matched', gameId: currentGame });
@@ -57,6 +59,7 @@ async function match(
 		)
 		.take(16);
 	for (const candidate of candidates) {
+		if (candidate.presenceVersion !== 1) continue;
 		if (candidate.participantId === search.participantId) continue;
 		const activeGame = await activeOnlineGame(ctx, candidate.participantId);
 		if (activeGame) {
@@ -75,6 +78,7 @@ async function match(
 			board: [...initial.board],
 			positionKeys: [...initial.positionKeys],
 			kind: 'matchmaking',
+			disconnectEpoch,
 			timeControl: search.timeControl,
 			clock,
 			firstMoveDeadline,
@@ -106,9 +110,13 @@ async function ownSearch(ctx: MutationCtx, id: Id<'matchSearches'>) {
 	return row;
 }
 export const join = mutation({
-	args: { requestId: v.string(), timeControl: timedControl },
+	args: {
+		requestId: v.string(),
+		timeControl: timedControl,
+		presenceVersion: v.optional(v.literal(1))
+	},
 	returns: stateValidator,
-	handler: async (ctx, { requestId, timeControl }) => {
+	handler: async (ctx, { requestId, timeControl, presenceVersion }) => {
 		validateRequestId(requestId);
 		const participantId = await ensureParticipant(ctx);
 		const prior = await ctx.db
@@ -136,12 +144,15 @@ export const join = mutation({
 			return state((await ctx.db.get(resumed))!);
 		}
 		const waiting = await ctx.db
+			// Compatibility is required before entering a new enforced queue.
 			.query('matchSearches')
 			.withIndex('by_participant_status', (q) =>
 				q.eq('participantId', participantId).eq('status', 'waiting')
 			)
 			.first();
-		if (waiting && waiting.expiresAt > Date.now()) return state(waiting);
+		await matchmakingPolicy(ctx, presenceVersion);
+		if (waiting && waiting.expiresAt > Date.now() && waiting.presenceVersion === 1)
+			return state(waiting);
 		if (waiting)
 			await ctx.db.patch(waiting._id, {
 				status: 'cancelled',
@@ -151,6 +162,7 @@ export const join = mutation({
 		if (!(await consume(ctx, `queue:${participantId}`, 12, 60000)).ok)
 			throw new ConvexError('RATE_LIMITED');
 		const id = await ctx.db.insert('matchSearches', {
+			presenceVersion,
 			participantId,
 			requestId,
 			timeControl,

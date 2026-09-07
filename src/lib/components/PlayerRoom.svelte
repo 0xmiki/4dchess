@@ -27,8 +27,11 @@
 	import ExportGame from '$lib/components/ExportGame.svelte';
 	import MoveHistory from '$lib/components/MoveHistory.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import { capturedPieces, materialAdvantage } from '$lib/chess/material';
 	import FirstMoveNotice from '$lib/components/FirstMoveNotice.svelte';
-	import InspectionHint from '$lib/components/InspectionHint.svelte';
+	import ReconnectNotice from './ReconnectNotice.svelte';
+	import { HEARTBEAT_MS, PRESENCE_VERSION } from '$lib/online/disconnect';
+	import BoardControls from './BoardControls.svelte';
 	import { isUnscoredResult } from '$lib/online/outcomes';
 	import {
 		remainingTime,
@@ -42,6 +45,10 @@
 	const roomId = $derived((page.params.roomId ?? page.params.gameId) as Id<'games'>);
 	const match = useQuery(api.games.get, () => (auth.isAuthenticated ? { gameId: roomId } : 'skip'));
 	const gameId = $derived(match.data?.game._id ?? roomId);
+	const presence = useQuery(api.presence.status, () => (match.data ? { gameId } : 'skip'));
+	let playingSession = $state<string>(),
+		presenceReady = $state(false),
+		presenceError = $state('');
 	$effect(() => {
 		if (match.data) {
 			homeRoom.roomId = roomId;
@@ -110,6 +117,57 @@
 		null;
 	let leaving = $state(false);
 	const game = $derived(match.data?.game);
+	const presenceGameId = $derived(
+		game?.status === 'active' && game.disconnectEpoch !== undefined ? game._id : null
+	);
+	$effect(() => {
+		const id = presenceGameId;
+		if (!mounted || !id) return;
+		let alive = true,
+			busy = false,
+			tracking = true,
+			sequence = 0;
+		const sessionId = crypto.randomUUID();
+		untrack(() => {
+			playingSession = sessionId;
+			presenceReady = false;
+			presenceError = '';
+		});
+		const heartbeat = async () => {
+			if (busy || !alive || !tracking) return;
+			busy = true;
+			try {
+				const reply = await client.mutation(api.presence.heartbeat, {
+					gameId: id,
+					sessionId,
+					sequence: ++sequence,
+					version: PRESENCE_VERSION
+				});
+				if (alive) {
+					tracking = reply.active;
+					presenceReady = true;
+					presenceError = '';
+				}
+			} catch (cause) {
+				if (alive) presenceError = errorMessage(cause);
+			} finally {
+				busy = false;
+			}
+		};
+		void heartbeat();
+		const timer = setInterval(heartbeat, HEARTBEAT_MS);
+		const visible = () => {
+			if (!document.hidden) void heartbeat();
+		};
+		window.addEventListener('online', heartbeat);
+		document.addEventListener('visibilitychange', visible);
+		return () => {
+			alive = false;
+			clearInterval(timer);
+			window.removeEventListener('online', heartbeat);
+			document.removeEventListener('visibilitychange', visible);
+		};
+	});
 	let optimistic = $state<{
 		gameId: Id<'games'>;
 		baseRevision: number;
@@ -190,6 +248,20 @@
 	);
 	const liveBoard = $derived(provisional?.state.board ?? game?.board);
 	const livePly = $derived(provisional?.state.ply ?? game?.ply ?? 0);
+	const captureHistory = useQuery(api.watch.captures, () =>
+		game ? { gameId, throughPly: review?.ply ?? livePly } : 'skip'
+	);
+	const captured = $derived(
+		capturedPieces([
+			...(captureHistory.data ?? []),
+			...(!review &&
+			provisional?.move.captured &&
+			!captureHistory.data?.some((move) => move.ply === provisional.move.ply)
+				? [provisional.move]
+				: [])
+		])
+	);
+	const material = $derived(materialAdvantage(review?.board ?? liveBoard ?? []));
 	$effect(() => {
 		if (
 			game &&
@@ -301,7 +373,13 @@
 	});
 	$effect(() => {
 		const current = match.data;
-		if (mounted && current && pending && !resumeAttempted) {
+		if (
+			mounted &&
+			current &&
+			pending &&
+			!resumeAttempted &&
+			(!current.game.disconnectEpoch || presenceReady)
+		) {
 			resumeAttempted = true;
 			const owner =
 				current.seat === 'white'
@@ -337,7 +415,8 @@
 				gameId: request.gameId,
 				requestId: request.requestId,
 				expectedRevision: request.expectedRevision,
-				move: request.move
+				move: request.move,
+				sessionId: playingSession
 			});
 			clearPending(request);
 		} catch (cause) {
@@ -403,7 +482,11 @@
 		roundStarting = true;
 		error = '';
 		try {
-			await client.mutation(api.games.rematch, { roomId, expectedGameId: game._id });
+			await client.mutation(api.games.rematch, {
+				roomId,
+				expectedGameId: game._id,
+				presenceVersion: PRESENCE_VERSION
+			});
 		} catch (cause) {
 			error = errorMessage(cause);
 		} finally {
@@ -483,9 +566,15 @@
 						countdown === 0 &&
 						displayTurn !== (match.data.seat === 'white' ? 'w' : 'b')}
 					remaining={clockFor(match.data.seat === 'white' ? 'black' : 'white')}
+					captured={captured[match.data.seat === 'white' ? 'black' : 'white']}
+					advantage={material[match.data.seat === 'white' ? 'black' : 'white']}
 					score={score.data && score.data.games > 0 ? score.data.opponent : undefined}
 					showNotice={game.kind === 'matchmaking'}
-					>{#snippet notice()}{#if game.kind === 'matchmaking'}<FirstMoveNotice
+					>{#snippet notice()}{#if presence.data?.enforced}<ReconnectNotice
+								{...presence.data[match.data.seat === 'white' ? 'black' : 'white']}
+								now={clockNow}
+								own={false}
+							/>{:else if game.kind === 'matchmaking'}<FirstMoveNotice
 								deadline={game.status === 'active' && !ownTurn ? game.firstMoveDeadline : undefined}
 								now={clockNow}
 								own={false}
@@ -504,6 +593,7 @@
 						: (provisional?.state.turn ?? game.turn)}
 					seat={match.data.seat}
 					enabled={!review &&
+						(!game.disconnectEpoch || presenceReady) &&
 						!firstMoveExpired &&
 						!provisional &&
 						game.status === 'active' &&
@@ -523,9 +613,16 @@
 						countdown === 0 &&
 						displayTurn === (match.data.seat === 'white' ? 'w' : 'b')}
 					remaining={clockFor(match.data.seat)}
+					captured={captured[match.data.seat]}
+					advantage={material[match.data.seat]}
+					noticeAbove
 					score={score.data && score.data.games > 0 ? score.data.you : undefined}
 					showNotice={game.kind === 'matchmaking'}
-					>{#snippet notice()}{#if game.kind === 'matchmaking'}<FirstMoveNotice
+					>{#snippet notice()}{#if presence.data?.enforced}<ReconnectNotice
+								{...presence.data[match.data.seat]}
+								now={clockNow}
+								own={true}
+							/>{:else if game.kind === 'matchmaking'}<FirstMoveNotice
 								deadline={game.status === 'active' && ownTurn && !provisional
 									? game.firstMoveDeadline
 									: undefined}
@@ -534,12 +631,14 @@
 								synced={clockSynced}
 							/>{/if}{/snippet}</PlayerProfile
 				>
-				<div class="board-hint"><InspectionHint /></div>
 			</div>
 			<aside class="game-info">
-				<p class="time-control">
-					{timeControlLabel(game.timeControl)}{game.kind === 'matchmaking' ? ' · Unrated' : ''}
-				</p>
+				<div class="game-heading">
+					<p class="time-control">
+						{timeControlLabel(game.timeControl)}{game.kind === 'matchmaking' ? ' · Unrated' : ''}
+					</p>
+					<BoardControls />
+				</div>
 				{#if game.status === 'active' && game.clock && (!clockSynced || countdown > 0)}<p
 						role="status"
 					>
@@ -588,6 +687,7 @@
 						<p class="error">{error}</p>
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
+				{#if presenceError}<p class="error" role="alert">{presenceError}</p>{/if}
 				<GameOutcome result={game.result} side={match.data.seat} />
 				{#if game.kind === 'matchmaking' && game.result?.reason === 'aborted'}
 					<Button
@@ -699,7 +799,13 @@
 </Modal>
 
 <style>
-	@media (max-width: 850px) {
+	.game-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
+	@media (max-width: 1000px) {
 		.board-stage :global(.workspace) {
 			display: contents;
 		}
@@ -707,7 +813,7 @@
 			grid-row: 2;
 		}
 		.board-stage :global(.workspace > .spatial) {
-			grid-row: 5;
+			grid-row: 4;
 		}
 		.board-stage > :global(.player-profile) {
 			grid-row: 3;
@@ -715,24 +821,14 @@
 		.board-stage > :global(.player-profile:first-child) {
 			grid-row: 1;
 		}
-		.board-stage .board-hint {
-			grid-row: 4;
-		}
 	}
 	.time-control {
 		font-size: 13px;
 		color: var(--muted);
 	}
-	.board-hint {
-		padding-inline: var(--space-3);
-		--hint-color: color-mix(in srgb, var(--muted) 70%, var(--page));
-	}
-	.board-hint :global(.inspection-hint) {
-		margin: 0;
-	}
 	.board-stage {
 		display: grid;
-		gap: var(--space-4);
+		gap: var(--space-5);
 		--board-columns: repeat(2, minmax(0, 1fr));
 	}
 	.board-stage :global(.workspace) {

@@ -16,6 +16,7 @@ import { requireOnlineAvailable, settleWaitingSearches } from './lib/online_avai
 import { finishGame } from './lib/lifecycle';
 import { CURRENT_LIFECYCLE_POLICY, isUnscoredResult } from '../lib/online/outcomes';
 import { FIRST_MOVE_MS } from '../lib/online/first-move';
+import { matchmakingPolicy } from './lib/presence';
 
 const WAITING_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
@@ -336,15 +337,21 @@ export const expireWaiting = internalMutation({
 
 /** Compare-and-swap on the finished game makes simultaneous rematch requests idempotent. */
 export const rematch = mutation({
-	args: { roomId: v.id('games'), expectedGameId: v.id('games') },
+	args: {
+		roomId: v.id('games'),
+		expectedGameId: v.id('games'),
+		presenceVersion: v.optional(v.literal(1))
+	},
 	returns: v.id('games'),
-	handler: async (ctx, { roomId, expectedGameId }) => {
+	handler: async (ctx, { roomId, expectedGameId, presenceVersion }) => {
 		const { game: requested, participant } = await requireMatch(ctx, roomId);
 		const root = requested.roomRootId ? await ctx.db.get(requested.roomRootId) : requested;
 		if (!root) throw new ConvexError('MATCH_NOT_FOUND');
 		const current = root.currentGameId ? await ctx.db.get(root.currentGameId) : root;
 		if (!current) throw new ConvexError('MATCH_NOT_FOUND');
 		if (current._id !== expectedGameId) return current._id;
+		const disconnectEpoch =
+			current.kind === 'matchmaking' ? await matchmakingPolicy(ctx, presenceVersion) : undefined;
 		if (current.status !== 'finished') throw new ConvexError('MATCH_NOT_FINISHED');
 		if (
 			isUnscoredResult(current.result) ||
@@ -354,10 +361,18 @@ export const rematch = mutation({
 			throw new ConvexError('ROOM_CLOSED');
 		const seat = seatOf(current, participant._id)!;
 		if (!current.rematchRequestedBy) {
-			await ctx.db.patch(current._id, { rematchRequestedBy: seat });
+			await ctx.db.patch(current._id, {
+				rematchRequestedBy: seat,
+				rematchPresenceVersion: presenceVersion
+			});
 			return current._id;
 		}
-		if (current.rematchRequestedBy === seat) return current._id;
+		if (current.rematchRequestedBy === seat) {
+			await ctx.db.patch(current._id, { rematchPresenceVersion: presenceVersion });
+			return current._id;
+		}
+		if (current.kind === 'matchmaking' && current.rematchPresenceVersion !== 1)
+			throw new ConvexError('CLIENT_UPDATE_REQUIRED');
 		await requireOnlineAvailable(ctx, [current.whiteParticipantId, current.blackParticipantId]);
 		await limitCreation(ctx, participant._id);
 		const initial = createInitialState(),
@@ -370,6 +385,7 @@ export const rematch = mutation({
 			...initial,
 			lifecyclePolicy: CURRENT_LIFECYCLE_POLICY,
 			timeControl: current.timeControl,
+			disconnectEpoch,
 			kind: current.kind,
 			clock,
 			firstMoveDeadline:

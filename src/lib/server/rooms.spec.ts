@@ -23,7 +23,11 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 		original.players.white
 	);
 	await expect(
-		white.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
+		white.mutation(api.games.rematch, {
+			presenceVersion: 1,
+			roomId: room.gameId,
+			expectedGameId: room.gameId
+		})
 	).rejects.toThrow('MATCH_NOT_FINISHED');
 	await white.mutation(api.moves.submit, {
 		gameId: room.gameId,
@@ -37,7 +41,11 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 		requestId: randomUUID()
 	});
 	await expect(
-		outsider.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
+		outsider.mutation(api.games.rematch, {
+			presenceVersion: 1,
+			roomId: room.gameId,
+			expectedGameId: room.gameId
+		})
 	).rejects.toThrow('MATCH_NOT_FOUND');
 	const offer = { roomId: room.gameId, expectedGameId: room.gameId };
 	expect(await white.mutation(api.games.rematch, offer)).toBe(room.gameId);
@@ -53,7 +61,11 @@ it('keeps a stable invitation, starts exactly one rematch, and retains the previ
 	await white.mutation(api.games.rematch, offer);
 	const games = await Promise.all(
 		[black, black].map((player) =>
-			player.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
+			player.mutation(api.games.rematch, {
+				presenceVersion: 1,
+				roomId: room.gameId,
+				expectedGameId: room.gameId
+			})
 		)
 	);
 	expect(games[0]).toBe(games[1]);
@@ -121,7 +133,11 @@ it('does not reopen a closed unjoined room', async () => {
 		room = await player.mutation(api.games.create, { seat: 'white', requestId: randomUUID() });
 	await player.mutation(api.games.cancel, { gameId: room.gameId, expectedRevision: 0 });
 	await expect(
-		player.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
+		player.mutation(api.games.rematch, {
+			presenceVersion: 1,
+			roomId: room.gameId,
+			expectedGameId: room.gameId
+		})
 	).rejects.toThrow('ROOM_CLOSED');
 });
 

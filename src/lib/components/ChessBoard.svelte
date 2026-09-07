@@ -391,10 +391,13 @@
 		gap: var(--board-gap);
 	}
 	.slice-grid {
+		--slice-row-gap: 14px;
 		position: relative;
 		display: grid;
 		grid-template-columns: 20px 1fr 1fr;
-		gap: 14px 18px;
+		gap: var(--slice-row-gap) 18px;
+		/* Match the top Z-label gutter to the bottom file-label gutter. */
+		padding-bottom: calc(var(--slice-row-gap) - 4px);
 	}
 	.z-label {
 		text-align: center;
@@ -512,8 +515,9 @@
 	}
 	@media (max-width: 500px) {
 		.slice-grid {
+			--slice-row-gap: 12px;
 			grid-template-columns: 14px 1fr 1fr;
-			gap: 12px 6px;
+			gap: var(--slice-row-gap) 6px;
 		}
 	}
 </style>

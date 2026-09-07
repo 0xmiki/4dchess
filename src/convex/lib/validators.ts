@@ -43,7 +43,8 @@ export const result = v.union(
 			v.literal('repetition'),
 			v.literal('fiftyMove'),
 			v.literal('bareKings'),
-			v.literal('timeoutNoMaterial')
+			v.literal('timeoutNoMaterial'),
+			v.literal('disconnectNoMaterial')
 		)
 	}),
 	v.object({
@@ -79,6 +80,8 @@ export const gameFields = {
 	clock: v.optional(clockState),
 	timeoutJob: v.optional(v.id('_scheduled_functions')),
 	firstMoveDeadline: v.optional(v.number()),
+	disconnectEpoch: v.optional(v.number()),
+	rematchPresenceVersion: v.optional(v.literal(1)),
 	roomRootId: v.optional(v.id('games')),
 	currentGameId: v.optional(v.id('games')),
 	round: v.optional(v.number()),

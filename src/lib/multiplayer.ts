@@ -33,6 +33,12 @@ export async function guestClient() {
 }
 
 const messages: Record<string, string> = {
+	CLIENT_UPDATE_REQUIRED: 'Reload the page to use the latest online game rules.',
+	MATCHMAKING_PAUSED: 'Matchmaking is temporarily paused. Please try again later.',
+	PRESENCE_REQUIRED: 'Connecting this playing tab. Please retry in a moment.',
+	TOO_MANY_PLAYING_TABS:
+		'You already have eight playing tabs open for this game. Close one before playing here.',
+	PRESENCE_RATE_LIMITED: 'Too many playing-session requests. Please wait a moment.',
 	ALREADY_PLAYING: 'Finish your current online game before finding another opponent.',
 	SEARCH_NOT_FOUND: 'This search is no longer available. Start a new search.',
 	GAME_NOT_STARTED: 'The game is starting. Wait for the countdown.',

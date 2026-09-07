@@ -3,6 +3,7 @@ import type { MutationCtx } from '../_generated/server';
 import type { GameState } from '../../lib/chess';
 import { stoppedClock, type ClockState } from '../../lib/online/time-controls';
 import { cancelClockJob } from './clock_jobs';
+import { clearPresence } from './presence';
 
 type Outcome = NonNullable<Doc<'games'>['result']>;
 type Termination = NonNullable<Doc<'games'>['termination']>;
@@ -23,8 +24,13 @@ function metadata(game: Doc<'games'>, result: Outcome, now: number): Termination
 			responsible = game.turn === 'w' ? 'white' : 'black';
 			break;
 		case 'draw':
-			cause = result.detail === 'timeoutNoMaterial' ? 'clockTimeout' : 'boardDraw';
-			if (result.detail === 'timeoutNoMaterial')
+			cause =
+				result.detail === 'disconnectNoMaterial'
+					? 'disconnectAbandonment'
+					: result.detail === 'timeoutNoMaterial'
+						? 'clockTimeout'
+						: 'boardDraw';
+			if (result.detail === 'timeoutNoMaterial' || result.detail === 'disconnectNoMaterial')
 				responsible = game.turn === 'w' ? 'white' : 'black';
 			break;
 		case 'cancellation':
@@ -92,6 +98,7 @@ export async function finishGame(
 	)
 		return false;
 	if (args.cancelTimer !== false) await cancelClockJob(ctx, game.timeoutJob);
+	await clearPresence(ctx, game._id);
 	const clock = args.clock ?? game.clock;
 	await ctx.db.patch(game._id, {
 		...(args.position
@@ -107,6 +114,7 @@ export async function finishGame(
 		finishedAt: args.now,
 		termination: metadata(game, args.result, args.now),
 		rematchRequestedBy: undefined,
+		rematchPresenceVersion: undefined,
 		firstMoveDeadline: undefined,
 		...(clock ? { clock: stoppedClock(clock, args.position?.turn ?? game.turn, args.now) } : {}),
 		timeoutJob: undefined

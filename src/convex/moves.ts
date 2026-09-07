@@ -9,16 +9,18 @@ import { armClock, endIfDeadlineExpired } from './lib/clocks';
 import { clockAfterMove } from '../lib/online/time-controls';
 import { finishGame } from './lib/lifecycle';
 import { nextFirstMoveDeadline } from '../lib/online/first-move';
+import { requirePlayingSession, renewPresence, disconnectDeadline } from './lib/presence';
 
 export const submit = mutation({
 	args: {
 		gameId: v.id('games'),
 		move: v.object({ from: v.number(), to: v.number() }),
 		expectedRevision: v.number(),
-		requestId: v.string()
+		requestId: v.string(),
+		sessionId: v.optional(v.string())
 	},
 	returns: moveReceipt,
-	handler: async (ctx, { gameId, move, expectedRevision, requestId }) => {
+	handler: async (ctx, { gameId, move, expectedRevision, requestId, sessionId }) => {
 		validateRequestId(requestId);
 		validateRevision(expectedRevision);
 		const { game, participant, seat } = await requireMatch(ctx, gameId);
@@ -79,6 +81,8 @@ export const submit = mutation({
 		const applied = applyMove({ ...game, result: null }, move);
 		if (!applied.ok) throw new ConvexError(applied.error);
 		const next = applied.state;
+		await requirePlayingSession(ctx, game, participant._id, sessionId);
+		if (sessionId) await renewPresence(ctx, game, participant._id, sessionId, now);
 		const firstMoveDeadline = nextFirstMoveDeadline(game.firstMoveDeadline, next.ply, now);
 		const revision = game.revision + 1;
 		const clock =
@@ -138,6 +142,7 @@ export const submit = mutation({
 				...(clock ? { clock, timeoutJob } : {}),
 				revision
 			});
+			await disconnectDeadline(ctx, (await ctx.db.get(gameId))!, now);
 		}
 		return { revision, ply: next.ply, result: next.result };
 	}

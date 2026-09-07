@@ -1144,3 +1144,223 @@ test('history animates backward and forward but rapid navigation becomes instant
 	await expect(page.locator('[data-animation="piece"]')).toHaveCount(0);
 	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
 });
+
+test('midgame reconnect clears the warning and a later disconnect forfeits without spectator presence', async ({
+	browser
+}) => {
+	test.setTimeout(160000);
+	const ac = await browser.newContext(),
+		bc = await browser.newContext(),
+		vc = await browser.newContext();
+	const a = await ac.newPage(),
+		b = await bc.newPage(),
+		viewer = await vc.newPage();
+	const sessionIds = new Map<Page, Set<string>>([
+		[a, new Set()],
+		[b, new Set()]
+	]);
+	for (const page of [a, b])
+		page.on('websocket', (socket) => {
+			if (!socket.url().includes('convex.cloud')) return;
+			socket.on('framesent', ({ payload }) => {
+				const message = JSON.parse(String(payload));
+				if (message.type === 'Mutation' && message.udfPath === 'presence:heartbeat')
+					sessionIds.get(page)!.add(message.args[0].sessionId);
+			});
+		});
+	try {
+		for (const page of [a, b]) {
+			await page.goto(process.env.E2E_BASE_URL!);
+			await page.getByRole('combobox', { name: 'Time', exact: true }).click();
+			await page.getByRole('option', { name: '3 + 2', exact: true }).click();
+			await page.getByRole('button', { name: 'Find opponent', exact: true }).click();
+		}
+		await expect(a).toHaveURL(/\/room\//);
+		await expect(b).toHaveURL(a.url());
+		await expect(a.locator('.player-profile').last()).toHaveAttribute(
+			'aria-label',
+			/, (white|black), you/
+		);
+		const white = (await a.locator('.player-profile').last().getAttribute('aria-label'))!.includes(
+			', white,'
+		)
+			? a
+			: b;
+		const black = white === a ? b : a,
+			whiteContext = white === a ? ac : bc,
+			blackContext = white === a ? bc : ac;
+		await move(white, 0, 32);
+		await move(black, 63, 31);
+		await expect(white.getByLabel('White to move', { exact: true })).toBeVisible();
+		await whiteContext.setOffline(true);
+		await expect(black.getByText(/Opponent disconnected\s*·/)).toBeVisible({ timeout: 40000 });
+		await black.screenshot({ path: '/tmp/disconnect-warning.png', fullPage: true });
+		await whiteContext.setOffline(false);
+		await expect(black.getByText(/Opponent disconnected\s*·/)).toHaveCount(0);
+		await move(white, 32, 36);
+		await move(black, 31, 27);
+		await expect(white.getByLabel('White to move', { exact: true })).toBeVisible();
+		for (const page of [a, b]) expect(sessionIds.get(page)!.size).toBe(1);
+		await viewer.goto(white.url());
+		await expect(viewer.getByRole('complementary', { name: 'Spectator controls' })).toBeVisible();
+		await whiteContext.setOffline(true);
+		await expect(black.getByText(/Opponent disconnected\s*·/)).toBeVisible({ timeout: 40000 });
+		await expect(viewer.getByText(/Opponent disconnected\s*·/)).toBeVisible();
+		await expect(black.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible({
+			timeout: 40000
+		});
+		await expect(
+			black.getByText('Game abandoned after disconnection.', { exact: true })
+		).toBeVisible();
+		await whiteContext.setOffline(false);
+		await expect(white.getByRole('heading', { name: 'You lost', exact: true })).toBeVisible();
+		await expect(viewer.getByText('Black wins', { exact: true })).toBeVisible();
+		await blackContext.setOffline(false);
+	} finally {
+		await ac.close();
+		await bc.close();
+		await vc.close();
+	}
+});
+
+test('a hidden playing tab remains present after another tab closes', async ({ browser }) => {
+	test.setTimeout(90000);
+	const ac = await browser.newContext(),
+		bc = await browser.newContext();
+	const a = await ac.newPage(),
+		b = await bc.newPage();
+	try {
+		for (const p of [a, b]) {
+			await p.goto(process.env.E2E_BASE_URL!);
+			await p.getByRole('button', { name: 'Find opponent', exact: true }).click();
+		}
+		await expect(a).toHaveURL(/\/room\//);
+		await expect(b).toHaveURL(a.url());
+		await expect(a.locator('.player-profile').last()).toHaveAttribute(
+			'aria-label',
+			/, (white|black), you/
+		);
+		const white = (await a.locator('.player-profile').last().getAttribute('aria-label'))!.includes(
+			', white,'
+		)
+			? a
+			: b;
+		const black = white === a ? b : a;
+		await move(white, 0, 32);
+		await move(black, 63, 31);
+		const extra = await white.context().newPage();
+		await extra.goto(white.url());
+		await expect(extra.getByLabel('White to move', { exact: true })).toBeVisible();
+		await expect(extra.locator('.cell[data-square="32"]')).toHaveAttribute(
+			'aria-disabled',
+			'false'
+		);
+		await extra.evaluate(() => {
+			Object.defineProperty(document, 'hidden', { value: true, configurable: true });
+			document.dispatchEvent(new Event('visibilitychange'));
+		});
+		await white.close();
+		// Longer than the lease duration, to prove the remaining hidden tab still renews it.
+		await extra.waitForTimeout(35000);
+		await expect(black.locator('.reconnect-notice').first()).toHaveText('');
+		await expect(extra.getByRole('button', { name: 'Resign', exact: true })).toBeVisible();
+		await extra.getByRole('button', { name: 'Resign', exact: true }).click();
+		await extra.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(black.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+	} finally {
+		await ac.close();
+		await bc.close();
+	}
+});
+
+test('game profiles stay symmetric as notices appear and controls live in the sidebar', async ({
+	browser
+}) => {
+	const ac = await browser.newContext({ viewport: { width: 1440, height: 1000 } }),
+		bc = await browser.newContext();
+	const a = await ac.newPage(),
+		b = await bc.newPage();
+	try {
+		for (const p of [a, b]) {
+			await p.goto(process.env.E2E_BASE_URL!);
+			await p.getByRole('button', { name: 'Find opponent', exact: true }).click();
+		}
+		await expect(a).toHaveURL(/\/room\//);
+		await expect(a.locator('.player-profile')).toHaveCount(2);
+		const measure = () =>
+			a.evaluate(() => {
+				const profiles = [...document.querySelectorAll('.board-stage > .player-profile')].map(
+					(el) => el.getBoundingClientRect()
+				);
+				const squares = [...document.querySelectorAll('.board-stage .board')].map((el) =>
+					el.getBoundingClientRect()
+				);
+				const board = {
+					top: Math.min(...squares.map((rect) => rect.top)),
+					bottom: Math.max(...squares.map((rect) => rect.bottom))
+				};
+				return {
+					top: board.top - profiles[0].bottom,
+					bottom: profiles[1].top - board.bottom,
+					height: profiles[0].height,
+					boardTop: board.top,
+					boardBottom: board.bottom
+				};
+			});
+		const before = await measure();
+		expect(Math.abs(before.top - before.bottom)).toBeLessThan(1);
+		await expect(a.locator('.first-move-notice').filter({ hasText: /0:/ })).toHaveCount(1);
+		expect(await measure()).toEqual(before);
+		const center = await a.locator('.space-svg').evaluate((svg) => {
+			const ys = [...svg.querySelectorAll(':scope > line[stroke="var(--grid)"]')].flatMap((el) => [
+				Number(el.getAttribute('y1')),
+				Number(el.getAttribute('y2'))
+			]);
+			return (Math.min(...ys) + Math.max(...ys)) / 2;
+		});
+		expect(center).toBeCloseTo(252.97747136395708, 4);
+		await expect(a.getByLabel('Threat controls')).not.toBeVisible();
+		await a.getByRole('button', { name: 'Board controls', exact: true }).click();
+		await expect(a.getByRole('dialog', { name: 'Board controls', exact: true })).toBeVisible();
+		await expect(a.getByLabel('Threat controls')).toBeVisible();
+		await a.keyboard.press('Escape');
+		await expect(a.getByRole('dialog', { name: 'Board controls', exact: true })).not.toBeVisible();
+		await a.screenshot({ path: '/tmp/room-alignment-desktop.png', fullPage: true });
+		await a.setViewportSize({ width: 390, height: 844 });
+		expect(await a.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+		await a.getByRole('button', { name: 'Board controls', exact: true }).click();
+		await expect(a.getByRole('dialog', { name: 'Board controls', exact: true })).toBeVisible();
+		await a.keyboard.press('Escape');
+		await a.getByRole('button', { name: 'Resign', exact: true }).click();
+		await a.getByRole('button', { name: 'Resign game', exact: true }).click();
+	} finally {
+		await ac.close();
+		await bc.close();
+	}
+});
+
+test('profiles show captured pieces and material advantage for the reviewed position', async ({
+	browser
+}) => {
+	const { white, black, whiteContext, blackContext } = await friends(browser);
+	try {
+		await move(white, 0, 32);
+		await move(black, 45, 33);
+		await move(white, 32, 33);
+		const profile = white.locator('.player-profile').last();
+		await expect(profile.locator('.captured-pieces svg')).toHaveCount(1);
+		await expect(profile.locator('.material-advantage')).toHaveText('+5');
+		await white.keyboard.press('ArrowLeft');
+		await expect(profile.locator('.captured-pieces svg')).toHaveCount(0);
+		await expect(profile.locator('.material-advantage')).toHaveCount(0);
+		await white.keyboard.press('ArrowRight');
+		await expect(profile.locator('.captured-pieces svg')).toHaveCount(1);
+		await expect(profile.locator('.material-advantage')).toHaveText('+5');
+		await white.screenshot({ path: '/tmp/profile-captures-desktop.png', fullPage: true });
+		await black.getByRole('button', { name: 'Resign', exact: true }).click();
+		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
+	} finally {
+		await whiteContext.close();
+		await blackContext.close();
+	}
+});

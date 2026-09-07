@@ -23,11 +23,14 @@ import type * as lib_lifecycle from "../lib/lifecycle.js";
 import type * as lib_limits from "../lib/limits.js";
 import type * as lib_online_availability from "../lib/online_availability.js";
 import type * as lib_participants from "../lib/participants.js";
+import type * as lib_presence from "../lib/presence.js";
+import type * as lib_presence_validators from "../lib/presence_validators.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as matchmaking from "../matchmaking.js";
 import type * as moves from "../moves.js";
 import type * as operations from "../operations.js";
 import type * as participants from "../participants.js";
+import type * as presence from "../presence.js";
 import type * as watch from "../watch.js";
 
 import type {
@@ -52,11 +55,14 @@ declare const fullApi: ApiFromModules<{
   "lib/limits": typeof lib_limits;
   "lib/online_availability": typeof lib_online_availability;
   "lib/participants": typeof lib_participants;
+  "lib/presence": typeof lib_presence;
+  "lib/presence_validators": typeof lib_presence_validators;
   "lib/validators": typeof lib_validators;
   matchmaking: typeof matchmaking;
   moves: typeof moves;
   operations: typeof operations;
   participants: typeof participants;
+  presence: typeof presence;
   watch: typeof watch;
 }>;
 

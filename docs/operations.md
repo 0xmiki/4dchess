@@ -52,7 +52,7 @@ For this variant, flagging loses unless the opponent has only a king, in which c
 
 All game-ending paths use one revision-checked transition. It stores a terminal result and one `termination` record containing its cause, policy version, timestamp, revision, and responsible participant when established. A finished game cannot receive a second outcome. New games carry `lifecyclePolicy: online-v1`; games without that field retain legacy semantics, and already finished games are not backfilled.
 
-Search cancellation and lease expiry are recorded separately from game outcomes. Deleted and expired invitations retain their existing cancellation reasons. New matchmaking games enforce the first-move policy below. Disconnect penalties and automatic incident escalation are not implemented.
+Search cancellation and lease expiry are recorded separately from game outcomes. Deleted and expired invitations retain their existing cancellation reasons. New matchmaking games enforce the first-move and disconnect policies below. Repeat-offender punishments and automatic incident escalation are not implemented.
 
 Aborted games retain their position and move history, award no room-score points, export with the `*` result marker, and do not offer a rematch. Normal completed games retain their original result and termination record when a new round begins. No-show and abandonment outcomes cannot be applied to legacy games by the lifecycle transition.
 
@@ -71,3 +71,35 @@ Anyone with a room URL can watch its current game without signing in or creating
 Viewing permission does not grant playing permission. Existing participant checks still protect moves, resignations, invitations, and rematches. The room URL follows the latest rematch. Spectator analysis is a browser-only variation tree and sends no game mutations; it is not shared or persisted to Convex. Player controls do not gain this analysis mode during their own game.
 
 Spectator load consists of reactive read subscriptions, move-history pagination, and clock calibration. Spectators do not consume guest-signup quota. Connection and bandwidth capacity still require measurement before making large-stream audience guarantees.
+
+## Midgame disconnect forfeits
+
+New matchmaking games and matchmaking rematches require presence protocol version 1 and store the current `disconnectEpoch`. Older clients must reload before entering these games. Existing games without an epoch and ordinary friend challenges retain their original rules. The opening policy exclusively handles the period before both first legal moves.
+
+Each playing page sends a single-flight heartbeat every ten seconds. The backend derives the participant from authentication and assigns a 30-second lease. Any valid playing tab keeps that participant present; spectators never register leases. Hiding a tab does not send a disconnect signal. Suspended pages may eventually lose their leases. There are no unload beacons. Eight simultaneous playing sessions are allowed per participant/game; a ninth is rejected visibly. Session creation and heartbeat requests also have participant-level rate limits.
+
+Once both players have moved, absence begins at the last playing lease's expiry. Reconnect grace begins at the later of that expiry and the player's turn start. Grace is `clamp((baseSeconds + 40 * incrementSeconds) * 0.1, 30, 180)`, giving 30, 42, and 80 seconds for the supported presets. This adopts [Chess.com's documented disconnect allowance](https://support.chess.com/en/articles/8593801-how-does-game-abandonment-work), not its stalling, evaluation-based, or repeat-offender rules. Detection delay precedes reconnect grace.
+
+| Transition                                                          | Server behavior                                                                                                           |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Last lease expires                                                  | Mark the player absent and arm a candidate on their turn.                                                                 |
+| Current player reconnects before expiry                             | Cancel that absence episode without resetting the chess clock.                                                            |
+| Candidate expires with opponent coverage at that instant            | Forfeit, unless an earlier clock deadline already determined the result. A clock/disconnect tie resolves as clock expiry. |
+| Candidate expires without opponent coverage                         | Record `waitingOpponent`; ordinary clocks continue.                                                                       |
+| Opponent transitions from absent to present while a candidate waits | Arm a fresh full grace. Routine heartbeats and additional overlapping tabs do not restart it.                             |
+| Both players remain absent                                          | Do not suppress the chess clocks or manufacture an unscored abort.                                                        |
+
+Coverage intervals are half-open: lease expiry itself is absent. Every renewal resolves due outcomes first. New heartbeats cannot fill historical gaps, and duplicate move receipts have no presence side effects. Fresh accepted moves renew their verified originating session. The shared resolver compares opening, clock, and disconnect deadlines; delayed workers evaluate historical coverage at the deadline, not presence at processing time. A forfeit against an opponent with only a king is a draw, matching this variant's clock rule. Clocks stop at the logical deadline even when processing is delayed.
+
+Presence coordination and generations live outside the game document, so heartbeats do not alter move revisions. Each coordinator retains a valid earliest wake-up; heartbeats may extend leases without rescheduling that job until it wakes. Candidate coverage is retained until adjudication, then pruned. Finished games cancel presence jobs and remove session/coverage records. Rematches require fresh game-scoped sessions.
+
+### Incident switch
+
+Use the internal `presence:setEnabled` operation with an explicitly selected deployment. For example, on development:
+
+```sh
+bunx convex run presence:setEnabled '{"enabled":false}' --deployment dev
+bunx convex run presence:setEnabled '{"enabled":true}' --deployment dev
+```
+
+Disabling stops new matchmaking/rematch creation and invalidates the previous enforcement epoch. Ordinary clocks and first-move rules continue. Affected active games remain disconnect-exempt after re-enabling, even if no mutation touched them during the incident; only newly created games use the new epoch. This switch does not neutralize clock losses or claim that a platform outage has been detected automatically.

@@ -51,7 +51,11 @@ it('allows public history but rejects spectator mutations and private queries', 
 		})
 	).rejects.toThrow();
 	await expect(
-		other.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId })
+		other.mutation(api.games.rematch, {
+			presenceVersion: 1,
+			roomId: room.gameId,
+			expectedGameId: room.gameId
+		})
 	).rejects.toThrow();
 	await expect(
 		other.mutation(api.games.cancel, { gameId: room.gameId, expectedRevision: 1 })
@@ -99,8 +103,13 @@ it('follows rematches, retains earlier history, and maps scores to swapped color
 		expectedRevision: 3,
 		requestId: randomUUID()
 	});
-	await white.mutation(api.games.rematch, { roomId: room.gameId, expectedGameId: room.gameId });
+	await white.mutation(api.games.rematch, {
+		presenceVersion: 1,
+		roomId: room.gameId,
+		expectedGameId: room.gameId
+	});
 	const newId = await black.mutation(api.games.rematch, {
+		presenceVersion: 1,
 		roomId: room.gameId,
 		expectedGameId: room.gameId
 	});
@@ -115,4 +124,30 @@ it('follows rematches, retains earlier history, and maps scores to swapped color
 			})
 		).page
 	).toHaveLength(2);
+});
+
+it('provides captured pieces only through the reviewed move', async () => {
+	const { t, white, black, room } = await players();
+	await white.mutation(api.moves.submit, {
+		gameId: room.gameId,
+		expectedRevision: 1,
+		requestId: randomUUID(),
+		move: { from: 0, to: 32 }
+	});
+	await black.mutation(api.moves.submit, {
+		gameId: room.gameId,
+		expectedRevision: 2,
+		requestId: randomUUID(),
+		move: { from: 45, to: 33 }
+	});
+	await white.mutation(api.moves.submit, {
+		gameId: room.gameId,
+		expectedRevision: 3,
+		requestId: randomUUID(),
+		move: { from: 32, to: 33 }
+	});
+	expect(await t.query(api.watch.captures, { gameId: room.gameId, throughPly: 2 })).toEqual([]);
+	expect(await t.query(api.watch.captures, { gameId: room.gameId, throughPly: 3 })).toEqual([
+		{ ply: 3, piece: { t: 'r', c: 'w' }, captured: { t: 'r', c: 'b' } }
+	]);
 });

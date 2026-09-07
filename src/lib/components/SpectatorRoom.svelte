@@ -7,6 +7,8 @@
 	import { api } from '../../convex/_generated/api';
 	import type { Id } from '../../convex/_generated/dataModel';
 	import type { Move } from '$lib/chess';
+	import { capturedPieces, materialAdvantage } from '$lib/chess/material';
+	import type { HistoryMove } from '$lib/chess/history';
 	import {
 		createVariationTree,
 		mergeLiveMoves,
@@ -16,9 +18,10 @@
 	import { remainingTime, timeControlLabel } from '$lib/online/time-controls';
 	import ChessBoard from './ChessBoard.svelte';
 	import PlayerProfile from './PlayerProfile.svelte';
+	import ReconnectNotice from './ReconnectNotice.svelte';
 	import VariationHistory from './VariationHistory.svelte';
 	import LoadingScreen from './LoadingScreen.svelte';
-	import InspectionHint from './InspectionHint.svelte';
+	import BoardControls from './BoardControls.svelte';
 	import Button from './Button.svelte';
 	import SelectField from './SelectField.svelte';
 	import Spinner from './Spinner.svelte';
@@ -29,6 +32,9 @@
 	const client = useConvexClient();
 	const live = useQuery(api.watch.game, () => ({ roomId }));
 	const scores = useQuery(api.watch.score, () => ({ roomId }));
+	const presence = useQuery(api.presence.status, () =>
+		live.data ? { gameId: live.data.id } : 'skip'
+	);
 	const sessions = new SvelteMap<string, Session>();
 	let version = $state(0),
 		selection = $state<{ gameId: Id<'games'>; nodeId: string } | null>(null);
@@ -103,6 +109,17 @@
 	const board = $derived(selection ? node?.state.board : game?.board);
 	const variation = $derived(!!selection && node?.live === false);
 	const turn = $derived(selection ? node?.state.turn : game?.turn);
+	const material = $derived(materialAdvantage(board ?? []));
+	const captured = $derived.by(() => {
+		void version;
+		const moves: HistoryMove[] = [];
+		let current = node;
+		while (current?.move) {
+			moves.push(current.move);
+			current = current.parent ? tree?.nodes.get(current.parent) : undefined;
+		}
+		return capturedPieces(moves);
+	});
 	const rounds = $derived.by(() => {
 		void version;
 		return [...sessions.values()].map((s) => ({ value: s.game.id, label: `Game ${s.game.round}` }));
@@ -200,11 +217,18 @@
 					name={game.players[topSide] ?? 'Waiting for player'}
 					side={topSide}
 					remaining={clock(topSide)}
+					captured={captured[topSide]}
+					advantage={material[topSide]}
 					active={sameRound &&
 						game.status === 'active' &&
 						game.turn === (topSide === 'white' ? 'w' : 'b')}
 					score={sameRound && scores.data?.games ? scores.data[topSide] : undefined}
-				/>
+					showNotice={!!game.clock}
+					>{#snippet notice()}{#if sameRound && presence.data?.enforced}<ReconnectNotice
+								{...presence.data[topSide]}
+								{now}
+							/>{/if}{/snippet}</PlayerProfile
+				>
 				<ChessBoard
 					gameKey={`${roomId}:${viewedId}`}
 					showHint={false}
@@ -223,12 +247,19 @@
 					name={game.players[bottomSide] ?? 'Waiting for player'}
 					side={bottomSide}
 					remaining={clock(bottomSide)}
+					captured={captured[bottomSide]}
+					advantage={material[bottomSide]}
+					noticeAbove
 					active={sameRound &&
 						game.status === 'active' &&
 						game.turn === (bottomSide === 'white' ? 'w' : 'b')}
 					score={sameRound && scores.data?.games ? scores.data[bottomSide] : undefined}
-				/>
-				<div class="board-hint"><InspectionHint /></div>
+					showNotice={!!game.clock}
+					>{#snippet notice()}{#if sameRound && presence.data?.enforced}<ReconnectNotice
+								{...presence.data[bottomSide]}
+								{now}
+							/>{/if}{/snippet}</PlayerProfile
+				>
 			</div>
 			<aside class="game-info" aria-label="Spectator controls">
 				<div class="watch-heading">
@@ -239,7 +270,10 @@
 						title="Flip board">Flip board</button
 					>
 				</div>
-				<p class="muted">{timeControlLabel(game.timeControl)}</p>
+				<div class="game-heading">
+					<p class="muted">{timeControlLabel(game.timeControl)}</p>
+					<BoardControls />
+				</div>
 				{#if !connected}<p role="status" class="muted">Reconnecting to the live game.</p>{/if}
 				{#if selection}<div class="analysis-status">
 						<p role="status">
@@ -310,20 +344,25 @@
 </main>
 
 <style>
+	.game-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-3);
+	}
 	.board-stage.variation {
 		--board-light: color-mix(in srgb, #ded5bf, white 14%);
 		--board-dark: color-mix(in srgb, var(--game-primary), white 18%);
 	}
 	.board-stage {
 		display: grid;
-		gap: var(--space-4);
+		gap: var(--space-5);
 		--board-columns: repeat(2, minmax(0, 1fr));
 	}
 	.board-stage :global(.workspace) {
 		align-items: center;
 	}
-	.board-stage > :global(.player-profile),
-	.board-hint {
+	.board-stage > :global(.player-profile) {
 		margin-inline: var(--space-3);
 	}
 	.watch-heading,
@@ -377,7 +416,7 @@
 		text-align: center;
 		padding: var(--space-3);
 	}
-	@media (max-width: 850px) {
+	@media (max-width: 1000px) {
 		.board-stage :global(.workspace) {
 			display: contents;
 		}
@@ -387,11 +426,8 @@
 		.board-stage :global(.player-profile:last-of-type) {
 			grid-row: 3;
 		}
-		.board-hint {
-			grid-row: 4;
-		}
 		.board-stage :global(.workspace > section[aria-label='Tesseract projection']) {
-			grid-row: 5;
+			grid-row: 4;
 		}
 	}
 </style>

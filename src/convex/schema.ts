@@ -1,10 +1,38 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 import { gameFields, moveFields, timedControl } from './lib/validators';
+import { coverage, candidate } from './lib/presence_validators';
 
 export default defineSchema({
+	onlinePolicy: defineTable({
+		key: v.literal('disconnect'),
+		enabled: v.boolean(),
+		epoch: v.number()
+	}).index('by_key', ['key']),
+	gameSessions: defineTable({
+		gameId: v.id('games'),
+		participantId: v.id('participants'),
+		sessionId: v.string(),
+		sequence: v.number(),
+		expiresAt: v.number()
+	})
+		.index('by_session', ['gameId', 'participantId', 'sessionId'])
+		.index('by_player_expiry', ['gameId', 'participantId', 'expiresAt'])
+		.index('by_game', ['gameId']),
+	gamePresence: defineTable({
+		gameId: v.id('games'),
+		white: coverage,
+		black: coverage,
+		candidate: v.optional(candidate),
+		generation: v.number(),
+		wakeAt: v.optional(v.number()),
+		wakeId: v.optional(v.id('_scheduled_functions')),
+		whiteOnline: v.boolean(),
+		blackOnline: v.boolean()
+	}).index('by_game', ['gameId']),
 	matchSearches: defineTable({
 		participantId: v.id('participants'),
+		presenceVersion: v.optional(v.literal(1)),
 		requestId: v.string(),
 		timeControl: timedControl,
 		status: v.union(v.literal('waiting'), v.literal('matched'), v.literal('cancelled')),
@@ -67,6 +95,7 @@ export default defineSchema({
 		.index('by_token_hash', ['tokenHash'])
 		.index('by_game', ['gameId']),
 	moves: defineTable(moveFields)
+		.index('by_game_capture', ['gameId', 'captured', 'ply'])
 		.index('by_game_ply', ['gameId', 'ply'])
 		.index('by_request', ['gameId', 'participantId', 'requestId']),
 	commands: defineTable({

@@ -11,6 +11,7 @@
 - `Logo` and `HomeLink` provide branding and guarded home navigation.
 - `RoomView` resolves player or spectator access on the same room URL. `PlayerRoom` keeps participant controls; `SpectatorRoom` watches public game data and uses `VariationHistory` for private move branches.
 - `InspectionHint` describes mouse and touch controls while keeping detailed inspection announcements available to screen readers.
+- `BoardControls` puts online board instructions in a sidebar popover. Profile notices occupy fixed overlay slots facing the board, so connection messages do not move the playfield.
 
 Keep rules and persistence outside rendering components. Shared color and spacing values live in `src/lib/design.css`; each component owns its control-specific styles.
 
