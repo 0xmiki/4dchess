@@ -1,6 +1,41 @@
-import { squareCoordinates, type Coordinates, type Move, type Piece } from '$lib/chess';
+import {
+	simulateMove,
+	squareCoordinates,
+	type Board,
+	type Coordinates,
+	type Move,
+	type Piece
+} from '$lib/chess';
 export type PresentedMove = Move & { piece?: Piece; captured?: Piece | null; ply?: number };
 export type PieceMotion = Move & { piece: Piece; captured: Piece | null; progress: number };
+export function boardTransition(
+	before: Board,
+	after: Board,
+	forward: PresentedMove | null,
+	backward: PresentedMove | null
+) {
+	const equal = (a: Board, b: Board) =>
+		a.every((piece, i) => piece?.t === b[i]?.t && piece?.c === b[i]?.c);
+	if (forward && before[forward.from] && equal(simulateMove(before, forward), after)) {
+		return {
+			...forward,
+			piece: before[forward.from]!,
+			captured: before[forward.to],
+			reverse: false
+		};
+	}
+	if (backward && after[backward.from] && equal(simulateMove(after, backward), before)) {
+		return {
+			from: backward.to,
+			to: backward.from,
+			ply: backward.ply,
+			piece: before[backward.to]!,
+			captured: before[backward.from],
+			reverse: true
+		};
+	}
+	return null;
+}
 export function crossesBoards(move: Move) {
 	const a = squareCoordinates(move.from),
 		b = squareCoordinates(move.to);

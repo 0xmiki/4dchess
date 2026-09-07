@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { tick } from 'svelte';
+	import HistoryShortcuts from './HistoryShortcuts.svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { moveNotation, type HistoryMove } from '$lib/chess/history';
 	import type { Board } from '$lib/chess';
@@ -50,6 +51,8 @@
 	}
 </script>
 
+<HistoryShortcuts previous={() => step(-1)} next={() => step(1)} />
+
 <div bind:this={root} class="score-sheet">
 	<ol class="moves">
 		{#each rows as [number, pair] (number)}<li>
@@ -69,10 +72,12 @@
 <div class="history-controls">
 	<button
 		aria-label="Previous move"
+		aria-keyshortcuts="ArrowLeft"
 		disabled={!available.some((p) => p < selectedPly)}
 		onclick={() => step(-1)}>‹</button
 	><span>{selectedPly === livePly ? 'Live' : `Move ${selectedPly}`}</span><button
 		aria-label="Next move"
+		aria-keyshortcuts="ArrowRight"
 		disabled={selectedPly >= livePly}
 		onclick={() => step(1)}>›</button
 	>{#if selectedPly !== livePly}<button onclick={() => onselect(livePly)}>Live</button>{/if}

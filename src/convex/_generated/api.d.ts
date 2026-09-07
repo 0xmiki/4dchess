@@ -28,6 +28,7 @@ import type * as matchmaking from "../matchmaking.js";
 import type * as moves from "../moves.js";
 import type * as operations from "../operations.js";
 import type * as participants from "../participants.js";
+import type * as watch from "../watch.js";
 
 import type {
   ApiFromModules,
@@ -56,6 +57,7 @@ declare const fullApi: ApiFromModules<{
   moves: typeof moves;
   operations: typeof operations;
   participants: typeof participants;
+  watch: typeof watch;
 }>;
 
 /**

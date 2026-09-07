@@ -1003,3 +1003,144 @@ for (const missingSide of ['white', 'black'] as const) {
 		}
 	});
 }
+
+test('spectators explore private branches and follow live moves and rematches', async ({
+	browser
+}) => {
+	const { white, black, whiteContext, blackContext } = await friends(browser);
+	const viewerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+	const viewer = await viewerContext.newPage();
+	const mutations: string[] = [],
+		signups: string[] = [];
+	viewer.on('request', (request) => {
+		if (request.url().includes('/sign-in/anonymous')) signups.push(request.url());
+	});
+	viewer.on('websocket', (socket) => {
+		if (!/convex\.cloud|127\.0\.0\.1:3320/.test(socket.url())) return;
+		socket.on('framesent', ({ payload }) => {
+			const data = JSON.parse(String(payload));
+			if (data.type === 'Mutation') mutations.push(data.udfPath);
+		});
+	});
+	try {
+		await viewer.goto(white.url());
+		await expect(viewer.getByRole('complementary', { name: 'Spectator controls' })).toBeVisible();
+		await expect(viewer.getByRole('button', { name: 'Resign', exact: true })).toHaveCount(0);
+		await move(viewer, 0, 32);
+		await expect(viewer.getByText('Local analysis · Move 1', { exact: true })).toBeVisible();
+		await expect(viewer.locator('.board-stage')).toHaveClass(/variation/);
+		await expect(white.locator('[data-ply]')).toHaveCount(0);
+		await expect(black.locator('[data-ply]')).toHaveCount(0);
+		await viewer.keyboard.press('ArrowRight');
+		await expect(viewer.locator('.board-stage')).not.toHaveClass(/variation/);
+		await expect(viewer.locator('.cell[data-square="0"]')).toHaveAttribute(
+			'aria-label',
+			/White rook/
+		);
+		await viewer.getByRole('button', { name: /^Variation move 1:/ }).click();
+		await move(white, 4, 8);
+		await expect(white.locator('[data-ply="1"]')).toBeVisible();
+		await white.keyboard.press('ArrowLeft');
+		await expect(white.getByLabel('Reviewing move 0', { exact: true })).toBeVisible();
+		await white.keyboard.press('ArrowRight');
+		await expect(white.locator('[data-ply="1"]')).toHaveAttribute('aria-current', 'step');
+		await expect(viewer.getByText('Live game · Move 1', { exact: true })).toBeVisible();
+		await viewer.keyboard.press('ArrowLeft');
+		await expect(viewer.getByText('Reviewing · Move 0', { exact: true })).toBeVisible();
+		await viewer.keyboard.press('ArrowRight');
+		await expect(viewer.getByRole('button', { name: 'Return to live', exact: true })).toHaveCount(
+			0
+		);
+		await viewer.getByRole('button', { name: /^Variation move 1:/ }).click();
+		await expect(viewer.locator('.cell[data-square="32"]')).toHaveAttribute(
+			'aria-label',
+			/White rook/
+		);
+		await expect(viewer.locator('.cell[data-square="4"]')).toHaveAttribute(
+			'aria-label',
+			/White pawn/
+		);
+		await viewer.getByRole('button', { name: 'Starting position', exact: true }).click();
+		await move(viewer, 5, 9);
+		await expect(viewer.getByRole('button', { name: /^Variation move 1:/ })).toHaveCount(2);
+		await viewer.screenshot({ path: '/tmp/4d-spectator/branches-desktop.png', fullPage: true });
+		await black.getByRole('button', { name: 'Resign', exact: true }).click();
+		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await white.getByRole('button', { name: 'Rematch', exact: true }).click();
+		await black.getByRole('button', { name: 'Accept rematch', exact: true }).click();
+		await expect(viewer.getByText('Game 2 has started.', { exact: true })).toBeVisible();
+		await expect(viewer.locator('.cell[data-square="9"]')).toHaveAttribute(
+			'aria-label',
+			/White pawn/
+		);
+		await viewer.getByRole('button', { name: 'Return to live', exact: true }).click();
+		await expect(viewer.getByText('Watching · Game 2', { exact: true })).toBeVisible();
+		await expect(viewer.locator('.cell[data-square="5"]')).toHaveAttribute(
+			'aria-label',
+			/White pawn/
+		);
+		await viewer.getByRole('combobox', { name: 'Game', exact: true }).click();
+		await viewer.getByRole('option', { name: 'Game 1', exact: true }).click();
+		await expect(viewer.getByRole('button', { name: /^Variation move 1:/ })).toHaveCount(2);
+		await viewer.getByRole('button', { name: 'Return to live', exact: true }).click();
+		await move(black, 0, 32);
+		await expect(viewer.locator('.cell[data-square="32"]')).toHaveAttribute(
+			'aria-label',
+			/White rook/
+		);
+		await expect(
+			viewer.getByRole('status', { name: 'Loading move history', exact: true })
+		).toHaveCount(0);
+		await move(viewer, 56, 52);
+		await expect(viewer.getByText('Local analysis · Move 2', { exact: true })).toBeVisible();
+		await expect(black.locator('.cell[data-square="56"]')).toHaveAttribute(
+			'aria-label',
+			/Black pawn/
+		);
+		await viewer.getByRole('button', { name: 'Return to live', exact: true }).click();
+		await viewer.setViewportSize({ width: 390, height: 844 });
+		expect(await viewer.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true
+		);
+		await viewer.screenshot({ path: '/tmp/4d-spectator/live-mobile.png', fullPage: true });
+		expect(mutations).toEqual([]);
+		expect(signups).toEqual([]);
+		await viewer.reload();
+		await expect(viewer.getByText('Watching · Game 2', { exact: true })).toBeVisible();
+		await move(viewer, 56, 52);
+		await expect(viewer.getByText('Local analysis · Move 2', { exact: true })).toBeVisible();
+		await viewer.getByRole('link', { name: '4D chess home', exact: true }).first().click();
+		await expect(viewer.getByRole('button', { name: 'Find opponent', exact: true })).toBeVisible();
+		await expect(viewer.getByRole('dialog')).toHaveCount(0);
+	} finally {
+		await viewerContext.close();
+		await whiteContext.close();
+		await blackContext.close();
+	}
+});
+
+test('history animates backward and forward but rapid navigation becomes instant', async ({
+	page
+}) => {
+	await page.goto(new URL('/computer?side=w', process.env.E2E_BASE_URL!).href);
+	await move(page, 0, 32);
+	await expect
+		.poll(() =>
+			page.evaluate(() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length)
+		)
+		.toBe(2);
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(0);
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(1);
+	await expect(page.locator('[data-animation="spatial-piece"]')).toHaveCount(1);
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(0);
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(1);
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(0);
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('ArrowRight');
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(0);
+	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
+});

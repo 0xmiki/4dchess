@@ -33,3 +33,37 @@ it('keeps the spatial curve anchored at the original squares', () => {
 	expect(end.x).toBeCloseTo(expected.x);
 	expect(end.y).toBeCloseTo(expected.y);
 });
+
+it('animates backward captures and promotions while preserving restored pieces', async () => {
+	const { boardTransition } = await import('./motion');
+	const { simulateMove } = await import('$lib/chess');
+	const before = Array<import('$lib/chess').Piece | null>(64).fill(null);
+	before[0] = { t: 'r', c: 'w' };
+	before[32] = { t: 'b', c: 'b' };
+	const move = { from: 0, to: 32, ply: 1 };
+	const after = simulateMove(before, move);
+	expect(boardTransition(before, after, move, null)).toMatchObject({
+		from: 0,
+		to: 32,
+		reverse: false
+	});
+	expect(boardTransition(after, before, null, move)).toMatchObject({
+		from: 32,
+		to: 0,
+		piece: { t: 'r', c: 'w' },
+		captured: null,
+		reverse: true
+	});
+	expect(before[32]).toEqual({ t: 'b', c: 'b' });
+	const pawn = Array<import('$lib/chess').Piece | null>(64).fill(null);
+	pawn[8] = { t: 'p', c: 'w' };
+	const promotion = { from: 8, to: 12 };
+	const promoted = simulateMove(pawn, promotion);
+	expect(boardTransition(promoted, pawn, null, promotion)).toMatchObject({
+		from: 12,
+		to: 8,
+		reverse: true
+	});
+	expect(pawn[8]?.t).toBe('p');
+	expect(boardTransition(before, pawn, null, move)).toBeNull();
+});

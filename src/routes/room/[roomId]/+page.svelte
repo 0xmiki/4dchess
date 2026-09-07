@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Room from '../../game/[gameId]/+page.svelte';
+	import RoomView from '$lib/components/RoomView.svelte';
 </script>
 
-<Room />
+<RoomView />

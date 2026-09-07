@@ -63,3 +63,11 @@ New matchmaking games and matchmaking rematches give each player 30 seconds for 
 The current turn has one scheduled job for the earlier of the main clock and opening deadline. Exact ties resolve as unscored first-move aborts. Move submissions, resignations, and queue availability checks use the same deadline resolution. The first accepted move replaces the opening deadline with Black's deadline; the second removes it. Invalid moves and duplicate requests cannot extend it. Revision checks prevent old jobs from ending a later turn.
 
 The client displays the server deadline beside the affected profile and emphasizes the final ten seconds. Screen readers announce phase changes rather than every tick. Reloading or backgrounding the page does not pause the server deadline. After an abort, finding another opponent requires an explicit click and retains the previous clock preset. No penalty or cooldown is applied in this milestone.
+
+## Spectator access
+
+Anyone with a room URL can watch its current game without signing in or creating a guest. The `watch` queries expose an explicit projection of board state, clocks, player display names, results, scores, and paginated move notation data. They omit participant/auth identifiers, invitation tokens, command receipts, and internal scheduling metadata. There is no public room directory.
+
+Viewing permission does not grant playing permission. Existing participant checks still protect moves, resignations, invitations, and rematches. The room URL follows the latest rematch. Spectator analysis is a browser-only variation tree and sends no game mutations; it is not shared or persisted to Convex. Player controls do not gain this analysis mode during their own game.
+
+Spectator load consists of reactive read subscriptions, move-history pagination, and clock calibration. Spectators do not consume guest-signup quota. Connection and bandwidth capacity still require measurement before making large-stream audience guarantees.

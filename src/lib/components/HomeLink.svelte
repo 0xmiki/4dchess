@@ -41,6 +41,13 @@
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 		event.preventDefault();
 		if (busy || checking) return;
+		if (
+			homeRoom.spectatingRoomId &&
+			homeRoom.spectatingRoomId === (page.params.roomId ?? page.params.gameId)
+		) {
+			void goto(resolve('/'));
+			return;
+		}
 		error = '';
 		resignRequest = null;
 		const active = activeMatch();

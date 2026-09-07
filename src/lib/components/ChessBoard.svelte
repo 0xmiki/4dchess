@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onMount, untrack, getContext } from 'svelte';
+	import { historyMotionKey, type HistoryMotion } from '$lib/history-motion';
+	const navigationMotion = getContext<HistoryMotion | undefined>(historyMotionKey);
 	import {
 		legalMoves,
 		canReach,
@@ -7,7 +9,6 @@
 		squareIndex,
 		squareCoordinates,
 		squareAddress,
-		simulateMove,
 		type Board,
 		type Move
 	} from '$lib/chess';
@@ -17,7 +18,7 @@
 	import InspectionHint from './InspectionHint.svelte';
 	import FlatOverlays from './FlatOverlays.svelte';
 	import { analyzeThreats, type ThreatInspection } from '$lib/chess/threats';
-	import { motionDuration, type PresentedMove, type PieceMotion } from './motion';
+	import { boardTransition, motionDuration, type PresentedMove, type PieceMotion } from './motion';
 	let {
 		gameKey = '',
 		showHint = true,
@@ -57,6 +58,8 @@
 		before: Board | null = null,
 		lastAnimation = '',
 		frame = 0;
+	let previousMove: PresentedMove | null = null,
+		beforeMove: PresentedMove | null = null;
 	let held = false,
 		holdTimer: ReturnType<typeof setTimeout> | undefined,
 		holdPoint: { x: number; y: number } | null = null;
@@ -107,34 +110,39 @@
 					stopMotion();
 			});
 			before = previous;
+			beforeMove = previousMove;
 			previous = current;
 		}
-		if (!recent) {
+		previousMove = recent;
+		if (!before) return;
+		const transition = boardTransition(before, current, recent, beforeMove);
+		if (!transition) {
 			lastAnimation = '';
 			untrack(stopMotion);
 			return;
 		}
-		if (!before?.[recent.from]) return;
-		const key = `${gameKey}:${recent.ply ?? ''}:${recent.from}:${recent.to}`;
+		const key = `${gameKey}:${transition.ply ?? ''}:${transition.from}:${transition.to}:${transition.reverse}`;
 		if (key === lastAnimation) return;
-		const simulated = simulateMove(before, recent);
-		if (!simulated.every((p, i) => p?.c === current[i]?.c && p?.t === current[i]?.t)) return;
 		lastAnimation = key;
-		const moving = before[recent.from]!,
-			captured = before[recent.to];
+		const moving = transition.piece,
+			captured = transition.captured;
 		untrack(() => {
 			stopMotion();
-			if (skip || document.hidden) return;
+			const duration = Math.min(
+				motionDuration(transition, moving),
+				navigationMotion?.consume(performance.now()) ?? Infinity
+			);
+			if (skip || document.hidden || duration === 0) return;
 			animatedPosition = current;
 			const start = performance.now();
-			motion = { ...recent, piece: moving, captured, progress: 0 };
+			motion = { ...transition, piece: moving, captured, progress: 0 };
 			const tick = (now: number) => {
-				const t = Math.min(1, (now - start) / motionDuration(recent, moving));
+				const t = Math.min(1, (now - start) / duration);
 				if (t >= 1) {
 					motion = null;
 					return;
 				}
-				motion = { ...recent, piece: moving, captured, progress: t * t * (3 - 2 * t) };
+				motion = { ...transition, piece: moving, captured, progress: t * t * (3 - 2 * t) };
 				frame = requestAnimationFrame(tick);
 			};
 			frame = requestAnimationFrame(tick);
