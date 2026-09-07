@@ -1364,3 +1364,50 @@ test('profiles show captured pieces and material advantage for the reviewed posi
 		await blackContext.close();
 	}
 });
+
+test('tesseract separates selection and pinned threats with colored one-pixel indicators', async ({
+	page
+}) => {
+	await page.goto(new URL('/computer?side=w', process.env.E2E_BASE_URL!).href);
+	await page.locator('.cell[data-square="3"]').click();
+	await expect(page.locator('.space-svg [data-state="selected"]')).toHaveCount(1);
+	const legal = await page.locator('.cell.legal').count();
+	expect(legal).toBeGreaterThan(0);
+	await expect(page.locator('.space-svg [data-state="legal-destination"]')).toHaveCount(legal);
+	await expect(page.locator('.space-svg line[stroke="var(--legal)"]')).toHaveCount(0);
+	for (const i of [45, 61, 17])
+		await page.locator(`.cell[data-square="${i}"]`).click({ button: 'right' });
+	await expect(page.locator('.space-svg [data-state="inspection-target"]')).toHaveCount(3);
+	await expect(page.locator('.space-svg [data-state="selected"]')).toHaveCount(0);
+	await expect(page.locator('.space-svg [data-state="legal-destination"]')).toHaveCount(0);
+	const colors = await page
+		.locator('.space-svg .threat-arrow')
+		.evaluateAll((lines) => [...new Set(lines.map((line) => getComputedStyle(line).stroke))]);
+	expect(colors).toContain('rgb(187, 160, 100)');
+	expect(colors).toContain('rgb(170, 114, 120)');
+	const widths = await page.locator('.space-svg > line').evaluateAll((lines) =>
+		lines.map((line) => ({
+			width: getComputedStyle(line).strokeWidth,
+			effect: getComputedStyle(line).vectorEffect
+		}))
+	);
+	expect(widths.every((line) => line.width === '1px' && line.effect === 'non-scaling-stroke')).toBe(
+		true
+	);
+	await page.locator('.cell[data-square="20"]').click();
+	await expect(page.locator('.space-svg .threat-arrow')).toHaveCount(0);
+	await page.locator('.cell[data-square="0"]').click();
+	await page.locator('.space-svg [data-node="32"]').click();
+	await expect(page.locator('.cell[data-square="32"]')).toHaveAttribute('aria-label', /White rook/);
+	await expect
+		.poll(() =>
+			page.evaluate(() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length)
+		)
+		.toBe(2);
+	await expect(page.locator('.space-svg [data-state="last-move"]')).toHaveCount(2);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.locator('.cell[data-square="3"]').click();
+	await expect(page.locator('.space-svg [data-state="selected"]')).toHaveCSS('opacity', '1');
+	await page.screenshot({ path: '/tmp/tesseract-ui/after-mobile.png', fullPage: true });
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

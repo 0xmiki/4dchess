@@ -71,6 +71,20 @@
 		return projectCoordinate(coordinate, { yaw, pitch });
 	}
 	const points = $derived(Array.from({ length: 64 }, (_, i) => project(squareCoordinates(i))));
+	function threatSegment(from: number, to: number) {
+		const a = points[from],
+			b = points[to],
+			dx = b.x - a.x,
+			dy = b.y - a.y;
+		const length = Math.hypot(dx, dy) || 1,
+			pad = Math.min(16, length * 0.25);
+		return {
+			x1: a.x + (dx * pad) / length,
+			y1: a.y + (dy * pad) / length,
+			x2: b.x - (dx * pad) / length,
+			y2: b.y - (dy * pad) / length
+		};
+	}
 	const orientation = $derived.by(() => {
 		const origin = project([1.5, 1.5, 0.5, 1]);
 		const tips: Coordinates[] = [
@@ -245,7 +259,8 @@
 					x2={b.x}
 					y2={b.y}
 					stroke="var(--grid)"
-					stroke-width={n === 0 || n === 3 ? 1.3 : 0.7}
+					stroke-width="1"
+					stroke-opacity={n === 0 || n === 3 ? 0.7 : 0.4}
 				/>
 				<line
 					x1={c.x}
@@ -253,54 +268,53 @@
 					x2={d.x}
 					y2={d.y}
 					stroke="var(--grid)"
-					stroke-width={n === 0 || n === 3 ? 1.3 : 0.7}
+					stroke-width="1"
+					stroke-opacity={n === 0 || n === 3 ? 0.7 : 0.4}
 				/>
 			{/each}
 		{/each}
 		{#each [0, 3] as x (x)}{#each [0, 3] as y (y)}{#each [0, 1] as layer (layer)}
 					{@const a = project([x, y, 0, layer])}{@const b = project([x, y, 1, layer])}
 					{@const c = project([x, y, layer, 0])}{@const d = project([x, y, layer, 1])}
-					<line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="var(--grid)" stroke-width="1.2" />
+					<line
+						x1={a.x}
+						y1={a.y}
+						x2={b.x}
+						y2={b.y}
+						stroke="var(--grid)"
+						stroke-width="1"
+						stroke-opacity=".7"
+					/>
 					<line
 						x1={c.x}
 						y1={c.y}
 						x2={d.x}
 						y2={d.y}
 						stroke="var(--axis-w)"
-						stroke-width="1.2"
+						stroke-width="1"
 						stroke-dasharray="4 4"
+						stroke-opacity=".5"
 					/>
 				{/each}{/each}{/each}
-		{#if inspections.length}{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}<line
-						x1={points[from].x}
-						y1={points[from].y}
-						x2={points[marked.target].x}
-						y2={points[marked.target].y}
+		{#if inspections.length}{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}{@const segment =
+						threatSegment(from, marked.target)}<line
+						{...segment}
 						stroke={marked.position[from]?.c === 'w'
 							? 'var(--threat-white)'
 							: 'var(--threat-black)'}
 						class="threat-arrow"
-						stroke-width="1.6"
-						opacity=".48"
+						stroke-width="1"
+						opacity={marked.target === inspection?.target ? 0.85 : 0.5}
 						marker-end={`url(#${arrowId})`}
 					/>{/each}{/each}
-		{:else if selected !== null}
-			{#each moves as move (move.to)}<line
-					x1={points[selected].x}
-					y1={points[selected].y}
-					x2={points[move.to].x}
-					y2={points[move.to].y}
-					stroke="var(--legal)"
-					stroke-width="1.3"
-					opacity=".16"
-				/>{/each}
-		{:else if lastMove && !motion}<line
+		{:else if lastMove && !motion && selected === null}<line
 				x1={points[lastMove.from].x}
 				y1={points[lastMove.from].y}
 				x2={points[lastMove.to].x}
 				y2={points[lastMove.to].y}
-				stroke="var(--accent)"
-				stroke-width="2"
+				stroke="var(--game-secondary)"
+				opacity=".55"
+				stroke-width="1"
 			/>{/if}
 		{#if focusMove}{@const a = points[focusMove.from]}{@const b = points[focusMove.to]}<path
 				in:fade={markerFade()}
@@ -311,20 +325,20 @@
 				fill="none"
 				stroke="var(--demo-mark)"
 				opacity=".48"
-				stroke-width="2"
+				stroke-width="1"
 			/>{/if}
 		{#if motion && !focusMove}<path
 				d={motionRoute}
 				fill="none"
 				stroke="var(--grid)"
-				stroke-width="1.3"
+				stroke-width="1"
 				opacity=".3"
 				pointer-events="none"
 			/>{/if}
 		{#each nodes as i (i)}
-			{@const p = board[i]}{@const point = points[i]}{@const legal = moves.some(
-				(m) => m.to === i
-			)}{@const size = 26 * Math.min(1.15, point.scale)}
+			{@const p = board[i]}{@const point = points[i]}{@const legal =
+				inspections.length === 0 && moves.some((m) => m.to === i)}{@const size =
+				26 * Math.min(1.15, point.scale)}
 			<g data-node={i}>
 				<title
 					>{squareAddress(i)}, {p
@@ -332,7 +346,8 @@
 						: 'empty'}</title
 				>
 				<circle cx={point.x} cy={point.y} r="12" fill="transparent" />
-				{#if inspection?.target === i}<rect
+				{#if inspections.some((marked) => marked.target === i)}<rect
+						data-state="inspection-target"
 						in:fade={markerFade()}
 						x={point.x - 16}
 						y={point.y - 16}
@@ -340,35 +355,53 @@
 						height="32"
 						rx="5"
 						fill="var(--board-target)"
-						fill-opacity=".18"
-						stroke="none"
-					/>{:else if inspection?.attackers.includes(i)}<circle
+						fill-opacity=".08"
+						stroke="var(--spatial-selection-outline)"
+						stroke-width="1"
+						stroke-opacity=".8"
+					/>{:else if inspections.some((marked) => marked.attackers.includes(i))}<circle
+						data-state="threat-source"
 						cx={point.x}
 						cy={point.y}
 						r="15"
-						fill={p?.c === inspection.color ? 'var(--board-target)' : 'var(--board-threat)'}
-						fill-opacity=".28"
+						fill={p?.c === 'w' ? 'var(--threat-white)' : 'var(--threat-black)'}
+						fill-opacity=".08"
+						stroke={p?.c === 'w' ? 'var(--threat-white)' : 'var(--threat-black)'}
+						stroke-width="1"
+						stroke-opacity=".7"
 					/>{/if}
-				{#if selected === i}<circle
+				{#if selected === i && inspections.length === 0}<circle
+						data-state="selected"
 						in:fade={markerFade()}
 						cx={point.x}
 						cy={point.y}
 						r="15"
-						fill="var(--board-selected)"
-						fill-opacity=".2"
+						fill="var(--spatial-selection-outline)"
+						fill-opacity=".1"
 						stroke="var(--spatial-selection-outline)"
-						stroke-opacity=".42"
-						stroke-width="1.5"
+						stroke-opacity=".85"
+						stroke-width="1"
 					/>{/if}
 				{#if legal}<circle
+						data-state="legal-destination"
 						in:fade={markerFade()}
 						cx={point.x}
 						cy={point.y}
-						r={p ? 14 : 5}
+						r={p ? 14 : 4}
 						fill={p ? 'none' : 'var(--spatial-destination)'}
-						opacity=".42"
+						opacity=".8"
 						stroke={p ? 'var(--spatial-destination)' : 'none'}
-						stroke-width="2"
+						stroke-width="1"
+					/>{/if}
+				{#if selected === null && !inspections.length && lastMove && !motion && (i === lastMove.from || i === lastMove.to)}<circle
+						data-state="last-move"
+						cx={point.x}
+						cy={point.y}
+						r={i === lastMove.to ? 14 : 4}
+						fill="none"
+						stroke="var(--game-secondary)"
+						stroke-opacity=".55"
+						stroke-width="1"
 					/>{/if}
 				{#if focusMove && (i === focusMove.from || i === focusMove.to)}<circle
 						in:fade={markerFade()}
@@ -379,7 +412,7 @@
 						r="15"
 						fill="var(--demo-mark-fill)"
 						stroke="var(--demo-mark)"
-						stroke-width="2"
+						stroke-width="1"
 					/>{/if}
 				{#if p}<Piece
 						onDark
@@ -420,6 +453,17 @@
 </section>
 
 <style>
+	.space-svg > line,
+	.space-svg > path,
+	.space-svg [data-node] > circle,
+	.space-svg [data-node] > rect {
+		vector-effect: non-scaling-stroke;
+	}
+	.space-svg > line,
+	.space-svg > path {
+		pointer-events: none;
+	}
+
 	.threat-arrow {
 		stroke-linecap: butt;
 	}
@@ -429,16 +473,6 @@
 		--grid: #828282;
 		--grid-soft: #606060;
 		--plane: #777;
-		--legal: #aaa;
-		--defender: #aaa;
-		--accent: #aaa;
-		--board-selected: #aaa;
-		--board-target: #aaa;
-		--board-threat: #888;
-		--demo-mark: #aaa;
-		--demo-mark-fill: #777;
-		--threat-white: #b5b5b5;
-		--threat-black: #909090;
 		--piece-white: #eee;
 		--piece-white-outline: #333;
 		--piece-black: #292929;

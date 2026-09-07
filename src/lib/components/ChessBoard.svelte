@@ -150,6 +150,7 @@
 	});
 	function inspect(i: number) {
 		if (motion) return;
+		selected = null;
 		inspection = analyzeThreats(board, turn, i);
 		if (!pinned.some((item) => item.target === i)) pinned = [...pinned, inspection];
 	}
