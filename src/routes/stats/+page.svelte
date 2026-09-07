@@ -63,6 +63,11 @@
 			<div>
 				<dt>Completed</dt>
 				<dd>{number(stats.completed)}</dd>
+				<p class="note">
+					{stats.checkmates === undefined
+						? 'Checkmates updating…'
+						: `${number(stats.checkmates)} by checkmate`}
+				</p>
 			</div>
 			<div>
 				<dt>Unfinished</dt>
@@ -142,6 +147,9 @@
 	}
 	.scope,
 	dt,
+	.totals .note {
+		margin: 8px 0 0;
+	}
 	.note,
 	.updated {
 		color: var(--muted);
@@ -153,7 +161,7 @@
 		display: grid;
 		grid-template-columns: 2fr 1fr 1fr;
 		gap: 24px;
-		align-items: end;
+		align-items: start;
 	}
 	dd {
 		font-family: var(--font-data);

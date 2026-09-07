@@ -24,7 +24,11 @@ export const refresh = internalMutation({
 	handler: async (ctx) => {
 		const previous = await ctx.db.query('statsBuild').first();
 		if (previous) {
-			if (Date.now() - previous.value.sampledAt < 15 * 60000) return null;
+			if (
+				previous.value.checkmates !== undefined &&
+				Date.now() - previous.value.sampledAt < 15 * 60000
+			)
+				return null;
 			await ctx.db.delete(previous._id);
 		}
 		const sampledAt = Date.now();
@@ -34,6 +38,7 @@ export const refresh = internalMutation({
 			started: 0,
 			active: 0,
 			completed: 0,
+			checkmates: 0,
 			daily: Array.from({ length: 7 }, (_, i) => ({
 				date: new Date(today - (6 - i) * 86400000).toISOString().slice(0, 10),
 				started: 0
@@ -49,7 +54,7 @@ export const scan = internalMutation({
 	returns: v.null(),
 	handler: async (ctx, { buildId, cursor }) => {
 		const build = await ctx.db.get(buildId);
-		if (!build) return null;
+		if (!build || build.value.checkmates === undefined) return null;
 		const value = build.value;
 		const page = await ctx.db
 			.query('games')
@@ -67,6 +72,7 @@ export const scan = internalMutation({
 			if (game.status === 'active') value.active++;
 			if (game.status === 'finished') {
 				value.completed++;
+				if (game.result?.reason === 'checkmate') value.checkmates = (value.checkmates ?? 0) + 1;
 			}
 			const day = value.daily.find(
 				(d) => d.date === new Date(game.startedAt!).toISOString().slice(0, 10)

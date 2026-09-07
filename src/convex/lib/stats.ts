@@ -5,6 +5,7 @@ export const statsFields = {
 	started: v.number(),
 	active: v.number(),
 	completed: v.number(),
+	checkmates: v.optional(v.number()),
 	daily: v.array(v.object({ date: v.string(), started: v.number() }))
 };
 export const statsValue = v.object(statsFields);

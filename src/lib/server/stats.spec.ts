@@ -38,7 +38,7 @@ it('publishes anonymous totals across pages, excludes unstarted games, and rebui
 					i === 205
 						? { reason: 'aborted', winner: null, detail: 'firstMoveNoShow' }
 						: i < 200
-							? { reason: 'resignation', winner: 'white' }
+							? { reason: i % 2 === 0 ? 'checkmate' : 'resignation', winner: 'white' }
 							: null,
 				expiresAt: Date.now(),
 				startedAt: Date.now() - (i === 0 ? 8 * 86400000 : 1000),
@@ -72,12 +72,13 @@ it('publishes anonymous totals across pages, excludes unstarted games, and rebui
 	expect(summary).toMatchObject({
 		started: 205,
 		active: 5,
-		completed: 200
+		completed: 200,
+		checkmates: 100
 	});
 	expect(summary?.daily).toHaveLength(7);
 	expect(summary?.daily.at(-1)).toEqual({ date: '2026-09-07', started: 204 });
 	expect(Object.keys(summary!).sort()).toEqual(
-		['sampledAt', 'started', 'active', 'completed', 'daily'].sort()
+		['sampledAt', 'started', 'active', 'completed', 'checkmates', 'daily'].sort()
 	);
 	expect(JSON.stringify(summary)).not.toMatch(/private|Participant|gameId/);
 	await t.mutation(internal.stats.refresh, {});
