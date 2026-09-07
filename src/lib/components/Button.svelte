@@ -20,11 +20,16 @@
 	aria-busy={loading || attributes['aria-busy']}
 	type={attributes.type ?? 'button'}
 	class:primary={variant === 'primary'}
-	>{#if loading}<span aria-hidden="true"><Spinner label="Loading" /></span
+	>{#if loading}<span class="loading-icon" aria-hidden="true"><Spinner label="Loading" /></span
 		>{/if}{@render children?.()}</button
 >
 
 <style>
+	.loading-icon {
+		display: flex;
+		align-items: center;
+		flex-shrink: 0;
+	}
 	button {
 		min-height: var(--control-height);
 		display: inline-flex;
@@ -38,10 +43,7 @@
 		background: var(--surface-raised);
 		color: var(--text);
 		cursor: pointer;
-		box-shadow:
-			0 var(--press-depth) 0 var(--button-base),
-			0 5px 8px #00000045,
-			inset 0 1px 0 #ffffff24;
+		box-shadow: none;
 		transition:
 			transform var(--motion-press),
 			box-shadow var(--motion-press),
@@ -51,8 +53,7 @@
 		background: var(--line);
 	}
 	button:active:not(:disabled) {
-		transform: translateY(var(--press-depth));
-		box-shadow: 0 0 0 var(--button-base);
+		background: var(--surface);
 	}
 	button:disabled {
 		opacity: 0.55;
@@ -71,6 +72,7 @@
 		background: var(--primary-hover);
 	}
 	button.primary:active:not(:disabled) {
+		transform: translateY(var(--press-depth));
 		box-shadow: 0 0 0 var(--accent-base);
 	}
 	@media (prefers-reduced-motion: reduce) {

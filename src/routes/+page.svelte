@@ -291,6 +291,15 @@
 		align-items: center;
 		min-height: calc(100svh - 100px);
 	}
+	.home-play :global(.autoplay) {
+		/* Fixed positioning keeps the original rotation pivot intact. */
+		transform: translateY(-7.5%);
+	}
+	@media (min-width: 1001px) {
+		.home-play :global(.autoplay) {
+			transform: translate(32px, -7.5%);
+		}
+	}
 	.play-options {
 		display: grid;
 		gap: var(--space-3);
