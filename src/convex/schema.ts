@@ -7,6 +7,11 @@ import { coverage, candidate } from './lib/presence_validators';
 export default defineSchema({
 	publicStats: defineTable({ name: v.string(), value: statsValue }).index('by_name', ['name']),
 	statsBuild: defineTable({ value: statsValue }),
+	statsPlayerDays: defineTable({
+		buildId: v.id('statsBuild'),
+		participantId: v.id('participants'),
+		days: v.number()
+	}).index('by_build_player', ['buildId', 'participantId']),
 	onlinePolicy: defineTable({
 		key: v.literal('disconnect'),
 		enabled: v.boolean(),
@@ -98,6 +103,7 @@ export default defineSchema({
 		.index('by_token_hash', ['tokenHash'])
 		.index('by_game', ['gameId']),
 	moves: defineTable(moveFields)
+		.index('by_created', ['createdAt'])
 		.index('by_game_capture', ['gameId', 'captured', 'ply'])
 		.index('by_game_ply', ['gameId', 'ply'])
 		.index('by_request', ['gameId', 'participantId', 'requestId']),

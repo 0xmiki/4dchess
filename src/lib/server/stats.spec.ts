@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import type { Id } from '../../convex/_generated/dataModel';
 import { setup } from './test-helpers';
 import { api, internal } from '../../convex/_generated/api';
 
@@ -76,9 +77,9 @@ it('publishes anonymous totals across pages, excludes unstarted games, and rebui
 		checkmates: 100
 	});
 	expect(summary?.daily).toHaveLength(7);
-	expect(summary?.daily.at(-1)).toEqual({ date: '2026-09-07', started: 204 });
+	expect(summary?.daily.at(-1)).toEqual({ date: '2026-09-07', started: 204, players: 0 });
 	expect(Object.keys(summary!).sort()).toEqual(
-		['sampledAt', 'started', 'active', 'completed', 'checkmates', 'daily'].sort()
+		['sampledAt', 'started', 'active', 'completed', 'checkmates', 'players', 'daily'].sort()
 	);
 	expect(JSON.stringify(summary)).not.toMatch(/private|Participant|gameId/);
 	await t.mutation(internal.stats.refresh, {});
@@ -99,4 +100,71 @@ it('keeps the last snapshot while an interrupted build is replaced', async () =>
 	expect(await t.query(api.stats.publicSummary, {})).toBeNull();
 	await t.finishAllScheduledFunctions(vi.runAllTimers);
 	expect(await t.query(api.stats.publicSummary, {})).toMatchObject({ started: 0, active: 0 });
+});
+
+it('deduplicates active players across pages and UTC dates, with independent 7 and 30 day totals', async () => {
+	const t = setup();
+	const day = 86400000;
+	const midnight = Math.floor(Date.now() / day) * day;
+	await t.run(async (ctx) => {
+		const ids: Id<'participants'>[] = [];
+		for (let i = 0; i < 6; i++)
+			ids.push(await ctx.db.insert('participants', { guestId: `player-${i}`, userId: null }));
+		const gameId = await ctx.db.insert('games', {
+			creatorParticipantId: ids[0],
+			createRequestId: 'activity-game',
+			whiteParticipantId: ids[0],
+			blackParticipantId: ids[1],
+			status: 'active',
+			revision: 1,
+			rulesVersion: 'fourfold-v1',
+			board: [],
+			turn: 'w',
+			ply: 0,
+			halfmoveClock: 0,
+			positionKeys: [],
+			result: null,
+			expiresAt: Date.now(),
+			startedAt: midnight - 31 * day,
+			finishedAt: null
+		});
+		let ply = 0;
+		async function move(player: number, time: number) {
+			await ctx.db.insert('moves', {
+				gameId,
+				participantId: ids[player],
+				requestId: `move-${ply}`,
+				expectedRevision: ply,
+				revision: ply + 1,
+				ply: ++ply,
+				from: 0,
+				to: 1,
+				piece: { t: 'p', c: 'w' },
+				captured: null,
+				createdAt: time,
+				result: null
+			});
+		}
+		for (let i = 0; i < 105; i++) await move(0, midnight + i);
+		await move(0, midnight - 1); // yesterday, same player
+		await move(0, midnight - 6 * day); // first day of the 7-day period
+		await move(1, midnight - 7 * day); // monthly only
+		await move(2, midnight - 29 * day); // first day of the 30-day period
+		await move(3, midnight - 29 * day - 1); // outside the 30-day period
+		await move(3, Date.now() + day); // future records cannot count
+		await move(4, midnight - 1);
+		await move(5, midnight); // UTC midnight is today
+	});
+	vi.setSystemTime(Date.now() + 1000);
+	await t.mutation(internal.stats.refresh, {});
+	await t.finishAllScheduledFunctions(vi.runAllTimers);
+	const summary = await t.query(api.stats.publicSummary, {});
+	expect(summary?.players).toEqual({ today: 2, week: 3, month: 5 });
+	expect(summary?.daily.at(-1)?.players).toBe(2);
+	expect(summary?.daily.at(-2)?.players).toBe(2);
+	expect(summary?.daily[0].players).toBe(1);
+	expect(await t.run((ctx) => ctx.db.query('statsPlayerDays').collect())).toEqual([]);
+	await t.mutation(internal.stats.refresh, {});
+	await t.finishAllScheduledFunctions(vi.runAllTimers);
+	expect((await t.query(api.stats.publicSummary, {}))?.players).toEqual(summary?.players);
 });

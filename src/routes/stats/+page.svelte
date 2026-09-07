@@ -75,10 +75,37 @@
 			</div>
 		</dl>
 		<p class="note">Unfinished games may include abandoned sessions.</p>
+		<section class="activity" aria-labelledby="players-title">
+			<h2 id="players-title">Unique active players</h2>
+			{#if stats.players}<dl class="players">
+					<div>
+						<dt>Today</dt>
+						<dd>{number(stats.players.today)}</dd>
+					</div>
+					<div>
+						<dt>Last 7 days</dt>
+						<dd>{number(stats.players.week)}</dd>
+					</div>
+					<div>
+						<dt>Last 30 days</dt>
+						<dd>{number(stats.players.month)}</dd>
+					</div>
+				</dl>{:else}<p class="note">Player counts updating…</p>{/if}
+			<p class="note">
+				Made at least one multiplayer move. Each period counts a player once. UTC dates, including
+				today so far.
+			</p>
+		</section>
 		<section class="activity" aria-labelledby="activity-title">
 			<h2 id="activity-title">Daily activity</h2>
 			<table>
-				<thead><tr><th scope="col">Day · UTC</th><th scope="col">Games</th></tr></thead><tbody>
+				<thead
+					><tr
+						><th scope="col">Day · UTC</th><th scope="col">Games started</th><th scope="col"
+							>Active players</th
+						></tr
+					></thead
+				><tbody>
 					{#each [...stats.daily].reverse() as day (day.date)}<tr
 							><th scope="row"
 								><time datetime={day.date}
@@ -89,18 +116,24 @@
 									})}</time
 								>{#if day.date === stats.daily.at(-1)?.date}
 									<span class="note"> · so far</span>{/if}</th
-							><td>{number(day.started)}</td></tr
+							><td>{number(day.started)}</td><td
+								>{day.players === undefined ? 'Pending' : number(day.players)}</td
+							></tr
 						>{/each}
 				</tbody>
 			</table>
 		</section>
 		<details>
-			<summary>What counts as a game?</summary>
+			<summary>How are these counted?</summary>
 			<p>
 				Recorded multiplayer games, including rematches. Unused invitations, cancelled and aborted
 				games, and games against the computer are excluded. Unfinished means no result has been
 				recorded; it is not a count of people online. Counts are collected over a short interval and
-				may lag behind play. No player identities or room links are published.
+				may lag behind play. No player identities or room links are published. Active players are
+				distinct player identities that made a move during the period, including moves in games
+				later aborted. Page visits and computer games do not count. Guests using different browsers
+				or clearing their session may count separately. Seven-day and 30-day totals count distinct
+				players across the whole period; they are not sums of the daily counts.
 			</p>
 		</details>
 	{:else}
@@ -157,6 +190,14 @@
 	.scope {
 		margin-bottom: 24px;
 	}
+	.players {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 16px;
+	}
+	.players dt {
+		font-size: 13px;
+	}
 	.totals {
 		display: grid;
 		grid-template-columns: 2fr 1fr 1fr;
@@ -202,7 +243,7 @@
 		font-size: 13px;
 	}
 	td,
-	th:last-child {
+	th:not(:first-child) {
 		text-align: right;
 	}
 	td {
