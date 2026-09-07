@@ -241,6 +241,8 @@
 		justify-content: space-between;
 		align-items: end;
 		gap: var(--space-4);
+		padding-bottom: var(--space-4);
+		border-bottom: 1px solid var(--line);
 	}
 	.home-shell {
 		max-width: 1800px;
@@ -291,10 +293,35 @@
 	}
 	.play-options {
 		display: grid;
-		gap: var(--space-5);
+		gap: var(--space-3);
 		width: 100%;
 		max-width: 480px;
 		justify-self: center;
+		padding: var(--space-5);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+	}
+	.play-options :global(.play-option button) {
+		min-height: 76px;
+		padding: var(--space-4);
+		border-radius: var(--radius-control);
+	}
+	.play-options :global(.play-option strong) {
+		font-size: 18px;
+	}
+	.play-options :global(.play-option .copy > span) {
+		font-size: 13px;
+	}
+	.play-options :global(.play-option:not(.primary) button) {
+		background: transparent;
+		border-color: transparent;
+		box-shadow: none;
+		min-height: 68px;
+	}
+	.play-options :global(.play-option:not(.primary) button:hover:not(:disabled)),
+	.play-options :global(.play-option:not(.primary) button:focus-visible) {
+		background: var(--surface-raised);
 	}
 	.learn {
 		display: flex;
@@ -304,6 +331,8 @@
 		min-height: var(--control-height);
 		text-decoration: none;
 		color: var(--text);
+		border-top: 1px solid var(--line);
+		padding-top: var(--space-3);
 	}
 	.learn:hover {
 		text-decoration: underline;
@@ -318,7 +347,12 @@
 			padding-top: var(--space-8);
 		}
 		.play-options {
-			gap: var(--space-4);
+			gap: var(--space-3);
+		}
+	}
+	@media (max-width: 500px) {
+		.play-options {
+			padding: var(--space-4);
 		}
 	}
 </style>

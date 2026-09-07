@@ -1,25 +1,19 @@
 import { expect, it } from 'vitest';
-import { demoFrame, DEMO_TIMING, DEMO_DURATION } from './demo-timeline';
-it('holds selection and preview stationary before moving the piece', () => {
-	const select = DEMO_TIMING.orbit,
-		preview = select + DEMO_TIMING.selection,
-		move = preview + DEMO_TIMING.preview;
-	expect(demoFrame(select + 500)).toMatchObject({
+import { demoFrame, DEMO_TIMING } from './demo-timeline';
+it('reveals the move with the camera before selecting and moving the piece', () => {
+	expect(demoFrame(550)).toMatchObject({ phase: 'orbit', cameraProgress: 0.5, pieceProgress: 0 });
+	expect(demoFrame(1600)).toMatchObject({
 		phase: 'selection',
-		pieceProgress: 0,
-		cameraProgress: 1
+		cameraProgress: 1,
+		pieceProgress: 0
 	});
-	expect(demoFrame(preview + 300)).toMatchObject({
-		phase: 'preview',
-		pieceProgress: 0,
-		cameraProgress: 1
-	});
-	expect(demoFrame(move)).toMatchObject({ phase: 'move', pieceProgress: 0 });
-	expect(demoFrame(move + DEMO_TIMING.move / 2).pieceProgress).toBeCloseTo(0.5);
-	expect(demoFrame(DEMO_DURATION - 1)).toMatchObject({
-		phase: 'settle',
-		pieceProgress: 1,
-		done: false
-	});
-	expect(demoFrame(DEMO_DURATION).done).toBe(true);
+	expect(demoFrame(2500)).toMatchObject({ phase: 'preview', pieceProgress: 0 });
+	expect(demoFrame(3650)).toMatchObject({ phase: 'move', cameraProgress: 1, pieceProgress: 0.5 });
+	expect(demoFrame(4500).phase).toBe('settle');
+	expect(demoFrame(Object.values(DEMO_TIMING).reduce((a, b) => a + b, 0)).done).toBe(true);
+});
+it('continues the same move sequence without orbiting during manual camera control', () => {
+	expect(demoFrame(500, 0)).toMatchObject({ phase: 'selection', pieceProgress: 0 });
+	expect(demoFrame(2550, 0)).toMatchObject({ phase: 'move', pieceProgress: 0.5 });
+	expect(demoFrame(3750, 0).done).toBe(true);
 });

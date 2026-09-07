@@ -5,21 +5,21 @@ export const DEMO_TIMING = {
 	move: 1500,
 	settle: 450
 } as const;
-export const DEMO_DURATION = Object.values(DEMO_TIMING).reduce(
-	(sum, duration) => sum + duration,
-	0
-);
-export function demoFrame(elapsed: number) {
-	const { orbit, selection, preview, move } = DEMO_TIMING;
-	const movementStart = orbit + selection + preview;
+export const DEMO_CAMERA_IDLE = 60_000;
+export function demoFrame(
+	elapsed: number,
+	orbit = DEMO_TIMING.orbit as number,
+	moveDuration = DEMO_TIMING.move as number
+) {
+	const movementStart = orbit + DEMO_TIMING.selection + DEMO_TIMING.preview;
 	const phase =
 		elapsed < orbit
 			? 'orbit'
-			: elapsed < orbit + selection
+			: elapsed < orbit + DEMO_TIMING.selection
 				? 'selection'
 				: elapsed < movementStart
 					? 'preview'
-					: elapsed < movementStart + move
+					: elapsed < movementStart + moveDuration
 						? 'move'
 						: 'settle';
 	const ease = (value: number) => {
@@ -28,8 +28,8 @@ export function demoFrame(elapsed: number) {
 	};
 	return {
 		phase,
-		cameraProgress: ease(elapsed / orbit),
-		pieceProgress: ease((elapsed - movementStart) / move),
-		done: elapsed >= DEMO_DURATION
+		cameraProgress: orbit ? ease(elapsed / orbit) : 1,
+		pieceProgress: ease((elapsed - movementStart) / moveDuration),
+		done: elapsed >= movementStart + moveDuration + DEMO_TIMING.settle
 	};
 }

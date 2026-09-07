@@ -17,6 +17,7 @@
 	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
 		annotations = true,
+		showMoveTrail = true,
 		focusMove = null,
 		yaw = $bindable(DEFAULT_CAMERA.yaw),
 		pitch = $bindable(DEFAULT_CAMERA.pitch),
@@ -31,6 +32,7 @@
 		inspections = []
 	}: {
 		annotations?: boolean;
+		showMoveTrail?: boolean;
 		focusMove?: (Move & { knight?: boolean }) | null;
 		yaw?: number;
 		pitch?: number;
@@ -317,7 +319,7 @@
 					stroke-width="1"
 					opacity=".22"
 				/>{/each}
-		{:else if lastMove && !motion}<line
+		{:else if showMoveTrail && lastMove && !motion}<line
 				class="last-move-arrow"
 				marker-end={`url(#${arrowId})`}
 				{...threatSegment(lastMove.from, lastMove.to, 4, 14)}
@@ -325,7 +327,8 @@
 				opacity=".9"
 				stroke-width="1"
 			/>{/if}
-		{#if focusMove}{@const a = points[focusMove.from]}{@const b = points[focusMove.to]}<path
+		{#if showMoveTrail && focusMove}{@const a = points[focusMove.from]}{@const b =
+				points[focusMove.to]}<path
 				in:fade={markerFade()}
 				class="demo-path"
 				d={focusMove.knight
@@ -336,7 +339,7 @@
 				opacity=".48"
 				stroke-width="1"
 			/>{/if}
-		{#if motion && !focusMove}<path
+		{#if showMoveTrail && motion && !focusMove}<path
 				class="motion-path"
 				marker-end={`url(#${arrowId})`}
 				d={motionRoute}
@@ -400,7 +403,7 @@
 						stroke={p ? 'var(--spatial-destination)' : 'none'}
 						stroke-width="1"
 					/>{/if}
-				{#if selected === null && !inspections.length && lastMove && !motion && (i === lastMove.from || i === lastMove.to)}<circle
+				{#if showMoveTrail && selected === null && !inspections.length && lastMove && !motion && (i === lastMove.from || i === lastMove.to)}<circle
 						data-state="last-move"
 						cx={point.x}
 						cy={point.y}
@@ -410,7 +413,7 @@
 						stroke-opacity=".8"
 						stroke-width="1"
 					/>{/if}
-				{#if focusMove && (i === focusMove.from || i === focusMove.to)}<circle
+				{#if showMoveTrail && focusMove && (i === focusMove.from || i === focusMove.to)}<circle
 						in:fade={markerFade()}
 						class="demo-endpoint"
 						opacity=".3"
@@ -499,9 +502,8 @@
 		outline: none;
 		box-shadow: none;
 	}
-	.space-svg:focus-visible {
-		background: var(--surface);
-		border-radius: var(--radius-panel);
+	.space-svg:focus-visible .axis-gizmo {
+		opacity: 0.85;
 	}
 	.space-svg:active {
 		cursor: grabbing;

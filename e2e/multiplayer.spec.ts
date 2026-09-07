@@ -345,20 +345,24 @@ test('practice places either color and keeps both-color threat arrows until a bo
 	await expect(page.locator('[data-square="17"]')).toHaveAttribute('aria-label', /empty/);
 });
 
-test('the landing demo searches live moves and can be paused', async ({ page }) => {
+test('the landing demo keeps playing after manual camera interaction', async ({ page }) => {
 	await page.goto(process.env.E2E_BASE_URL!);
 	const demo = page.locator('[data-demo-ply]');
+	await expect(page.getByRole('button', { name: /^(Pause|Play) demo$/ })).toHaveCount(0);
+	await expect(demo).toHaveAttribute('data-demo-phase', 'preview');
+	await expect(page.locator('.threat-arrow, [data-state="inspection-target"]')).toHaveCount(0);
+	await page.locator('.space-svg').press('ArrowRight');
+	const point = page.locator('.space-svg [data-node="0"] circle').first();
+	const manualX = await point.getAttribute('cx');
 	await expect
-		.poll(async () => Number(await demo.getAttribute('data-demo-ply')))
-		.toBeGreaterThanOrEqual(2);
-	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
-	const ply = await demo.getAttribute('data-demo-ply');
-	await page.waitForTimeout(2500);
-	await expect(demo).toHaveAttribute('data-demo-ply', ply!);
-	await page.getByRole('button', { name: 'Play demo', exact: true }).click();
-	await expect
-		.poll(async () => Number(await demo.getAttribute('data-demo-ply')))
-		.toBeGreaterThan(Number(ply));
+		.poll(async () => Number(await demo.getAttribute('data-demo-ply')), { timeout: 20000 })
+		.toBeGreaterThanOrEqual(3);
+	await expect(point).toHaveAttribute('cx', manualX!);
+	await expect(
+		page.locator(
+			'.demo-path, .motion-path, .last-move-arrow, .demo-endpoint, [data-state="last-move"]'
+		)
+	).toHaveCount(0);
 });
 
 test('computer sidebar settings apply to new games and export dismisses outside', async ({
@@ -480,37 +484,24 @@ test('touch inspection uses a short long-press hint without an inspection panel'
 	}
 });
 
-test('demo holds its selected piece and freezes mid-move when paused', async ({ page }) => {
+test('demo resumes its camera after a minute without interaction', async ({ page }) => {
+	test.setTimeout(90000);
 	await page.goto(process.env.E2E_BASE_URL!);
-	const demo = page.locator('[data-demo-phase]');
-	await expect(demo).toHaveAttribute('data-demo-phase', 'selection');
-	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
-	await expect(page.locator('[data-animation="spatial-piece"]')).toHaveCount(0);
-	await expect(page.locator('.space-svg .piece')).toHaveCount(20);
-	await page.waitForTimeout(1300);
-	await expect(demo).toHaveAttribute('data-demo-phase', 'selection');
-	await page.locator('.space-svg').press('ArrowRight');
+	for (let i = 0; i < 12; i++) await page.locator('.space-svg').press('ArrowRight');
+	await page.waitForTimeout(3000);
+	await page.locator('.space-svg').press('ArrowLeft');
 	const point = page.locator('.space-svg [data-node="0"] circle').first();
 	const manualX = await point.getAttribute('cx');
-	await page.getByRole('button', { name: 'Play demo', exact: true }).click();
+	await page.waitForTimeout(58000);
 	await expect(point).toHaveAttribute('cx', manualX!);
-	await expect(demo).toHaveAttribute('data-demo-phase', 'move');
-	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
-	const mover = page.locator('[data-animation="spatial-piece"] .piece');
-	const before = await mover.getAttribute('x');
-	await page.waitForTimeout(600);
-	await expect(mover).toHaveAttribute('x', before!);
-	await page.getByRole('button', { name: 'Play demo', exact: true }).click();
-	await expect
-		.poll(async () => Number(await demo.getAttribute('data-demo-ply')))
-		.toBeGreaterThanOrEqual(1);
+	await expect.poll(() => point.getAttribute('cx'), { timeout: 15000 }).not.toBe(manualX);
 });
 
 test('home and game start with identical piece projection and neutral transparent surfaces', async ({
 	page
 }) => {
 	await page.goto(process.env.E2E_BASE_URL!);
-	await page.getByRole('button', { name: 'Pause demo', exact: true }).click();
+	await page.locator('.space-svg').press('Home');
 	const points = () =>
 		page.locator('.space-svg [data-node]').evaluateAll((nodes) =>
 			Object.fromEntries(

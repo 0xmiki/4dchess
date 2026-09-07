@@ -34,7 +34,7 @@ try {
 		);
 		const spatial = document.querySelector('.spatial').cloneNode(true);
 		spatial.querySelector('.caption')?.remove();
-		spatial.querySelector('.space-svg > g[aria-hidden="true"]')?.remove();
+		spatial.querySelector('.space-svg .axis-gizmo')?.remove();
 		const grid = document.createElement('div');
 		grid.className = 'readme-boards';
 		grid.append(...boards);
@@ -73,7 +73,7 @@ try {
 		const spatial = document.querySelector('.spatial').cloneNode(true);
 		spatial.querySelector('.caption')?.remove();
 		// The social image uses the game's rendered geometry and pieces, without control annotations.
-		spatial.querySelector('.space-svg > g[aria-hidden="true"]')?.remove();
+		spatial.querySelector('.space-svg .axis-gizmo')?.remove();
 		spatial.classList.add('social-tesseract');
 		spatial.querySelector('.space-svg').setAttribute('viewBox', '0 0 440 440');
 		const card = document.createElement('main');
