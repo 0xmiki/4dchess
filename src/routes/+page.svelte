@@ -246,11 +246,16 @@
 	}
 	.home-shell {
 		max-width: 1800px;
+		padding-bottom: 16px;
 		min-height: 100svh;
 		display: flex;
 		flex-direction: column;
 	}
 	.home-footer {
+		position: relative;
+		left: 50%;
+		transform: translateX(-50%);
+		width: calc(100vw - 64px);
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
@@ -271,6 +276,11 @@
 	.home-footer a:hover,
 	.home-footer a:focus-visible {
 		color: var(--text);
+	}
+	@media (max-width: 700px) {
+		.home-footer {
+			width: calc(100vw - 32px);
+		}
 	}
 	@media (max-width: 1000px) {
 		.home-play :global(.autoplay) {

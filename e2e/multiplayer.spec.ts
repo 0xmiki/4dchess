@@ -597,6 +597,14 @@ test('online moves display immediately, roll back rejection, and reconcile witho
 	try {
 		await move(white, 0, 32);
 		await expect.poll(() => !!held).toBe(true);
+		await expect(white.getByRole('button', { name: 'Resign', exact: true })).not.toHaveAttribute(
+			'aria-busy',
+			'true'
+		);
+		await expect(white.locator('.turn-indicator .spinner')).toHaveCount(0);
+		await expect(white.getByText('Waiting for server confirmation…', { exact: true })).toHaveCount(
+			0
+		);
 		await expect(white.locator('[data-square="32"]')).toHaveAttribute('aria-label', /White rook/);
 		await expect(black.locator('[data-square="32"]')).toHaveAttribute('aria-label', /empty/);
 		held!.reject();
@@ -965,9 +973,7 @@ for (const missingSide of ['white', 'black'] as const) {
 					player.getByRole('heading', { name: 'Game aborted', exact: true })
 				).toBeVisible({ timeout: 20000 });
 				await expect(player.locator('.series-score')).toHaveCount(0);
-				await expect(
-					player.getByRole('button', { name: 'Find another opponent', exact: true })
-				).toBeVisible();
+				await expect(player.getByRole('button', { name: 'New game', exact: true })).toBeVisible();
 				await expect(player.getByRole('button', { name: 'Rematch', exact: true })).toHaveCount(0);
 			}
 			await idle.reload();
@@ -975,7 +981,7 @@ for (const missingSide of ['white', 'black'] as const) {
 			await expect(
 				idle.getByRole('heading', { name: 'Finding an opponent', exact: true })
 			).toHaveCount(0);
-			await idle.getByRole('button', { name: 'Find another opponent', exact: true }).click();
+			await idle.getByRole('button', { name: 'New game', exact: true }).click();
 			await expect(
 				idle.getByRole('heading', { name: 'Finding an opponent', exact: true })
 			).toBeVisible();

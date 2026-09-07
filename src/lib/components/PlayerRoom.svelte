@@ -69,6 +69,7 @@
 	let mounted = $state(false),
 		online = $state(true),
 		sending = $state(false),
+		resigning = $state(false),
 		error = $state(''),
 		copied = $state(false),
 		origin = $state('');
@@ -463,6 +464,7 @@
 		void submitPending();
 	}
 	let roundStarting = $state(false);
+	let findingOpponent = $state(false);
 	let dismissingRound = $state(false);
 	async function dismissRematch() {
 		if (roundStarting) return;
@@ -522,9 +524,26 @@
 			sending = false;
 		}
 	}
+	async function findNewOpponent() {
+		if (!game || game.status !== 'finished' || roundStarting) return;
+		findingOpponent = true;
+		roundStarting = true;
+		error = '';
+		try {
+			if (game.rematchRequestedBy) await client.mutation(api.games.dismissRematch, { gameId });
+			leaveMatch();
+			await goto(resolve(`/match?time=${encodeURIComponent(game.timeControl ?? '10+5')}`));
+		} catch (cause) {
+			error = errorMessage(cause);
+		} finally {
+			roundStarting = false;
+			findingOpponent = false;
+		}
+	}
 	async function resign() {
 		if (!game || sending || pending || game.status !== 'active') return;
 		sending = true;
+		resigning = true;
 		error = '';
 		resignRequest ??= { gameId, expectedRevision: game.revision, requestId: crypto.randomUUID() };
 		try {
@@ -535,6 +554,7 @@
 			if (cause instanceof ConvexError) resignRequest = null;
 		} finally {
 			sending = false;
+			resigning = false;
 		}
 	}
 </script>
@@ -681,25 +701,23 @@
 				{#if !online}<p class="notice" role="status">
 						Connection lost. Your room is saved. Reconnecting…
 					</p>{/if}
-				{#if sending}<p class="notice" role="status">Waiting for server confirmation…</p>{/if}
 				{#if error}<div class="notice row" role="alert">
 						<p class="error">{error}</p>
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
 				{#if presenceError}<p class="error" role="alert">{presenceError}</p>{/if}
 				<GameOutcome result={game.result} side={match.data.seat} />
-				{#if game.kind === 'matchmaking' && game.result?.reason === 'aborted'}
+				{#if game.kind === 'matchmaking' && game.status === 'finished'}
 					<Button
 						variant="primary"
-						onclick={() => {
-							leaveMatch();
-							void goto(resolve(`/match?time=${encodeURIComponent(game.timeControl ?? '10+5')}`));
-						}}>Find another opponent</Button
+						disabled={roundStarting}
+						loading={findingOpponent}
+						onclick={findNewOpponent}>New game</Button
 					>
 				{/if}
 				{#if game.status === 'active'}<Button
 						disabled={sending || !!pending}
-						loading={sending}
+						loading={resigning}
 						onclick={resign}>Resign</Button
 					>{:else if game.status === 'finished' && !isUnscoredResult(game.result)}
 					{#if game.rematchRequestedBy === match.data.seat}
@@ -714,16 +732,21 @@
 								: 'Your friend wants a rematch.'}
 						</p>
 						<Button
-							variant="primary"
+							variant={game.kind === 'matchmaking' ? 'default' : 'primary'}
 							onclick={newRound}
 							disabled={roundStarting}
-							loading={roundStarting && !dismissingRound}>Accept rematch</Button
+							loading={roundStarting && !dismissingRound && !findingOpponent}>Accept rematch</Button
 						>
 						<Button onclick={dismissRematch} disabled={roundStarting} loading={dismissingRound}
 							>Decline</Button
 						>
 					{:else}
-						<Button variant="primary" onclick={newRound} loading={roundStarting}>Rematch</Button>
+						<Button
+							variant={game.kind === 'matchmaking' ? 'default' : 'primary'}
+							onclick={newRound}
+							disabled={roundStarting}
+							loading={roundStarting && !findingOpponent}>Rematch</Button
+						>
 					{/if}
 				{/if}
 				{#if game.status !== 'waiting'}<MovesPanel
@@ -734,7 +757,6 @@
 						>{#snippet indicator()}<TurnIndicator
 								label={status}
 								turn={displayTurn}
-								pending={!!provisional && !review}
 								text={review
 									? `Move ${review.ply}`
 									: game.status === 'waiting'
