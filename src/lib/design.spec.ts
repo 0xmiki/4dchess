@@ -41,8 +41,8 @@ it.each([
 it.each([
 	['line-strong', 'surface'],
 	['grid', 'surface'],
-	['threat-white', 'threat-outline'],
-	['threat-black', 'threat-outline'],
+	['threat-attack', 'page'],
+	['threat-defend', 'page'],
 	['threat-outline', 'board-light'],
 	['threat-outline', 'board-dark'],
 	['piece-black', 'board-dark'],
@@ -52,3 +52,19 @@ it.each([
 ])('%s against %s remains distinguishable', (foreground, background) => {
 	expect(contrast(foreground, background)).toBeGreaterThanOrEqual(3);
 });
+
+const flatOverlay = readFileSync(
+	new URL('./components/FlatOverlays.svelte', import.meta.url),
+	'utf8'
+);
+it.each(['threat-attack', 'threat-defend'])(
+	'%s stays visible on both flat-board colors',
+	(role) => {
+		const ink = new RegExp(`--${role}:\\s*(#[\\da-f]{6})`).exec(flatOverlay)![1];
+		for (const background of ['board-light', 'board-dark']) {
+			const a = luminance(ink),
+				b = luminance(colors[background]);
+			expect((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)).toBeGreaterThanOrEqual(3);
+		}
+	}
+);

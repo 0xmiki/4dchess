@@ -15,8 +15,9 @@
 	--focus: #ffffff;
 	--axis-w: #b8b3a0;
 	--legal: #9bac85;
-	--spatial-destination: #b1c39f;
-	--spatial-selection-outline: #c4a36d;
+	--spatial-destination: #80d6ac;
+	--spatial-selection-outline: #85c9f4;
+	--spatial-last-move: #efc36f;
 	--legal-ink: #354c38;
 	--danger: #ffad99;
 	--danger-ink: #943623;
@@ -53,12 +54,10 @@
 	--press-depth: 3px;
 	--button-base: #505050;
 	--accent-base: #505e43;
-	--threat-attack: #ff875e;
-	--threat-defend: #78dcee;
+	--threat-attack: #f18796;
+	--threat-defend: #72cbe6;
 	--threat-outline: #21192b;
 	--motion-press: 100ms;
-	--threat-white: var(--game-secondary);
-	--threat-black: var(--game-tertiary);
 	--play-space: clamp(32px, 6svh, 72px);
 	--motion-selection: 220ms;
 	--ease-selection: cubic-bezier(0.2, 0.8, 0.2, 1);

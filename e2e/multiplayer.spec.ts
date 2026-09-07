@@ -1374,17 +1374,41 @@ test('tesseract separates selection and pinned threats with colored one-pixel in
 	const legal = await page.locator('.cell.legal').count();
 	expect(legal).toBeGreaterThan(0);
 	await expect(page.locator('.space-svg [data-state="legal-destination"]')).toHaveCount(legal);
-	await expect(page.locator('.space-svg line[stroke="var(--legal)"]')).toHaveCount(0);
+	await expect(page.locator('.space-svg .legal-move-line')).toHaveCount(legal);
+	const svg = page.locator('.space-svg');
+	const box = (await svg.boundingBox())!;
+	await page.mouse.move(box.x + 12, box.y + 12);
+	await page.mouse.down();
+	await page.mouse.move(box.x + 42, box.y + 22);
+	await page.mouse.up();
+	await expect(page.locator('.space-svg .legal-move-line')).toHaveCount(legal);
 	for (const i of [45, 61, 17])
 		await page.locator(`.cell[data-square="${i}"]`).click({ button: 'right' });
 	await expect(page.locator('.space-svg [data-state="inspection-target"]')).toHaveCount(3);
+	await svg.click({ position: { x: 12, y: 12 } });
+	await expect(page.locator('.space-svg [data-state="inspection-target"]')).toHaveCount(3);
+	await page.locator('.space-svg [data-node="32"]').click();
+	await expect(
+		page.locator('.space-svg [data-node="32"] [data-state="inspection-target"]')
+	).toHaveAttribute('r', '3');
+	await expect(page.locator('.cell[data-square="32"]')).toHaveClass(/threat-target/);
+	await page.locator('.space-svg [data-node="0"]').click();
+	await expect(
+		page.locator('.space-svg [data-node="0"] [data-state="inspection-target"]')
+	).toHaveAttribute('r', '12');
+	await expect(page.locator('.cell[data-square="0"]')).toHaveClass(/threat-target/);
+	await expect(
+		page.locator('.space-svg [data-node="0"] [data-state="inspection-target"]')
+	).toHaveCSS('opacity', '0.95');
+	await page.screenshot({ path: '/tmp/tesseract-ui/refined-inspection.png', fullPage: true });
 	await expect(page.locator('.space-svg [data-state="selected"]')).toHaveCount(0);
 	await expect(page.locator('.space-svg [data-state="legal-destination"]')).toHaveCount(0);
+	await page.locator('.cell[data-square="44"]').click({ button: 'right' });
 	const colors = await page
 		.locator('.space-svg .threat-arrow')
 		.evaluateAll((lines) => [...new Set(lines.map((line) => getComputedStyle(line).stroke))]);
-	expect(colors).toContain('rgb(187, 160, 100)');
-	expect(colors).toContain('rgb(170, 114, 120)');
+	expect(colors).toContain('rgb(114, 203, 230)');
+	expect(colors).toContain('rgb(241, 135, 150)');
 	const widths = await page.locator('.space-svg > line').evaluateAll((lines) =>
 		lines.map((line) => ({
 			width: getComputedStyle(line).strokeWidth,
@@ -1396,7 +1420,10 @@ test('tesseract separates selection and pinned threats with colored one-pixel in
 	);
 	await page.locator('.cell[data-square="20"]').click();
 	await expect(page.locator('.space-svg .threat-arrow')).toHaveCount(0);
-	await page.locator('.cell[data-square="0"]').click();
+	await page.locator('.space-svg [data-node="0"]').click();
+	await expect(page.locator('.cell[data-square="0"]')).toHaveClass(/selected/);
+	await page.locator('.space-svg [data-node="0"]').click();
+	await expect(page.locator('.cell[data-square="0"]')).toHaveClass(/selected/);
 	await page.locator('.space-svg [data-node="32"]').click();
 	await expect(page.locator('.cell[data-square="32"]')).toHaveAttribute('aria-label', /White rook/);
 	await expect
@@ -1405,6 +1432,11 @@ test('tesseract separates selection and pinned threats with colored one-pixel in
 		)
 		.toBe(2);
 	await expect(page.locator('.space-svg [data-state="last-move"]')).toHaveCount(2);
+	await expect(page.locator('.space-svg .last-move-arrow')).toHaveAttribute(
+		'marker-end',
+		/^url\(#/
+	);
+	await page.screenshot({ path: '/tmp/tesseract-ui/refined-last-move.png', fullPage: true });
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.locator('.cell[data-square="3"]').click();
 	await expect(page.locator('.space-svg [data-state="selected"]')).toHaveCSS('opacity', '1');

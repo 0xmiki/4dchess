@@ -193,9 +193,13 @@
 		pinned = next;
 		inspection = next.at(-1) ?? null;
 	});
-	function select(i: number) {
+	function select(i: number, source: 'board' | 'spatial' = 'board') {
 		if (held) {
 			held = false;
+			return;
+		}
+		if (source === 'spatial' && inspection) {
+			inspect(i);
 			return;
 		}
 		inspection = null;
@@ -215,6 +219,11 @@
 			onmove(move);
 			return;
 		}
+		if (
+			source === 'spatial' &&
+			(selected === i || !board[i] || (!practice && board[i]?.c !== turn))
+		)
+			return;
 		selected = selected === i ? null : board[i] && (practice || board[i]?.c === turn) ? i : null;
 	}
 	function navigate(event: KeyboardEvent, i: number) {
@@ -251,7 +260,8 @@
 <div
 	class="workspace"
 	onpointerdown={(event) => {
-		if (event.button === 0 && !(event.target as Element).closest('button,[data-node]')) {
+		if (event.button === 0 && !(event.target as Element).closest('button,[data-node],.spatial')) {
+			selected = null;
 			pinned = [];
 			inspection = null;
 		}
@@ -282,7 +292,7 @@
 											class:selected={selected === i}
 											class:legal
 											class:capture={legal && !!p}
-											class:last={lastMove?.from === i || lastMove?.to === i}
+											class:last={!inspection && (lastMove?.from === i || lastMove?.to === i)}
 											class:checked={p?.t === 'k' && p.c === turn && check}
 											class:threat-target={pinned.some((item) => item.target === i)}
 											class:threat-attacker={pinned.some((item) => item.attackers.includes(i))}
@@ -327,6 +337,7 @@
 			{/each}
 			{#if gridRoot}{#key flipped}<FlatOverlays
 						root={gridRoot}
+						{board}
 						{motion}
 						inspections={pinned}
 					/>{/key}{/if}
@@ -343,6 +354,7 @@
 									.map((from) => {
 										const p = item.position[from]!;
 										return (
+											(p.c === item.color ? 'Defender: ' : 'Attacker: ') +
 											(p.c === 'w' ? 'White' : 'Black') +
 											' ' +
 											pieceNames[p.t] +
@@ -364,12 +376,8 @@
 		{motion}
 		{inspection}
 		inspections={pinned}
-		onclear={() => {
-			pinned = [];
-			inspection = null;
-		}}
 		oninspect={inspect}
-		onselect={select}
+		onselect={(i) => select(i, 'spatial')}
 	/>
 </div>
 
@@ -469,14 +477,7 @@
 		background: var(--board-check);
 	}
 	.cell.threat-target {
-		background: var(--board-target);
 		outline: none;
-	}
-	.cell.threat-attacker {
-		background: var(--board-threat);
-	}
-	.cell.threat-defender {
-		background: var(--board-target);
 	}
 	.cell.legal::after {
 		content: '';

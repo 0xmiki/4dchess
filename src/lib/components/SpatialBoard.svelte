@@ -18,7 +18,6 @@
 	let {
 		annotations = true,
 		focusMove = null,
-		onclear = () => {},
 		yaw = $bindable(DEFAULT_CAMERA.yaw),
 		pitch = $bindable(DEFAULT_CAMERA.pitch),
 		board,
@@ -33,7 +32,6 @@
 	}: {
 		annotations?: boolean;
 		focusMove?: (Move & { knight?: boolean }) | null;
-		onclear?: () => void;
 		yaw?: number;
 		pitch?: number;
 		board: Board;
@@ -71,18 +69,19 @@
 		return projectCoordinate(coordinate, { yaw, pitch });
 	}
 	const points = $derived(Array.from({ length: 64 }, (_, i) => project(squareCoordinates(i))));
-	function threatSegment(from: number, to: number) {
+	function threatSegment(from: number, to: number, startInset = 16, endInset = 16) {
 		const a = points[from],
 			b = points[to],
 			dx = b.x - a.x,
 			dy = b.y - a.y;
 		const length = Math.hypot(dx, dy) || 1,
-			pad = Math.min(16, length * 0.25);
+			startPad = Math.min(startInset, length * 0.25),
+			endPad = Math.min(endInset, length * 0.25);
 		return {
-			x1: a.x + (dx * pad) / length,
-			y1: a.y + (dy * pad) / length,
-			x2: b.x - (dx * pad) / length,
-			y2: b.y - (dy * pad) / length
+			x1: a.x + (dx * startPad) / length,
+			y1: a.y + (dy * startPad) / length,
+			x2: b.x - (dx * endPad) / length,
+			y2: b.y - (dy * endPad) / length
 		};
 	}
 	const orientation = $derived.by(() => {
@@ -130,7 +129,8 @@
 	);
 	const nodes = $derived(
 		Array.from({ length: 64 }, (_, i) => i).sort((a, b) => {
-			const layer = (i: number) => (moves.some((m) => m.to === i) ? 2 : selected === i ? 1 : 0);
+			const layer = (i: number) =>
+				selected === i ? 3 : moves.some((m) => m.to === i) ? 2 : board[i] ? 1 : 0;
 			return layer(a) - layer(b) || points[a].depth - points[b].depth;
 		})
 	);
@@ -209,7 +209,6 @@
 		tabindex="0"
 		aria-label="Rotatable tesseract. Drag or use arrow keys to rotate. Home resets the view."
 		onpointerdown={(event) => {
-			if (event.button === 0) onclear();
 			down(event);
 		}}
 		oncontextmenu={(event) => {
@@ -297,23 +296,33 @@
 					/>
 				{/each}{/each}{/each}
 		{#if inspections.length}{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}{@const segment =
-						threatSegment(from, marked.target)}<line
+						threatSegment(from, marked.target, 16, board[marked.target] ? 12 : 3)}<line
 						{...segment}
-						stroke={marked.position[from]?.c === 'w'
-							? 'var(--threat-white)'
-							: 'var(--threat-black)'}
+						stroke={marked.position[from]?.c === marked.color
+							? 'var(--threat-defend)'
+							: 'var(--threat-attack)'}
 						class="threat-arrow"
 						stroke-width="1"
 						opacity={marked.target === inspection?.target ? 0.85 : 0.5}
 						marker-end={`url(#${arrowId})`}
 					/>{/each}{/each}
-		{:else if lastMove && !motion && selected === null}<line
-				x1={points[lastMove.from].x}
-				y1={points[lastMove.from].y}
-				x2={points[lastMove.to].x}
-				y2={points[lastMove.to].y}
-				stroke="var(--game-secondary)"
-				opacity=".55"
+		{:else if selected !== null}
+			{#each moves as move (move.to)}<line
+					class="legal-move-line"
+					x1={points[selected].x}
+					y1={points[selected].y}
+					x2={points[move.to].x}
+					y2={points[move.to].y}
+					stroke="var(--spatial-destination)"
+					stroke-width="1"
+					opacity=".22"
+				/>{/each}
+		{:else if lastMove && !motion}<line
+				class="last-move-arrow"
+				marker-end={`url(#${arrowId})`}
+				{...threatSegment(lastMove.from, lastMove.to, 4, 14)}
+				stroke="var(--spatial-last-move)"
+				opacity=".9"
 				stroke-width="1"
 			/>{/if}
 		{#if focusMove}{@const a = points[focusMove.from]}{@const b = points[focusMove.to]}<path
@@ -328,17 +337,27 @@
 				stroke-width="1"
 			/>{/if}
 		{#if motion && !focusMove}<path
+				class="motion-path"
+				marker-end={`url(#${arrowId})`}
 				d={motionRoute}
 				fill="none"
-				stroke="var(--grid)"
+				stroke="var(--spatial-last-move)"
 				stroke-width="1"
-				opacity=".3"
+				opacity=".7"
 				pointer-events="none"
 			/>{/if}
 		{#each nodes as i (i)}
 			{@const p = board[i]}{@const point = points[i]}{@const legal =
 				inspections.length === 0 && moves.some((m) => m.to === i)}{@const size =
 				26 * Math.min(1.15, point.scale)}
+			{@const marked = inspections.find((item) => item.target === i)}
+			{@const targetColor = marked?.attackers.some(
+				(from) => marked.position[from]?.c !== marked.color
+			)
+				? 'var(--threat-attack)'
+				: marked?.attackers.length
+					? 'var(--threat-defend)'
+					: 'var(--muted)'}
 			<g data-node={i}>
 				<title
 					>{squareAddress(i)}, {p
@@ -346,29 +365,17 @@
 						: 'empty'}</title
 				>
 				<circle cx={point.x} cy={point.y} r="12" fill="transparent" />
-				{#if inspections.some((marked) => marked.target === i)}<rect
+
+				{#if marked}<circle
 						data-state="inspection-target"
 						in:fade={markerFade()}
-						x={point.x - 16}
-						y={point.y - 16}
-						width="32"
-						height="32"
-						rx="5"
-						fill="var(--board-target)"
-						fill-opacity=".08"
-						stroke="var(--spatial-selection-outline)"
-						stroke-width="1"
-						stroke-opacity=".8"
-					/>{:else if inspections.some((marked) => marked.attackers.includes(i))}<circle
-						data-state="threat-source"
 						cx={point.x}
 						cy={point.y}
-						r="15"
-						fill={p?.c === 'w' ? 'var(--threat-white)' : 'var(--threat-black)'}
-						fill-opacity=".08"
-						stroke={p?.c === 'w' ? 'var(--threat-white)' : 'var(--threat-black)'}
+						r={p ? 12 : 3}
+						fill={p ? 'none' : targetColor}
+						stroke={p ? targetColor : 'none'}
 						stroke-width="1"
-						stroke-opacity=".7"
+						opacity=".95"
 					/>{/if}
 				{#if selected === i && inspections.length === 0}<circle
 						data-state="selected"
@@ -387,7 +394,7 @@
 						in:fade={markerFade()}
 						cx={point.x}
 						cy={point.y}
-						r={p ? 14 : 4}
+						r={p ? 14 : 3}
 						fill={p ? 'none' : 'var(--spatial-destination)'}
 						opacity=".8"
 						stroke={p ? 'var(--spatial-destination)' : 'none'}
@@ -399,8 +406,8 @@
 						cy={point.y}
 						r={i === lastMove.to ? 14 : 4}
 						fill="none"
-						stroke="var(--game-secondary)"
-						stroke-opacity=".55"
+						stroke="var(--spatial-last-move)"
+						stroke-opacity=".8"
 						stroke-width="1"
 					/>{/if}
 				{#if focusMove && (i === focusMove.from || i === focusMove.to)}<circle
@@ -455,8 +462,7 @@
 <style>
 	.space-svg > line,
 	.space-svg > path,
-	.space-svg [data-node] > circle,
-	.space-svg [data-node] > rect {
+	.space-svg [data-node] > circle {
 		vector-effect: non-scaling-stroke;
 	}
 	.space-svg > line,

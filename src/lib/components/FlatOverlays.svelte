@@ -3,12 +3,18 @@
 	import type { ThreatInspection } from '$lib/chess/threats';
 	import { onMount } from 'svelte';
 	import Piece from './Piece.svelte';
+	import type { Board } from '$lib/chess';
+	const id = $props.id();
+	const arrowId = id + '-threat-arrow',
+		maskId = id + '-pieces';
 	let {
 		root,
+		board,
 		motion,
 		inspections = []
 	}: {
 		root: HTMLElement;
+		board: Board;
 		motion: PieceMotion | null;
 		inspections?: ThreatInspection[];
 	} = $props();
@@ -66,34 +72,60 @@
 				}).join(' ')
 			: ''
 	);
+	function segment(from: number, to: number) {
+		const a = boxes[from],
+			b = boxes[to],
+			dx = b.x - a.x,
+			dy = b.y - a.y,
+			length = Math.hypot(dx, dy) || 1;
+		const start = Math.min(a.cellWidth * 0.34, 27, length * 0.25),
+			end = Math.min(board[to] ? b.cellWidth * 0.34 : 7, board[to] ? 27 : 7, length * 0.25);
+		return {
+			x1: a.x + (dx * start) / length,
+			y1: a.y + (dy * start) / length,
+			x2: b.x - (dx * end) / length,
+			y2: b.y - (dy * end) / length
+		};
+	}
 </script>
 
 {#if boxes.length}
 	<svg class="overlay" viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
 		<defs
 			><marker
-				id="flat-threat-arrow"
+				id={arrowId}
 				viewBox="0 0 10 10"
 				refX="9"
 				refY="5"
-				markerWidth="3"
-				markerHeight="3"
+				markerUnits="userSpaceOnUse"
+				markerWidth="8"
+				markerHeight="8"
 				orient="auto"><path d="M0 0L10 5L0 10Z" fill="context-stroke" /></marker
-			></defs
+			><mask id={maskId} maskUnits="userSpaceOnUse" x="0" y="0" {width} {height}>
+				<rect x="0" y="0" {width} {height} fill="white" />
+				{#each board as piece, i (i)}{#if piece}<circle
+							cx={boxes[i].x}
+							cy={boxes[i].y}
+							r={Math.min(24, boxes[i].cellWidth * 0.29)}
+							fill="black"
+						/>{/if}{/each}
+			</mask></defs
 		>
-		{#if inspections.length}{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}<line
-						x1={boxes[from].x}
-						y1={boxes[from].y}
-						x2={boxes[marked.target].x}
-						y2={boxes[marked.target].y}
-						stroke={marked.position[from]?.c === 'w'
-							? 'var(--threat-white)'
-							: 'var(--threat-black)'}
-						class="threat-arrow"
-						stroke-width="10"
-						opacity=".48"
-						marker-end="url(#flat-threat-arrow)"
-					/>{/each}{/each}{/if}
+		{#if inspections.length}
+			<g mask={`url(#${maskId})`}>
+				{#each inspections as marked (marked.target)}{#each marked.attackers as from (from)}
+						<line
+							{...segment(from, marked.target)}
+							class="threat-arrow"
+							stroke={marked.position[from]?.c === marked.color
+								? 'var(--threat-defend)'
+								: 'var(--threat-attack)'}
+							stroke-width={marked.target === inspections.at(-1)?.target ? 2.5 : 1.5}
+							marker-end={`url(#${arrowId})`}
+						/>
+					{/each}{/each}
+			</g>
+		{/if}
 		{#if motion && point}<path
 				d={route}
 				fill="none"
@@ -114,9 +146,14 @@
 
 <style>
 	.threat-arrow {
+		vector-effect: non-scaling-stroke;
+	}
+	.threat-arrow {
 		stroke-linecap: butt;
 	}
 	.overlay {
+		--threat-attack: #681e32;
+		--threat-defend: #12394d;
 		position: absolute;
 		inset: 0;
 		width: 100%;
