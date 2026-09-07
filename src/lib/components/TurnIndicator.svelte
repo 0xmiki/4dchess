@@ -1,9 +1,18 @@
 <script lang="ts">
-	let { text, turn, label }: { text: string; turn: 'w' | 'b'; label?: string } = $props();
+	import Spinner from './Spinner.svelte';
+	let {
+		text,
+		turn,
+		label,
+		pending = false
+	}: { text: string; turn: 'w' | 'b'; label?: string; pending?: boolean } = $props();
 </script>
 
 <p class="turn-indicator" role="status" aria-label={label ?? text}>
-	<span class:black={turn === 'b'} aria-hidden="true"></span>{text}
+	{#if pending}<Spinner label="Confirming move" />{:else}<span
+			class:black={turn === 'b'}
+			aria-hidden="true"
+		></span>{/if}{text}
 </p>
 
 <style>

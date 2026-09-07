@@ -1,11 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import Spinner from './Spinner.svelte';
 	import type { HTMLButtonAttributes } from 'svelte/elements';
 	let {
 		children,
 		variant = 'default',
+		loading = false,
 		...attributes
-	}: HTMLButtonAttributes & { variant?: 'default' | 'primary' } = $props();
+	}: HTMLButtonAttributes & { variant?: 'default' | 'primary'; loading?: boolean } = $props();
 	let hydrated = $state(false);
 	onMount(() => {
 		hydrated = true;
@@ -14,9 +16,12 @@
 
 <button
 	{...attributes}
-	disabled={attributes.disabled || !hydrated}
+	disabled={attributes.disabled || loading || !hydrated}
+	aria-busy={loading || attributes['aria-busy']}
 	type={attributes.type ?? 'button'}
-	class:primary={variant === 'primary'}>{@render children?.()}</button
+	class:primary={variant === 'primary'}
+	>{#if loading}<span aria-hidden="true"><Spinner label="Loading" /></span
+		>{/if}{@render children?.()}</button
 >
 
 <style>

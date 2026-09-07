@@ -12,3 +12,5 @@
 - `InspectionHint` describes mouse and touch controls while keeping detailed inspection announcements available to screen readers.
 
 Keep rules and persistence outside rendering components. Shared color and spacing values live in `src/lib/design.css`; each component owns its control-specific styles.
+
+For asynchronous button actions, use `Button`'s `loading` prop. Keep the action label unchanged while the shared spinner runs; do not replace it with text such as "Confirming" or "Sending". Loading disables the button and sets `aria-busy`. Controls with an existing icon slot, such as `PlayOption`, may show the spinner in that slot instead.

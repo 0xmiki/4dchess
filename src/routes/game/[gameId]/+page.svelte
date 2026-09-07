@@ -20,7 +20,6 @@
 	import ChessBoard from '$lib/components/ChessBoard.svelte';
 	import Button from '$lib/components/Button.svelte';
 	import TurnIndicator from '$lib/components/TurnIndicator.svelte';
-	import Spinner from '$lib/components/Spinner.svelte';
 	import CopyIcon from 'phosphor-svelte/lib/CopyIcon';
 	import CheckIcon from 'phosphor-svelte/lib/CheckIcon';
 	import TrashIcon from 'phosphor-svelte/lib/TrashIcon';
@@ -237,7 +236,6 @@
 	const status = $derived.by(() => {
 		if (!game) return '';
 		if (review) return `Reviewing move ${review.ply}`;
-		if (provisional) return 'Confirming move…';
 		if (game.status === 'waiting') return 'Waiting for your friend';
 		if (game.result) {
 			if (game.result.reason === 'aborted') return 'Game aborted';
@@ -246,7 +244,7 @@
 			if (game.result.reason === 'draw') return 'Game drawn';
 			return `${game.result.winner === 'white' ? 'White' : 'Black'} wins`;
 		}
-		return `${game.turn === 'w' ? 'White' : 'Black'} ${inCheck(game.board, game.turn) ? 'in check' : 'to move'}`;
+		return `${displayTurn === 'w' ? 'White' : 'Black'} ${inCheck(liveBoard!, displayTurn) ? 'in check' : 'to move'}`;
 	});
 	onMount(() => {
 		mounted = true;
@@ -382,7 +380,10 @@
 		void submitPending();
 	}
 	let roundStarting = $state(false);
+	let dismissingRound = $state(false);
 	async function dismissRematch() {
+		if (roundStarting) return;
+		dismissingRound = true;
 		roundStarting = true;
 		try {
 			await client.mutation(api.games.dismissRematch, { gameId });
@@ -390,6 +391,7 @@
 			error = errorMessage(cause);
 		} finally {
 			roundStarting = false;
+			dismissingRound = false;
 		}
 	}
 	async function newRound() {
@@ -477,6 +479,7 @@
 						countdown === 0 &&
 						displayTurn !== (match.data.seat === 'white' ? 'w' : 'b')}
 					remaining={clockFor(match.data.seat === 'white' ? 'black' : 'white')}
+					score={score.data && score.data.games > 0 ? score.data.opponent : undefined}
 				/>
 				<ChessBoard
 					interruptibleMotion={!!game.clock}
@@ -508,6 +511,7 @@
 						countdown === 0 &&
 						displayTurn === (match.data.seat === 'white' ? 'w' : 'b')}
 					remaining={clockFor(match.data.seat)}
+					score={score.data && score.data.games > 0 ? score.data.you : undefined}
 				/>
 				<div class="board-hint"><InspectionHint /></div>
 			</div>
@@ -564,15 +568,6 @@
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
 				<GameOutcome result={game.result} side={match.data.seat} />
-				{#if score.data && score.data.games > 0}
-					<div class="room-score" aria-label="Room score">
-						<span>You <strong>{score.data.you}</strong></span>
-						<span
-							>{game.kind === 'matchmaking' ? 'Opponent' : 'Friend'}
-							<strong>{score.data.opponent}</strong></span
-						>
-					</div>
-				{/if}
 				{#if game.status === 'active'}<Button
 						disabled={sending || !!pending}
 						onclick={() => {
@@ -582,21 +577,26 @@
 					>{:else if game.status === 'finished' && !isUnscoredResult(game.result)}
 					{#if game.rematchRequestedBy === match.data.seat}
 						<p role="status" class="muted">Rematch requested</p>
-						<Button onclick={dismissRematch} disabled={roundStarting}>Cancel request</Button>
+						<Button onclick={dismissRematch} disabled={roundStarting} loading={dismissingRound}
+							>Cancel request</Button
+						>
 					{:else if game.rematchRequestedBy}
 						<p role="status">
 							{game.kind === 'matchmaking'
 								? 'Your opponent wants a rematch.'
 								: 'Your friend wants a rematch.'}
 						</p>
-						<Button variant="primary" onclick={newRound} disabled={roundStarting}
-							>{#if roundStarting}<Spinner label="Accepting rematch" />{/if}Accept rematch</Button
+						<Button
+							variant="primary"
+							onclick={newRound}
+							disabled={roundStarting}
+							loading={roundStarting && !dismissingRound}>Accept rematch</Button
 						>
-						<Button onclick={dismissRematch} disabled={roundStarting}>Decline</Button>
+						<Button onclick={dismissRematch} disabled={roundStarting} loading={dismissingRound}
+							>Decline</Button
+						>
 					{:else}
-						<Button variant="primary" onclick={newRound} disabled={roundStarting}
-							>{#if roundStarting}<Spinner label="Requesting rematch" />{/if}Rematch</Button
-						>
+						<Button variant="primary" onclick={newRound} loading={roundStarting}>Rematch</Button>
 					{/if}
 				{/if}
 				{#if game.status !== 'waiting'}<MovesPanel
@@ -606,20 +606,19 @@
 						}}
 						>{#snippet indicator()}<TurnIndicator
 								label={status}
-								turn={game.turn}
+								turn={displayTurn}
+								pending={!!provisional && !review}
 								text={review
 									? `Move ${review.ply}`
-									: provisional
-										? 'Confirming…'
-										: game.status === 'waiting'
-											? 'Waiting for friend'
-											: game.status === 'finished'
-												? 'Game over'
-												: ownTurn
-													? 'Your turn'
-													: game.kind === 'matchmaking'
-														? 'Opponent’s turn'
-														: 'Friend’s turn'}
+									: game.status === 'waiting'
+										? 'Waiting for friend'
+										: game.status === 'finished'
+											? 'Game over'
+											: displayTurn === (match.data.seat === 'white' ? 'w' : 'b')
+												? 'Your turn'
+												: game.kind === 'matchmaking'
+													? 'Opponent’s turn'
+													: 'Friend’s turn'}
 							/>{/snippet}<MoveHistory
 							{gameId}
 							board={liveBoard!}
@@ -632,7 +631,7 @@
 						/></MovesPanel
 					>{/if}
 				{#if game.status === 'finished'}<button class="leave-match" onclick={leave}
-						>Leave room</button
+						>Back to play</button
 					>{/if}
 			</aside>
 		</div>
@@ -654,8 +653,7 @@
 	<div class="row">
 		<Button onclick={() => deleteDialog.close()} disabled={sending}>Keep challenge</Button><Button
 			onclick={cancel}
-			disabled={sending}
-			>{#if sending}<Spinner label="Deleting challenge" />{/if}Delete challenge</Button
+			loading={sending}>Delete challenge</Button
 		>
 	</div>
 </Modal>
@@ -665,7 +663,7 @@
 	<div class="row">
 		<Button onclick={() => resignDialog.close()} disabled={sending}>Keep playing</Button><Button
 			onclick={resign}
-			disabled={sending}>{sending ? 'Confirming…' : 'Resign game'}</Button
+			loading={sending}>Resign game</Button
 		>
 	</div>
 </Modal>
@@ -712,18 +710,6 @@
 	}
 	.board-stage > :global(.player-profile) {
 		margin-inline: var(--space-3);
-	}
-	.room-score {
-		display: flex;
-		justify-content: space-between;
-		gap: 16px;
-		color: var(--muted);
-		font-size: 14px;
-	}
-	.room-score strong {
-		color: var(--text);
-		font-variant-numeric: tabular-nums;
-		margin-left: 8px;
 	}
 	.delete-room {
 		display: flex;

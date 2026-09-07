@@ -75,10 +75,8 @@
 			{:else}<p>
 					This challenge has no open seat. Players who already joined can return to their room.
 				</p>{/if}
-			<Button variant="primary" onclick={join} disabled={busy}
-				>{#if busy}<Spinner label="Accepting challenge" />{/if}{preview.data.availableSeat
-					? 'Accept challenge'
-					: 'Return to room'}</Button
+			<Button variant="primary" onclick={join} loading={busy}
+				>{preview.data.availableSeat ? 'Accept challenge' : 'Return to room'}</Button
 			>
 		{/if}
 		{#if error}<p class="error" role="alert">{error}</p>{/if}

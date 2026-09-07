@@ -27,13 +27,22 @@
 		{ value: 'untimed' as const, label: 'Untimed' }
 	];
 
-	let seat = $state<'white' | 'black'>('white'),
+	let seat = $state<'white' | 'black' | 'random'>('random'),
 		busy = $state(false),
 		error = $state('');
 	let requestId: string | null = null;
+	let assignedSeat: 'white' | 'black' | null = null;
+	function chooseSeat(): 'white' | 'black' {
+		return seat === 'random'
+			? crypto.getRandomValues(new Uint8Array(1))[0] % 2 === 0
+				? 'white'
+				: 'black'
+			: seat;
+	}
 	$effect(() => {
 		void selectedTime;
 		requestId = null;
+		assignedSeat = null;
 	});
 	let ready = $state(false),
 		resuming = $state(true),
@@ -96,29 +105,39 @@
 				const stored = sessionStorage.getItem('fourfold-create');
 				if (stored && !requestId) {
 					const pending = JSON.parse(stored);
+					const savedSeat =
+						pending.assignedSeat === 'white' || pending.assignedSeat === 'black'
+							? pending.assignedSeat
+							: seat !== 'random'
+								? seat
+								: null;
 					if (
 						pending.seat === seat &&
 						pending.timeControl === selectedTime &&
 						typeof pending.requestId === 'string' &&
-						/^[a-f0-9-]{36}$/i.test(pending.requestId)
-					)
+						/^[a-f0-9-]{36}$/i.test(pending.requestId) &&
+						savedSeat
+					) {
 						requestId = pending.requestId;
+						assignedSeat = savedSeat;
+					}
 				}
 			} catch {
 				/* Storage is optional. */
 			}
 			requestId ??= crypto.randomUUID();
+			assignedSeat ??= chooseSeat();
 			try {
 				sessionStorage.setItem(
 					'fourfold-create',
-					JSON.stringify({ requestId, seat, timeControl: selectedTime })
+					JSON.stringify({ requestId, seat, assignedSeat, timeControl: selectedTime })
 				);
 			} catch {
 				/* The live request still has a stable ID. */
 			}
 			const client = await guestClient();
 			const created = await client.mutation(api.games.create, {
-				seat,
+				seat: assignedSeat,
 				requestId,
 				timeControl: selectedTime
 			});
@@ -153,10 +172,13 @@
 				<section class="play-options" aria-label="Choose how to play">
 					<div class="play-settings">
 						<SideToggle
+							allowRandom
+							iconOnly
 							bind:value={seat}
 							disabled={busy || !ready}
 							onchange={() => {
 								requestId = null;
+								assignedSeat = null;
 							}}
 						/>
 						<SelectField
@@ -188,7 +210,7 @@
 						mode="computer"
 						disabled={!ready || busy}
 						onclick={() =>
-							goto(resolve(seat === 'white' ? '/computer?side=w' : '/computer?side=b'))}
+							goto(resolve(chooseSeat() === 'white' ? '/computer?side=w' : '/computer?side=b'))}
 					/>
 					<a class="learn" href={resolve('/how-to-play')}
 						><BookOpenIcon size={20} aria-hidden="true" />Learn how to play</a
@@ -214,6 +236,7 @@
 <style>
 	.play-settings {
 		display: flex;
+		flex-wrap: wrap;
 		justify-content: space-between;
 		align-items: end;
 		gap: var(--space-4);
@@ -291,7 +314,7 @@
 			justify-items: center;
 			gap: var(--space-5);
 			min-height: 0;
-			padding-top: var(--space-5);
+			padding-top: var(--space-8);
 		}
 		.play-options {
 			gap: var(--space-4);

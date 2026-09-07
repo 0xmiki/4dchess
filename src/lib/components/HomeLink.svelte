@@ -143,10 +143,8 @@
 		<Button onclick={() => dialog.close()} disabled={busy}
 			>{room ? (waiting ? 'Keep challenge' : 'Stay here') : 'Dismiss'}</Button
 		>
-		{#if room && room.game.status !== 'finished'}<Button onclick={confirm} disabled={busy}
-				>{#if busy}<Spinner label="Confirming" />{/if}{waiting
-					? 'Delete challenge'
-					: 'Resign and go home'}</Button
+		{#if room && room.game.status !== 'finished'}<Button onclick={confirm} loading={busy}
+				>{waiting ? 'Delete challenge' : 'Resign and go home'}</Button
 			>{:else if room}<Button
 				onclick={async () => {
 					leaveMatch();

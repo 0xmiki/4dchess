@@ -141,9 +141,7 @@
 		<p>{timeControls[search?.timeControl ?? control].label} · Unrated · Random side</p>
 		{#if error}<p class="error" role="alert">{error}</p>
 			<Button onclick={start} disabled={cancelling}>Retry</Button>{/if}
-		<Button onclick={cancelSearch} disabled={cancelling}
-			>{#if cancelling}<Spinner label="Cancelling search" />{/if}Cancel search</Button
-		>
+		<Button onclick={cancelSearch} loading={cancelling}>Cancel search</Button>
 	</section>
 </main>
 
