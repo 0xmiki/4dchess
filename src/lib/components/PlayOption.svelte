@@ -3,38 +3,54 @@
 	import Spinner from './Spinner.svelte';
 	import UsersIcon from 'phosphor-svelte/lib/UsersIcon';
 	import CpuIcon from 'phosphor-svelte/lib/CpuIcon';
+	import ShuffleIcon from 'phosphor-svelte/lib/ShuffleIcon';
 	import ArrowRightIcon from 'phosphor-svelte/lib/ArrowRightIcon';
 	let {
 		mode,
 		onclick,
 		disabled = false,
-		busy = false
+		busy = false,
+		primary,
+		description
 	}: {
-		mode: 'friend' | 'computer';
+		mode: 'friend' | 'computer' | 'matchmaking';
+		primary?: boolean;
+		description?: string;
 		onclick: () => void;
 		disabled?: boolean;
 		busy?: boolean;
 	} = $props();
 	const friend = $derived(mode === 'friend');
+	const title = $derived(
+		friend ? 'Play with friend' : mode === 'computer' ? 'Play computer' : 'Find opponent'
+	);
 </script>
 
-<div class="play-option" class:friend>
+<div class="play-option" class:primary={primary ?? friend}>
 	<Button
-		variant={friend ? 'primary' : 'default'}
+		variant={(primary ?? friend) ? 'primary' : 'default'}
 		{onclick}
 		disabled={disabled || busy}
 		aria-busy={busy}
-		aria-label={friend ? 'Play with friend' : 'Play computer'}
+		aria-label={title}
 	>
 		<span class="mode-icon" aria-hidden="true"
-			>{#if friend}<UsersIcon size={30} weight="fill" />{:else}<CpuIcon
+			>{#if friend}<UsersIcon
+					size={30}
+					weight="fill"
+				/>{:else if mode === 'matchmaking'}<ShuffleIcon size={30} />{:else}<CpuIcon
 					size={30}
 					weight="duotone"
 				/>{/if}</span
 		>
 		<span class="copy"
-			><strong>{friend ? 'Play with friend' : 'Play computer'}</strong><span
-				>{friend ? 'Share a link. No account needed.' : 'Choose from four difficulty levels.'}</span
+			><strong>{title}</strong><span
+				>{description ??
+					(friend
+						? 'Share a link. No account needed.'
+						: mode === 'computer'
+							? 'Four difficulty levels. Untimed.'
+							: 'Play someone online. Random side.')}</span
 			></span
 		>
 		<span class="arrow" aria-hidden="true"
@@ -70,7 +86,7 @@
 		font-weight: 450;
 		color: var(--muted);
 	}
-	.friend .copy > span {
+	.primary .copy > span {
 		color: var(--on-accent);
 	}
 	.mode-icon {

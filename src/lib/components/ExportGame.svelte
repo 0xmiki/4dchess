@@ -11,6 +11,7 @@
 					moves: readonly Move[];
 					result: ExportResult;
 					date?: number;
+					timeControl?: string;
 					white?: string;
 					black?: string;
 			  }>
@@ -18,6 +19,7 @@
 					moves: readonly Move[];
 					result: ExportResult;
 					date?: number;
+					timeControl?: string;
 					white?: string;
 					black?: string;
 			  };

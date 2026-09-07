@@ -4,6 +4,7 @@
 	import Spinner from '$lib/components/Spinner.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 	import HomeLink from '$lib/components/HomeLink.svelte';
+	import { timeControlLabel } from '$lib/online/time-controls';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { useQuery } from 'convex-svelte';
@@ -68,7 +69,7 @@
 					</div>
 					<div>
 						<dt>Time control</dt>
-						<dd>Untimed</dd>
+						<dd>{timeControlLabel(preview.data.timeControl)}</dd>
 					</div>
 				</dl>
 			{:else}<p>

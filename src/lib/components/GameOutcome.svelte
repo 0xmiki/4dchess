@@ -44,16 +44,19 @@
 		<p>
 			{result?.reason === 'checkmate'
 				? 'Checkmate.'
-				: result?.reason === 'resignation'
-					? 'Game ended by resignation.'
-					: ((
-							{
-								stalemate: 'Stalemate.',
-								repetition: 'Draw by repetition.',
-								fiftyMove: 'Draw by the 50-move rule.',
-								bareKings: 'Only kings remain.'
-							} as Record<string, string>
-						)[result?.detail ?? ''] ?? 'Game drawn.')}
+				: result?.reason === 'timeout'
+					? 'Game ended on time.'
+					: result?.reason === 'resignation'
+						? 'Game ended by resignation.'
+						: ((
+								{
+									stalemate: 'Stalemate.',
+									repetition: 'Draw by repetition.',
+									fiftyMove: 'Draw by the 50-move rule.',
+									bareKings: 'Only kings remain.',
+									timeoutNoMaterial: 'Draw on time. The player with time remaining has only a king.'
+								} as Record<string, string>
+							)[result?.detail ?? ''] ?? 'Game drawn.')}
 		</p>
 	</section>{/if}
 {#if confetti}<div class="confetti" aria-hidden="true">

@@ -5,9 +5,13 @@ import { internalMutation, mutation, query } from './_generated/server';
 import type { Doc, Id } from './_generated/dataModel';
 import { currentParticipant, ensureParticipant, participantName } from './lib/participants';
 import { invitationToken, tokenHash, validateRequestId } from './lib/invitations';
-import { color, gameDocument, seatReceipt } from './lib/validators';
+import { color, gameDocument, seatReceipt, timeControl } from './lib/validators';
 import { requireMatch, validateRevision } from './lib/access';
 import { limitCreation } from './lib/limits';
+
+import { initialClock, stoppedClock, START_DELAY_MS } from '../lib/online/time-controls';
+import { armClock, cancelClockJob, endIfTimedOut } from './lib/clocks';
+import { requireOnlineAvailable, settleWaitingSearches } from './lib/online_availability';
 
 const WAITING_LIFETIME_MS = 24 * 60 * 60 * 1000;
 
@@ -25,7 +29,8 @@ export const resign = mutation({
 			)
 			.unique();
 		if (prior) {
-			if (prior.expectedRevision !== expectedRevision) throw new ConvexError('REQUEST_ID_REUSED');
+			if (prior.kind !== 'resign' || prior.expectedRevision !== expectedRevision)
+				throw new ConvexError('REQUEST_ID_REUSED');
 			return prior.revision;
 		}
 		if (
@@ -39,10 +44,26 @@ export const resign = mutation({
 			throw new ConvexError('REQUEST_ID_REUSED');
 		if (game.status !== 'active') throw new ConvexError('MATCH_NOT_ACTIVE');
 		if (game.revision !== expectedRevision) throw new ConvexError('STALE_REVISION');
+		const now = Date.now();
+		if (await endIfTimedOut(ctx, game, now)) {
+			await ctx.db.insert('commands', {
+				gameId,
+				participantId: participant._id,
+				requestId,
+				expectedRevision,
+				revision: game.revision + 1,
+				kind: 'resign'
+			});
+			return game.revision + 1;
+		}
+		await cancelClockJob(ctx, game.timeoutJob);
 		const revision = game.revision + 1;
 		await ctx.db.patch(gameId, {
 			status: 'finished',
 			result: { reason: 'resignation', winner: seat === 'white' ? 'black' : 'white' },
+			...(game.clock
+				? { clock: stoppedClock(game.clock, game.turn, now), timeoutJob: undefined }
+				: {}),
 			finishedAt: Date.now(),
 			revision
 		});
@@ -65,14 +86,14 @@ function seatOf(game: Doc<'games'>, participantId: Id<'participants'>) {
 }
 
 export const create = mutation({
-	args: { requestId: v.string(), seat: color },
+	args: { requestId: v.string(), seat: color, timeControl: v.optional(timeControl) },
 	returns: v.object({
 		gameId: v.id('games'),
 		token: v.string(),
 		seat: color,
 		expiresAt: v.number()
 	}),
-	handler: async (ctx, { requestId, seat }) => {
+	handler: async (ctx, { requestId, seat, timeControl = 'untimed' }) => {
 		validateRequestId(requestId);
 		const participantId = await ensureParticipant(ctx);
 		const existing = await ctx.db
@@ -81,7 +102,11 @@ export const create = mutation({
 				q.eq('creatorParticipantId', participantId).eq('createRequestId', requestId)
 			)
 			.unique();
-		if (existing && seatOf(existing, participantId) !== seat)
+		if (
+			existing &&
+			(seatOf(existing, participantId) !== seat ||
+				(existing.timeControl ?? 'untimed') !== timeControl)
+		)
 			throw new ConvexError('REQUEST_ID_REUSED');
 		const token = await invitationToken(participantId, requestId);
 		if (existing) return { gameId: existing._id, token, seat, expiresAt: existing.expiresAt };
@@ -112,6 +137,8 @@ export const create = mutation({
 			positionKeys: [...initial.positionKeys],
 			creatorParticipantId: participantId,
 			createRequestId: requestId,
+			timeControl,
+			...(timeControl === 'untimed' ? {} : { clock: initialClock(timeControl, null) }),
 			whiteParticipantId: seat === 'white' ? participantId : null,
 			blackParticipantId: seat === 'black' ? participantId : null,
 			status: 'waiting',
@@ -134,6 +161,7 @@ export const previewInvite = query({
 		status: v.union(v.literal('waiting'), v.literal('active'), v.literal('finished')),
 		availableSeat: v.union(color, v.null()),
 		challengerName: v.string(),
+		timeControl: v.optional(timeControl),
 		expiresAt: v.number()
 	}),
 	handler: async (ctx, { token }) => {
@@ -151,6 +179,7 @@ export const previewInvite = query({
 		return {
 			gameId: game._id,
 			challengerName: await participantName(ctx, game.creatorParticipantId),
+			timeControl: game.timeControl,
 			status: game.status,
 			availableSeat: available
 				? game.whiteParticipantId
@@ -189,8 +218,20 @@ export const join = mutation({
 			throw new ConvexError('INVITE_CLOSED');
 		if (Date.now() >= invite.expiresAt) throw new ConvexError('INVITE_EXPIRED');
 		const seat: 'white' | 'black' = game.whiteParticipantId ? 'black' : 'white';
+		await requireOnlineAvailable(ctx, [game.creatorParticipantId, participantId]);
+		await settleWaitingSearches(ctx, game.creatorParticipantId, game._id);
+		await settleWaitingSearches(ctx, participantId, game._id);
+		const clock =
+			game.timeControl && game.timeControl !== 'untimed'
+				? initialClock(game.timeControl, Date.now() + START_DELAY_MS)
+				: undefined;
+		const timeoutJob = clock
+			? await armClock(ctx, game._id, clock, 'w', game.revision + 1)
+			: undefined;
 		await ctx.db.patch(game._id, {
 			[seat === 'white' ? 'whiteParticipantId' : 'blackParticipantId']: participantId,
+			clock,
+			timeoutJob,
 			status: 'active',
 			startedAt: Date.now(),
 			purgeAt: null,
@@ -316,11 +357,19 @@ export const rematch = mutation({
 			return current._id;
 		}
 		if (current.rematchRequestedBy === seat) return current._id;
+		await requireOnlineAvailable(ctx, [current.whiteParticipantId, current.blackParticipantId]);
 		await limitCreation(ctx, participant._id);
 		const initial = createInitialState(),
 			round = (current.round ?? 1) + 1;
+		const clock =
+			current.timeControl && current.timeControl !== 'untimed'
+				? initialClock(current.timeControl, Date.now() + START_DELAY_MS)
+				: undefined;
 		const gameId = await ctx.db.insert('games', {
 			...initial,
+			timeControl: current.timeControl,
+			kind: current.kind,
+			clock,
 			board: [...initial.board],
 			positionKeys: [...initial.positionKeys],
 			roomRootId: root._id,
@@ -336,6 +385,10 @@ export const rematch = mutation({
 			finishedAt: null,
 			purgeAt: null
 		});
+		await settleWaitingSearches(ctx, current.whiteParticipantId, gameId);
+		await settleWaitingSearches(ctx, current.blackParticipantId, gameId);
+		if (clock)
+			await ctx.db.patch(gameId, { timeoutJob: await armClock(ctx, gameId, clock, 'w', 0) });
 		await ctx.db.patch(root._id, {
 			currentGameId: gameId,
 			roomRootId: root._id,

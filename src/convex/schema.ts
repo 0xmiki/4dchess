@@ -1,8 +1,21 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
-import { gameFields, moveFields } from './lib/validators';
+import { gameFields, moveFields, timedControl } from './lib/validators';
 
 export default defineSchema({
+	matchSearches: defineTable({
+		participantId: v.id('participants'),
+		requestId: v.string(),
+		timeControl: timedControl,
+		status: v.union(v.literal('waiting'), v.literal('matched'), v.literal('cancelled')),
+		expiresAt: v.number(),
+		gameId: v.optional(v.id('games'))
+	})
+		.index('by_participant_request', ['participantId', 'requestId'])
+		.index('by_participant_status', ['participantId', 'status'])
+		.index('by_participant', ['participantId'])
+		.index('by_pool_expiry', ['timeControl', 'status', 'expiresAt'])
+		.index('by_expiry', ['expiresAt']),
 	rateLimits: defineTable({
 		key: v.string(),
 		tokens: v.number(),
@@ -31,6 +44,8 @@ export default defineSchema({
 		.index('by_room_round', ['roomRootId', 'round'])
 		.index('by_white', ['whiteParticipantId'])
 		.index('by_black', ['blackParticipantId'])
+		.index('by_white_status', ['whiteParticipantId', 'status'])
+		.index('by_black_status', ['blackParticipantId', 'status'])
 		.index('by_status_expiry', ['status', 'expiresAt'])
 		.index('by_creator_status', ['creatorParticipantId', 'status', 'expiresAt'])
 		.index('by_purge', ['purgeAt'])
@@ -58,6 +73,7 @@ export default defineSchema({
 		requestId: v.string(),
 		expectedRevision: v.number(),
 		revision: v.number(),
-		kind: v.literal('resign')
+		kind: v.union(v.literal('resign'), v.literal('moveTimeout')),
+		move: v.optional(v.object({ from: v.number(), to: v.number() }))
 	}).index('by_request', ['gameId', 'participantId', 'requestId'])
 });

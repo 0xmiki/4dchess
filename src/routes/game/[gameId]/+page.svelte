@@ -29,6 +29,13 @@
 	import MoveHistory from '$lib/components/MoveHistory.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 	import InspectionHint from '$lib/components/InspectionHint.svelte';
+	import {
+		remainingTime,
+		clockAfterMove,
+		timeControlLabel,
+		timeControls,
+		type ClockState
+	} from '$lib/online/time-controls';
 	const auth = useAuth(),
 		client = useConvexClient();
 	const roomId = $derived((page.params.roomId ?? page.params.gameId) as Id<'games'>);
@@ -77,7 +84,17 @@
 		moves.sort((a, b) => a.ply - b.ply);
 		if (moves.length !== snapshot.ply || moves.some((move, index) => move.ply !== index + 1))
 			throw new Error('Incomplete history');
-		return { moves, result: snapshot.result, date: snapshot._creationTime };
+		return {
+			moves,
+			result: snapshot.result,
+			date: snapshot._creationTime,
+			timeControl:
+				snapshot.timeControl && snapshot.timeControl !== 'untimed'
+					? `${timeControls[snapshot.timeControl].initialMs / 1000}+${timeControls[snapshot.timeControl].incrementMs / 1000}`
+					: '-',
+			white: match.data?.players.white ?? undefined,
+			black: match.data?.players.black ?? undefined
+		};
 	}
 	type Pending = {
 		gameId: Id<'games'>;
@@ -97,12 +114,75 @@
 		baseRevision: number;
 		state: GameState;
 		move: HistoryMove;
+		clock?: ClockState;
 	} | null>(null);
 	let review = $state<{ board: Board; ply: number; move: HistoryMove | null } | null>(null);
 	const provisional = $derived(
 		game && optimistic && game.status === 'active' && game.revision === optimistic.baseRevision
 			? optimistic
 			: null
+	);
+	let clockNow = $state(Date.now()),
+		clockSynced = $state(false);
+	onMount(() => {
+		let alive = true,
+			sampling = false,
+			serverAnchor = Date.now(),
+			localAnchor = performance.now();
+		const sample = async () => {
+			if (sampling) return;
+			sampling = true;
+			const sent = performance.now();
+			try {
+				const server = await client.query(api.clocks.time, { sample: crypto.randomUUID() });
+				if (!alive) return;
+				const received = performance.now();
+				serverAnchor = server + (received - sent) / 2;
+				localAnchor = received;
+				clockNow = serverAnchor;
+				clockSynced = true;
+			} catch {
+				/* Keep the monotonic clock estimate while disconnected. */
+			} finally {
+				sampling = false;
+			}
+		};
+		void sample();
+		const timer = setInterval(() => {
+			clockNow = serverAnchor + performance.now() - localAnchor;
+		}, 100);
+		const refresh = setInterval(sample, 30000);
+		window.addEventListener('online', sample);
+		return () => {
+			alive = false;
+			clearInterval(timer);
+			clearInterval(refresh);
+			window.removeEventListener('online', sample);
+		};
+	});
+	const displayClock = $derived(provisional?.clock ?? game?.clock);
+	const displayTurn = $derived(provisional?.state.turn ?? game?.turn ?? 'w');
+	function clockFor(side: 'white' | 'black') {
+		return displayClock
+			? remainingTime(
+					displayClock,
+					displayTurn,
+					side,
+					clockSynced ? clockNow : (displayClock.turnStartedAt ?? clockNow)
+				)
+			: undefined;
+	}
+	const clockReady = $derived(
+		!game?.clock ||
+			(clockSynced &&
+				game.clock.turnStartedAt !== null &&
+				clockNow >= game.clock.turnStartedAt &&
+				remainingTime(game.clock, game.turn, game.turn === 'w' ? 'white' : 'black', clockNow) > 0)
+	);
+	const countdown = $derived(
+		game?.clock?.turnStartedAt && clockSynced
+			? Math.max(0, Math.ceil((game.clock.turnStartedAt - clockNow) / 1000))
+			: 0
 	);
 	const liveBoard = $derived(provisional?.state.board ?? game?.board);
 	const livePly = $derived(provisional?.state.ply ?? game?.ply ?? 0);
@@ -124,6 +204,10 @@
 				gameId: game._id,
 				baseRevision: game.revision,
 				state: applied.state,
+				clock:
+					game.clock && game.timeControl && game.timeControl !== 'untimed'
+						? clockAfterMove(game.clock, game.turn, game.timeControl, clockNow)
+						: undefined,
 				move: {
 					...request.move,
 					ply: applied.state.ply,
@@ -272,7 +356,8 @@
 			review ||
 			!online ||
 			game.status !== 'active' ||
-			!ownTurn
+			!ownTurn ||
+			!clockReady
 		)
 			return;
 		const participantId =
@@ -386,9 +471,13 @@
 					name={match.data.players?.[match.data.seat === 'white' ? 'black' : 'white'] ??
 						'Waiting for friend'}
 					side={match.data.seat === 'white' ? 'black' : 'white'}
-					active={game.status === 'active' && !ownTurn}
+					active={game.status === 'active' &&
+						countdown === 0 &&
+						displayTurn !== (match.data.seat === 'white' ? 'w' : 'b')}
+					remaining={clockFor(match.data.seat === 'white' ? 'black' : 'white')}
 				/>
 				<ChessBoard
+					interruptibleMotion={!!game.clock}
 					showHint={false}
 					gameKey={gameId}
 					board={review?.board ?? liveBoard!}
@@ -404,6 +493,7 @@
 						ownTurn &&
 						!sending &&
 						!pending &&
+						clockReady &&
 						online}
 					lastMove={review ? review.move : (provisional?.move ?? latest.data ?? null)}
 					onmove={move}
@@ -412,11 +502,22 @@
 					name={match.data.players?.[match.data.seat] ?? 'Guest'}
 					side={match.data.seat}
 					own
-					active={game.status === 'active' && ownTurn}
+					active={game.status === 'active' &&
+						countdown === 0 &&
+						displayTurn === (match.data.seat === 'white' ? 'w' : 'b')}
+					remaining={clockFor(match.data.seat)}
 				/>
 				<div class="board-hint"><InspectionHint /></div>
 			</div>
 			<aside class="game-info">
+				<p class="time-control">
+					{timeControlLabel(game.timeControl)}{game.kind === 'matchmaking' ? ' · Unrated' : ''}
+				</p>
+				{#if game.status === 'active' && game.clock && (!clockSynced || countdown > 0)}<p
+						role="status"
+					>
+						{clockSynced ? `Starting in ${countdown}` : 'Synchronizing clock…'}
+					</p>{/if}
 				{#if game.status === 'waiting'}
 					<div class="invite-panel stack">
 						<TurnIndicator label={status} turn={game.turn} text="Waiting for friend" />
@@ -464,7 +565,10 @@
 				{#if score.data && score.data.games > 0}
 					<div class="room-score" aria-label="Room score">
 						<span>You <strong>{score.data.you}</strong></span>
-						<span>Friend <strong>{score.data.opponent}</strong></span>
+						<span
+							>{game.kind === 'matchmaking' ? 'Opponent' : 'Friend'}
+							<strong>{score.data.opponent}</strong></span
+						>
 					</div>
 				{/if}
 				{#if game.status === 'active'}<Button
@@ -478,7 +582,11 @@
 						<p role="status" class="muted">Rematch requested</p>
 						<Button onclick={dismissRematch} disabled={roundStarting}>Cancel request</Button>
 					{:else if game.rematchRequestedBy}
-						<p role="status">Your friend wants a rematch.</p>
+						<p role="status">
+							{game.kind === 'matchmaking'
+								? 'Your opponent wants a rematch.'
+								: 'Your friend wants a rematch.'}
+						</p>
 						<Button variant="primary" onclick={newRound} disabled={roundStarting}
 							>{#if roundStarting}<Spinner label="Accepting rematch" />{/if}Accept rematch</Button
 						>
@@ -507,7 +615,9 @@
 												? 'Game over'
 												: ownTurn
 													? 'Your turn'
-													: 'Friend’s turn'}
+													: game.kind === 'matchmaking'
+														? 'Opponent’s turn'
+														: 'Friend’s turn'}
 							/>{/snippet}<MoveHistory
 							{gameId}
 							board={liveBoard!}
@@ -559,6 +669,30 @@
 </Modal>
 
 <style>
+	@media (max-width: 850px) {
+		.board-stage :global(.workspace) {
+			display: contents;
+		}
+		.board-stage :global(.workspace > section[aria-label='Chess boards']) {
+			grid-row: 2;
+		}
+		.board-stage :global(.workspace > .spatial) {
+			grid-row: 5;
+		}
+		.board-stage > :global(.player-profile) {
+			grid-row: 3;
+		}
+		.board-stage > :global(.player-profile:first-child) {
+			grid-row: 1;
+		}
+		.board-stage .board-hint {
+			grid-row: 4;
+		}
+	}
+	.time-control {
+		font-size: 13px;
+		color: var(--muted);
+	}
 	.board-hint {
 		padding-inline: var(--space-3);
 		--hint-color: color-mix(in srgb, var(--muted) 70%, var(--page));

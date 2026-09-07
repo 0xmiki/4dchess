@@ -1,6 +1,13 @@
 import { v } from 'convex/values';
 
 export const color = v.union(v.literal('white'), v.literal('black'));
+export const timedControl = v.union(v.literal('3+2'), v.literal('5+3'), v.literal('10+5'));
+export const timeControl = v.union(timedControl, v.literal('untimed'));
+export const clockState = v.object({
+	whiteMs: v.number(),
+	blackMs: v.number(),
+	turnStartedAt: v.union(v.number(), v.null())
+});
 export const piece = v.object({
 	t: v.union(
 		v.literal('p'),
@@ -14,7 +21,10 @@ export const piece = v.object({
 });
 export const result = v.union(
 	v.null(),
-	v.object({ reason: v.union(v.literal('checkmate'), v.literal('resignation')), winner: color }),
+	v.object({
+		reason: v.union(v.literal('checkmate'), v.literal('resignation'), v.literal('timeout')),
+		winner: color
+	}),
 	v.object({
 		reason: v.literal('draw'),
 		winner: v.null(),
@@ -22,7 +32,8 @@ export const result = v.union(
 			v.literal('stalemate'),
 			v.literal('repetition'),
 			v.literal('fiftyMove'),
-			v.literal('bareKings')
+			v.literal('bareKings'),
+			v.literal('timeoutNoMaterial')
 		)
 	}),
 	v.object({
@@ -32,6 +43,10 @@ export const result = v.union(
 	})
 );
 export const gameFields = {
+	kind: v.optional(v.union(v.literal('friend'), v.literal('matchmaking'))),
+	timeControl: v.optional(timeControl),
+	clock: v.optional(clockState),
+	timeoutJob: v.optional(v.id('_scheduled_functions')),
 	roomRootId: v.optional(v.id('games')),
 	currentGameId: v.optional(v.id('games')),
 	round: v.optional(v.number()),
@@ -55,6 +70,7 @@ export const gameFields = {
 	purgeAt: v.optional(v.union(v.number(), v.null()))
 };
 export const moveFields = {
+	clock: v.optional(clockState),
 	gameId: v.id('games'),
 	participantId: v.id('participants'),
 	requestId: v.string(),

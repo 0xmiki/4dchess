@@ -1,11 +1,19 @@
 <script lang="ts">
 	import UserIcon from 'phosphor-svelte/lib/UserIcon';
+	import GameClock from './GameClock.svelte';
 	let {
 		name,
 		side,
 		own = false,
-		active = false
-	}: { name: string; side: 'white' | 'black'; own?: boolean; active?: boolean } = $props();
+		active = false,
+		remaining
+	}: {
+		name: string;
+		side: 'white' | 'black';
+		own?: boolean;
+		active?: boolean;
+		remaining?: number;
+	} = $props();
 </script>
 
 <div class="player-profile" class:active aria-label={`${name}, ${side}${own ? ', you' : ''}`}>
@@ -13,7 +21,7 @@
 	<div class="identity">
 		<strong>{name}</strong><span>{own ? 'You · ' : ''}{side === 'white' ? 'White' : 'Black'}</span>
 	</div>
-	<!-- Future clocks belong at the trailing edge of this player row. -->
+	{#if remaining !== undefined}<GameClock {remaining} running={active} {side} />{/if}
 </div>
 
 <style>

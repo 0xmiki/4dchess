@@ -21,6 +21,7 @@
 	let {
 		gameKey = '',
 		showHint = true,
+		interruptibleMotion = false,
 		practice = false,
 		goalSquare = null,
 		onplace,
@@ -33,6 +34,7 @@
 	}: {
 		gameKey?: string;
 		showHint?: boolean;
+		interruptibleMotion?: boolean;
 		practice?: boolean;
 		goalSquare?: number | null;
 		onplace?: (square: number) => void;
@@ -193,7 +195,11 @@
 			onplace(i);
 			return;
 		}
-		if (!enabled || motion) return;
+		if (!enabled) return;
+		if (motion) {
+			if (!interruptibleMotion) return;
+			stopMotion();
+		}
 		const move = moves.find((m) => m.to === i);
 		if (move) {
 			selected = null;
@@ -276,7 +282,7 @@
 											data-square={i}
 											aria-label={`${squareAddress(i)}, ${p ? `${p.c === 'w' ? 'White' : 'Black'} ${pieceNames[p.t]}` : 'empty'}${legal ? ', legal destination' : ''}${goalSquare === i ? ', lesson destination' : ''}`}
 											aria-pressed={selected === i}
-											aria-disabled={!enabled || !!motion}
+											aria-disabled={!enabled || (!!motion && !interruptibleMotion)}
 											title="Right-click, long-press, or Shift+F10 to inspect threats"
 											oncontextmenu={(e) => {
 												e.preventDefault();

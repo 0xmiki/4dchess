@@ -33,6 +33,9 @@ export async function guestClient() {
 }
 
 const messages: Record<string, string> = {
+	ALREADY_PLAYING: 'Finish your current online game before finding another opponent.',
+	SEARCH_NOT_FOUND: 'This search is no longer available. Start a new search.',
+	GAME_NOT_STARTED: 'The game is starting. Wait for the countdown.',
 	MATCH_NOT_FINISHED: 'Finish the current game before starting another.',
 	ROOM_CLOSED: 'This room is closed. Create another room to play.',
 	GUEST_RATE_LIMITED:

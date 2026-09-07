@@ -160,9 +160,10 @@ test('computer play uses no backend, supports threat inspection, animation, expo
 	});
 	await page.goto(process.env.E2E_BASE_URL!);
 	const choices = page.getByRole('region', { name: 'Choose how to play' }).getByRole('button');
-	await expect(choices).toHaveCount(2);
-	await expect(choices.nth(0)).toHaveAccessibleName('Play with friend');
-	await expect(choices.nth(1)).toHaveAccessibleName('Play computer');
+	await expect(choices).toHaveCount(3);
+	await expect(choices.nth(0)).toHaveAccessibleName('Find opponent');
+	await expect(choices.nth(1)).toHaveAccessibleName('Play with friend');
+	await expect(choices.nth(2)).toHaveAccessibleName('Play computer');
 	await page.getByRole('button', { name: 'Play computer', exact: true }).click();
 	await expect(page.getByLabel('White to move', { exact: true })).toBeVisible();
 	const before = await page.evaluate(() => localStorage.getItem('fourfold-computer-v1'));
@@ -768,5 +769,97 @@ test('home logo requires resignation in an active friend game and permits a zero
 	} finally {
 		await whiteContext.close();
 		await blackContext.close();
+	}
+});
+
+test('matchmaking pairs guests, starts clocks, and keeps them running across reloads', async ({
+	browser
+}) => {
+	const aContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+	const bContext = await browser.newContext({
+		viewport: { width: 390, height: 844 },
+		isMobile: true,
+		hasTouch: true
+	});
+	const a = await aContext.newPage(),
+		b = await bContext.newPage();
+	try {
+		await a.goto(process.env.E2E_BASE_URL!);
+		await a.getByRole('button', { name: 'Find opponent', exact: true }).click();
+		await expect(a.getByRole('heading', { name: 'Finding an opponent' })).toBeVisible();
+		await b.goto(process.env.E2E_BASE_URL!);
+		await b.getByRole('button', { name: 'Find opponent', exact: true }).click();
+		await expect(a).toHaveURL(/\/room\//);
+		await expect(b).toHaveURL(a.url());
+		await expect(a.getByRole('timer')).toHaveCount(2);
+		await expect(b.getByRole('timer')).toHaveCount(2);
+		const white = (await a.locator('.player-profile').last().getAttribute('aria-label'))!.endsWith(
+			'white, you'
+		)
+			? a
+			: b;
+		const black = white === a ? b : a;
+		await move(white, 0, 32);
+		await expect(black.getByRole('timer', { name: 'Black clock', exact: true })).toHaveClass(
+			/running/
+		);
+		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
+		await move(black, 63, 31);
+		await black.reload();
+		await expect(black.getByRole('timer', { name: 'White clock', exact: true })).toHaveClass(
+			/running/
+		);
+		await expect(black.locator('[data-ply]')).toHaveCount(2);
+		await a.screenshot({ path: '/tmp/timed-match-desktop.png' });
+		await b.screenshot({ path: '/tmp/timed-match-mobile.png', fullPage: true });
+		await black.getByRole('button', { name: 'Resign', exact: true }).click();
+		await black.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+	} finally {
+		await aContext.close();
+		await bContext.close();
+	}
+});
+
+test('a searching guest can cancel through the home logo without getting requeued', async ({
+	page
+}) => {
+	await page.goto(process.env.E2E_BASE_URL!);
+	await page.getByRole('button', { name: 'Find opponent', exact: true }).click();
+	await expect(page.getByRole('heading', { name: 'Finding an opponent' })).toBeVisible();
+	await page.getByRole('link', { name: '4D chess home', exact: true }).first().click();
+	await expect(page.getByRole('button', { name: 'Find opponent', exact: true })).toBeVisible();
+	await page.reload();
+	await expect(page.getByRole('button', { name: 'Find opponent', exact: true })).toBeVisible();
+});
+
+test('friend challenges can remain untimed while matchmaking requires a clock', async ({
+	browser
+}) => {
+	const first = await browser.newContext(),
+		second = await browser.newContext();
+	const a = await first.newPage(),
+		b = await second.newPage();
+	try {
+		await a.goto(process.env.E2E_BASE_URL!);
+		await a.getByRole('combobox', { name: 'Time', exact: true }).click();
+		await a.getByRole('option', { name: 'Untimed', exact: true }).click();
+		await expect(a.getByRole('button', { name: 'Find opponent', exact: true })).toBeDisabled();
+		await a.getByRole('button', { name: 'Play with friend', exact: true }).click();
+		const url = await a.getByRole('textbox', { name: 'Invitation link' }).inputValue();
+		await b.goto(url);
+		await expect(b.locator('.challenge-details')).toContainText('Untimed');
+		await b.getByRole('button', { name: 'Accept challenge', exact: true }).click();
+		await expect(a.getByLabel('White to move', { exact: true })).toBeVisible();
+		await expect(a.getByRole('timer')).toHaveCount(0);
+		await expect(b.getByRole('timer')).toHaveCount(0);
+		await move(a, 0, 32);
+		await expect(b.getByLabel('Black to move', { exact: true })).toBeVisible();
+		await b.getByRole('button', { name: 'Resign', exact: true }).click();
+		await b.getByRole('button', { name: 'Resign game', exact: true }).click();
+		await expect(a.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
+	} finally {
+		await first.close();
+		await second.close();
 	}
 });

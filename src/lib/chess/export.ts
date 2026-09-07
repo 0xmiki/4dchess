@@ -14,6 +14,7 @@ export function exportGame(
 		result?: ExportResult;
 		date?: number;
 		site?: string;
+		timeControl?: string;
 	} = {}
 ) {
 	let state = createInitialState();
@@ -55,7 +56,8 @@ export function exportGame(
 		Variant: '4D Chess',
 		Board: '4x4x2x2',
 		Notation: '4D-LAN',
-		Rules: 'fourfold-v1'
+		Rules: 'fourfold-v1',
+		...(options.timeControl ? { TimeControl: options.timeControl } : {})
 	};
 	const quote = (value: string) =>
 		value

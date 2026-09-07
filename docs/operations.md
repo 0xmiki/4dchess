@@ -37,3 +37,13 @@ The internal status query reports the maintenance heartbeat, the last expiry/del
 Convex records function errors and stack traces in its deployment logs. Cloudflare observability is enabled; SvelteKit server failures add a `request_failure` event with a reference ID, route template, and status. No external log-stream subscription or email notification service is configured.
 
 If the heartbeat is stale or failures appear, inspect the deployment logs and scheduled-function dashboard first. Check quotas, missing environment variables, and deployment errors before manually rerunning maintenance. The status query and maintenance functions are internal and require deployment access; they are not player-facing endpoints.
+
+## Clocks and matchmaking
+
+Online clocks use server timestamps. Each accepted move deducts elapsed time and adds its increment in the same transaction as the move; retries reuse the original receipt. One scheduled timeout job is armed for the current turn. Pending jobs are cancelled on the next move or resignation, and revision checks make stale jobs harmless. Client clocks use a periodically calibrated server-time estimate and continue through disconnections.
+
+A 30-second search lease is renewed every eight seconds while the search page is visible. The queue reads at most 16 live candidates from the selected time-control index. Pairing and cancellation share transactional state, so a cancellation that loses the race returns the created game. Friend joins and rematches also settle any pending searches into that game. Active-game indexes prevent one participant from being assigned to two games concurrently.
+
+Search creation is limited to 12 requests per minute per participant; heartbeats are limited to 20 per minute. Cancelled and matched receipts are retained for at least one day. Search cleanup removes expired receipts in bounded batches. These are initial operating limits, not measured capacity claims.
+
+For this variant, flagging loses unless the opponent has only a king, in which case the game is drawn. Clocks start after a three-second countdown. No client-reported lag allowance or manual pause is supported in this release.

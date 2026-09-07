@@ -16,11 +16,25 @@
 	import BookOpenIcon from 'phosphor-svelte/lib/BookOpenIcon';
 	import GithubLogoIcon from 'phosphor-svelte/lib/GithubLogoIcon';
 	import XLogoIcon from 'phosphor-svelte/lib/XLogoIcon';
+	import SelectField from '$lib/components/SelectField.svelte';
+	import { timeControls, type TimeControl } from '$lib/online/time-controls';
+	let selectedTime = $state<TimeControl>('10+5');
+	const timeOptions = [
+		...Object.entries(timeControls).map(([value, control]) => ({
+			value: value as TimeControl,
+			label: control.label
+		})),
+		{ value: 'untimed' as const, label: 'Untimed' }
+	];
 
 	let seat = $state<'white' | 'black'>('white'),
 		busy = $state(false),
 		error = $state('');
 	let requestId: string | null = null;
+	$effect(() => {
+		void selectedTime;
+		requestId = null;
+	});
 	let ready = $state(false),
 		resuming = $state(true),
 		resumeError = $state(false);
@@ -30,6 +44,14 @@
 		resumeError = false;
 		const active = activeMatch();
 		if (!active || active.kind === 'computer') {
+			try {
+				if (localStorage.getItem('fourfold-search')) {
+					await goto(resolve('/match'), { replaceState: true });
+					return;
+				}
+			} catch {
+				/* Storage is optional. */
+			}
 			resuming = false;
 			ready = true;
 			return;
@@ -76,6 +98,7 @@
 					const pending = JSON.parse(stored);
 					if (
 						pending.seat === seat &&
+						pending.timeControl === selectedTime &&
 						typeof pending.requestId === 'string' &&
 						/^[a-f0-9-]{36}$/i.test(pending.requestId)
 					)
@@ -86,12 +109,19 @@
 			}
 			requestId ??= crypto.randomUUID();
 			try {
-				sessionStorage.setItem('fourfold-create', JSON.stringify({ requestId, seat }));
+				sessionStorage.setItem(
+					'fourfold-create',
+					JSON.stringify({ requestId, seat, timeControl: selectedTime })
+				);
 			} catch {
 				/* The live request still has a stable ID. */
 			}
 			const client = await guestClient();
-			const created = await client.mutation(api.games.create, { seat, requestId });
+			const created = await client.mutation(api.games.create, {
+				seat,
+				requestId,
+				timeControl: selectedTime
+			});
 			try {
 				sessionStorage.removeItem('fourfold-create');
 			} catch {
@@ -121,14 +151,37 @@
 				<Button variant="primary" onclick={resumeMatch}>Retry</Button>
 			</div>{:else}<div class="home-play">
 				<section class="play-options" aria-label="Choose how to play">
-					<SideToggle
-						bind:value={seat}
-						disabled={busy || !ready}
-						onchange={() => {
-							requestId = null;
-						}}
+					<div class="play-settings">
+						<SideToggle
+							bind:value={seat}
+							disabled={busy || !ready}
+							onchange={() => {
+								requestId = null;
+							}}
+						/>
+						<SelectField
+							label="Time"
+							options={timeOptions}
+							bind:value={selectedTime}
+							disabled={!ready || busy}
+						/>
+					</div>
+					<PlayOption
+						mode="matchmaking"
+						primary
+						disabled={!ready || busy || selectedTime === 'untimed'}
+						description={selectedTime === 'untimed'
+							? 'Choose a clock to find an opponent.'
+							: 'Play someone online. Random side.'}
+						onclick={() => goto(resolve(`/match?time=${encodeURIComponent(selectedTime)}`))}
 					/>
-					<PlayOption mode="friend" {busy} disabled={!ready || busy} onclick={create} />
+					<PlayOption
+						mode="friend"
+						primary={false}
+						{busy}
+						disabled={!ready || busy}
+						onclick={create}
+					/>
 
 					{#if error}<p class="error" role="alert">{error}</p>{/if}
 					<PlayOption
@@ -159,6 +212,12 @@
 	</main>{/if}
 
 <style>
+	.play-settings {
+		display: flex;
+		justify-content: space-between;
+		align-items: end;
+		gap: var(--space-4);
+	}
 	.home-shell {
 		max-width: 1800px;
 		min-height: 100svh;

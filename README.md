@@ -20,13 +20,14 @@ Four connected boards, one game. Move across all four dimensions and see the sam
 ## What it does
 
 - Play a friend through an invitation link. No signup form, just a guest name and a seat.
+- Find an online opponent in unrated matchmaking with 3+2, 5+3, or 10+5 clocks.
 - Request a rematch, swap colors, and keep score in the same room.
 - Play the computer at four difficulty levels. Games run locally and can be resumed later.
 - Learn through interactive lessons, or place pieces anywhere in free practice.
 - Inspect attacks on either side, review previous moves, and export a game as 4D PGN.
 - Use a mouse, keyboard, or touch screen. Both board views stay in sync.
 
-Games are untimed. Ratings, public matchmaking, and spectators are not implemented.
+Friend challenges support timed and untimed games. Computer play remains untimed. Registered accounts, ratings, and spectators are not implemented.
 
 ## Controls
 

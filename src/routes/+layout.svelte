@@ -40,6 +40,6 @@
 	/>
 </svelte:head>
 <HomeLink corner />
-{#if page.route.id?.startsWith('/game/') || page.route.id?.startsWith('/room/') || page.route.id === '/join'}<AuthProvider
+{#if page.route.id?.startsWith('/game/') || page.route.id?.startsWith('/room/') || page.route.id === '/join' || page.route.id === '/match'}<AuthProvider
 		>{@render children()}</AuthProvider
 	>{:else}{@render children()}{/if}
