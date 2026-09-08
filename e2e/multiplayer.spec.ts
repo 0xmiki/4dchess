@@ -1538,6 +1538,14 @@ test('motion effects can be disabled mid-move and stay off after reload', async 
 	await page.getByRole('button', { name: 'Across boards', exact: true }).click();
 	await expect(page.locator('#game [data-animation]')).toHaveCount(0);
 	await toggle.check();
+	await expect(toggle).toBeChecked();
+	await expect(toggle).toHaveCSS('appearance', 'auto');
+	await expect
+		.poll(() => page.evaluate(() => localStorage.getItem('4dchess-motion-effects')))
+		.toBe('on');
+	await toggle.uncheck();
+	await toggle.check();
+	await expect(toggle).toBeChecked();
 	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await expect(toggle).toBeDisabled();
 	await expect(toggle).not.toBeChecked();

@@ -38,6 +38,10 @@
 		cursor: pointer;
 	}
 	input {
+		appearance: auto;
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
 		accent-color: var(--game-primary);
 	}
 	input:focus-visible {
