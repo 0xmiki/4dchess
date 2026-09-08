@@ -171,26 +171,26 @@
 				<Button variant="primary" onclick={resumeMatch}>Retry</Button>
 			</div>{:else}<div class="home-play">
 				<div class="play-column">
+					<div class="play-settings">
+						<SideToggle
+							allowRandom
+							iconOnly
+							bind:value={seat}
+							disabled={busy || !ready}
+							onchange={() => {
+								requestId = null;
+								assignedSeat = null;
+							}}
+						/>
+						<SelectField
+							label="Time"
+							hideLabel
+							options={timeOptions}
+							bind:value={selectedTime}
+							disabled={!ready || busy}
+						/>
+					</div>
 					<section class="play-options" aria-label="Choose how to play">
-						<div class="play-settings">
-							<SideToggle
-								allowRandom
-								iconOnly
-								bind:value={seat}
-								disabled={busy || !ready}
-								onchange={() => {
-									requestId = null;
-									assignedSeat = null;
-								}}
-							/>
-							<SelectField
-								label="Time"
-								hideLabel
-								options={timeOptions}
-								bind:value={selectedTime}
-								disabled={!ready || busy}
-							/>
-						</div>
 						<PlayOption
 							mode="matchmaking"
 							primary
@@ -215,13 +215,13 @@
 							onclick={() =>
 								goto(resolve(chooseSeat() === 'white' ? '/computer?side=w' : '/computer?side=b'))}
 						/>
-						<a class="learn" href={resolve('/how-to-play')}
-							><BookOpenIcon size={20} aria-hidden="true" />Learn how to play</a
-						>
 					</section>
+					<a class="learn" href={resolve('/how-to-play')}
+						><BookOpenIcon size={20} aria-hidden="true" />Learn how to play</a
+					>
 					<a
 						class="community-button"
-						href="https://discord.gg/tyuGPQJRJ"
+						href="https://discord.gg/3hxrqHPfxE"
 						target="_blank"
 						rel="noopener noreferrer"
 					>
@@ -241,7 +241,7 @@
 				rel="noopener noreferrer"
 				aria-label="Made by miki_code on X"
 			>
-				Made by <XLogoIcon size={18} aria-hidden="true" />
+				<XLogoIcon size={18} aria-hidden="true" />
 			</a>
 		</footer>
 	</main>{/if}
@@ -253,7 +253,6 @@
 		justify-content: space-between;
 		align-items: end;
 		gap: var(--space-4);
-		padding-bottom: var(--space-2);
 	}
 	.home-shell {
 		max-width: 1800px;
@@ -371,6 +370,7 @@
 		max-width: 480px;
 		justify-self: center;
 		padding: var(--space-5);
+		padding-top: calc(var(--space-5) + var(--space-2));
 		border: 1px solid var(--line);
 		border-radius: var(--radius-panel);
 		background: var(--surface);
@@ -403,7 +403,6 @@
 		min-height: var(--control-height);
 		text-decoration: none;
 		color: var(--text);
-		margin-top: var(--space-2);
 	}
 	.learn:hover {
 		text-decoration: underline;
@@ -424,6 +423,7 @@
 		}
 		.play-options {
 			padding: var(--space-4);
+			padding-top: calc(var(--space-4) + var(--space-2));
 		}
 	}
 </style>

@@ -11,11 +11,25 @@
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 	import GameClock from '$lib/components/GameClock.svelte';
 	import GameOutcome from '$lib/components/GameOutcome.svelte';
+	import GameOverDialog from '$lib/components/GameOverDialog.svelte';
+	import type { ExportResult } from '$lib/chess/export';
+	import { tick } from 'svelte';
 	import ChessBoard from '$lib/components/ChessBoard.svelte';
 	import BoardControls from '$lib/components/BoardControls.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Piece from '$lib/components/Piece.svelte';
 	import { createInitialState, applyMove, type Move } from '$lib/chess';
+	let previewResult = $state<ExportResult>(null);
+	let previewGame = $state(0);
+	let outcomeDialog: GameOverDialog;
+	async function previewOutcome(winner: 'white' | 'black' | null) {
+		previewResult = null;
+		previewGame += 1;
+		await tick();
+		previewResult = winner
+			? { winner, reason: 'checkmate' }
+			: { winner: null, reason: 'draw', detail: 'stalemate' };
+	}
 	let side = $state<'random' | 'white' | 'black'>('random');
 	let time = $state('10+5');
 	let dialog: Modal;
@@ -240,7 +254,28 @@
 				side="black"
 			/><GameOutcome result={{ winner: null, reason: 'stalemate' }} side="white" />
 		</div>
+		<div class="sample row">
+			<Button onclick={() => previewOutcome('white')}>Preview win</Button>
+			<Button onclick={() => previewOutcome('black')}>Preview loss</Button>
+			<Button onclick={() => previewOutcome(null)}>Preview draw</Button>
+			<Button onclick={() => outcomeDialog?.show()} disabled={!previewResult}>Reopen result</Button>
+		</div>
+		<GameOverDialog
+			bind:this={outcomeDialog}
+			result={previewResult}
+			side="white"
+			gameKey={`brand-${previewGame}`}
+		>
+			<Button
+				variant="primary"
+				onclick={() => {
+					previewResult = null;
+				}}>New game</Button
+			>
+			<Button onclick={() => previewOutcome('white')}>Rematch</Button>
+		</GameOverDialog>
 	</section>
+
 	<section id="sounds">
 		<div class="section-heading">
 			<h2>Game sounds</h2>
