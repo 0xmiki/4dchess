@@ -1,0 +1,93 @@
+[
+  {
+    "id": "capture",
+    "durationMs": 467,
+    "peakDb": -3.21,
+    "rmsDb": -31.64,
+    "levelChangeDb": -0.67
+  },
+  {
+    "id": "castle",
+    "durationMs": 337,
+    "peakDb": -2.69,
+    "rmsDb": -30.2,
+    "levelChangeDb": -0.18
+  },
+  {
+    "id": "check",
+    "durationMs": 419,
+    "peakDb": -8.17,
+    "rmsDb": -31.86,
+    "levelChangeDb": -0.8
+  },
+  {
+    "id": "checkmate",
+    "durationMs": 837,
+    "peakDb": -3.49,
+    "rmsDb": -26.41,
+    "levelChangeDb": 0.38
+  },
+  {
+    "id": "end",
+    "durationMs": 359,
+    "peakDb": -3.49,
+    "rmsDb": -23.4,
+    "levelChangeDb": 0.5
+  },
+  {
+    "id": "illegal",
+    "durationMs": 277,
+    "peakDb": -13.17,
+    "rmsDb": -27.8,
+    "levelChangeDb": -1.3
+  },
+  {
+    "id": "low-time",
+    "durationMs": 781,
+    "peakDb": -3.31,
+    "rmsDb": -30.13,
+    "levelChangeDb": -1.36
+  },
+  {
+    "id": "move",
+    "durationMs": 194,
+    "peakDb": -2.74,
+    "rmsDb": -28.12,
+    "levelChangeDb": 0.24
+  },
+  {
+    "id": "notify",
+    "durationMs": 230,
+    "peakDb": -13.22,
+    "rmsDb": -24.86,
+    "levelChangeDb": -0.8
+  },
+  {
+    "id": "opponent",
+    "durationMs": 192,
+    "peakDb": -6.6,
+    "rmsDb": -31.9,
+    "levelChangeDb": 0.12
+  },
+  {
+    "id": "premove",
+    "durationMs": 249,
+    "peakDb": -13.14,
+    "rmsDb": -36.19,
+    "levelChangeDb": -0.28
+  },
+  {
+    "id": "promote",
+    "durationMs": 330,
+    "peakDb": -3.97,
+    "rmsDb": -30.51,
+    "levelChangeDb": -0.4
+  },
+  {
+    "id": "start",
+    "durationMs": 347,
+    "peakDb": -3.73,
+    "rmsDb": -23.25,
+    "levelChangeDb": 0.53
+  }
+]

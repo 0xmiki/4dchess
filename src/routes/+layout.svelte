@@ -1,5 +1,7 @@
 <script lang="ts">
-	import { setContext } from 'svelte';
+	import { onMount, setContext } from 'svelte';
+	import { gameSounds } from '$lib/audio/game-sounds';
+	onMount(() => gameSounds.init());
 	import { historyMotionKey, createHistoryMotion } from '$lib/history-motion';
 	setContext(historyMotionKey, createHistoryMotion());
 	import { homeRoomKey, type HomeRoomState } from '$lib/home-room';

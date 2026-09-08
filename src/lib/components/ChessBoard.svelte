@@ -15,6 +15,7 @@
 	import { pieceNames } from '$lib/pieces';
 	import SpatialBoard from './SpatialBoard.svelte';
 	import Piece from './Piece.svelte';
+	import { gameSounds } from '$lib/audio/game-sounds';
 	import InspectionHint from './InspectionHint.svelte';
 	import FlatOverlays from './FlatOverlays.svelte';
 	import { analyzeThreats, type ThreatInspection } from '$lib/chess/threats';
@@ -46,6 +47,9 @@
 		lastMove?: PresentedMove | null;
 		onmove: (move: Move) => void;
 	} = $props();
+	let landedSquare = $state<number | null>(null);
+	let landingTimer: ReturnType<typeof setTimeout> | undefined;
+	let previousGameKey = '';
 	let interactiveReady = $state(false);
 	let selected = $state<number | null>(null);
 	let pinned = $state<ThreatInspection[]>([]);
@@ -94,8 +98,19 @@
 	function stopMotion() {
 		cancelAnimationFrame(frame);
 		motion = null;
+		landedSquare = null;
+		clearTimeout(landingTimer);
 	}
 	$effect(() => {
+		if (gameKey !== previousGameKey) {
+			previousGameKey = gameKey;
+			previous = null;
+			before = null;
+			previousMove = null;
+			beforeMove = null;
+			lastAnimation = '';
+			untrack(stopMotion);
+		}
 		const current = board,
 			recent = lastMove,
 			skip = reduced;
@@ -140,9 +155,11 @@
 				const t = Math.min(1, (now - start) / duration);
 				if (t >= 1) {
 					motion = null;
+					landedSquare = transition.to;
+					landingTimer = setTimeout(() => (landedSquare = null), 350);
 					return;
 				}
-				motion = { ...transition, piece: moving, captured, progress: t * t * (3 - 2 * t) };
+				motion = { ...transition, piece: moving, captured, progress: t };
 				frame = requestAnimationFrame(tick);
 			};
 			frame = requestAnimationFrame(tick);
@@ -224,6 +241,8 @@
 			(selected === i || !board[i] || (!practice && board[i]?.c !== turn))
 		)
 			return;
+		if (selected !== null && i !== selected && (!board[i] || board[i]?.c !== turn))
+			void gameSounds.play('illegal');
 		selected = selected === i ? null : board[i] && (practice || board[i]?.c === turn) ? i : null;
 	}
 	function navigate(event: KeyboardEvent, i: number) {
@@ -238,6 +257,7 @@
 			return;
 		}
 		if (!event.key.startsWith('Arrow')) return;
+		if (!event.altKey && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) return;
 		const c = [...squareCoordinates(i)];
 		const axis = event.altKey ? 2 : 0;
 		const step = flipped ? -1 : 1;
@@ -323,8 +343,13 @@
 												>{/if}
 											{#if p}<Piece
 													piece={p}
+													selected={selected === i}
+													landed={landedSquare === i}
+													captureProgress={motion?.to === i
+														? Math.max(0, (motion.progress - 0.65) / 0.35)
+														: 0}
 													opacity={motion?.to === i
-														? 1 - Math.max(0, (motion.progress - 0.8) / 0.2)
+														? 1 - Math.max(0, (motion.progress - 0.65) / 0.35)
 														: inspection?.preview && inspection.target === i
 															? 0.65
 															: 1}
@@ -472,6 +497,15 @@
 	.cell.last.dark {
 		background: var(--board-last-dark);
 	}
+	.cell:active :global(.piece) {
+		transform: scale(0.93);
+		transition-duration: 55ms;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.cell:active :global(.piece) {
+			transform: none;
+		}
+	}
 	.cell:hover {
 		background: var(--board-hover);
 	}
@@ -486,6 +520,7 @@
 		outline: none;
 	}
 	.cell.legal::after {
+		animation: destination-in 140ms ease-out;
 		content: '';
 		position: absolute;
 		width: 20%;
@@ -505,6 +540,17 @@
 	.cell:focus-visible {
 		filter: brightness(1.25);
 		outline: none;
+	}
+	@keyframes destination-in {
+		from {
+			transform: scale(0.3);
+			opacity: 0;
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.cell.legal::after {
+			animation: none;
+		}
 	}
 	@media (max-width: 1000px) {
 		.workspace {

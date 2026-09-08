@@ -17,6 +17,9 @@
 	} from '$lib/chess';
 	import { lessons, lessonOrder, type Lesson } from '$lib/guide/lessons';
 	import ChessBoard from './ChessBoard.svelte';
+	import GameAudio from './GameAudio.svelte';
+	import SoundControls from './SoundControls.svelte';
+	let boardKey = $state(0);
 	import Button from './Button.svelte';
 	import SelectField from './SelectField.svelte';
 	let placing = $state(false),
@@ -47,6 +50,7 @@
 	const target = $derived(squareIndex(lesson.four));
 	const complete = $derived(!free && !!board[target] && board[target]?.c === 'w');
 	function reset(full = false) {
+		boardKey++;
 		placing = false;
 		board = full ? createInitialState().board : example(free ? piece : lessonOrder[step]);
 		history = [];
@@ -191,9 +195,21 @@
 					onclick={() => reset()}>Reset</button
 				>
 			</div>{/if}
+		<SoundControls />
 	</aside>
 	<div class="match-position">
+		<GameAudio
+			gameKey={String(boardKey)}
+			{board}
+			turn={lastMove && board[lastMove.to]?.c === 'w' ? 'b' : 'w'}
+			ply={history.length}
+			active
+			{lastMove}
+			seat="w"
+			announceStart={false}
+		/>
 		<ChessBoard
+			gameKey={String(boardKey)}
 			{board}
 			turn="w"
 			seat="white"

@@ -24,6 +24,8 @@
 	import { difficulties, type Difficulty, type SearchResult } from '$lib/chess/search';
 	import ComputerWorker from '$lib/chess/computer.worker.ts?worker&inline';
 	import ChessBoard from '$lib/components/ChessBoard.svelte';
+	import GameAudio from '$lib/components/GameAudio.svelte';
+	import { gameSounds } from '$lib/audio/game-sounds';
 	import Button from '$lib/components/Button.svelte';
 	import SelectField from '$lib/components/SelectField.svelte';
 	import TurnIndicator from '$lib/components/TurnIndicator.svelte';
@@ -159,6 +161,7 @@
 		const applied = applyMove(before, move);
 		if (!applied.ok) {
 			error = 'That move could not be played.';
+			void gameSounds.play('illegal');
 			return;
 		}
 		history = [
@@ -271,7 +274,18 @@
 		</div>{:else}<Button onclick={resign}>Resign</Button>{/if}{/snippet}
 <main class="shell match-shell">
 	{#if !ready}<LoadingScreen label="Loading computer game" />
-	{:else if game}<GameOverDialog
+	{:else if game}<GameAudio
+			gameKey={String(startedAt)}
+			board={game.board}
+			turn={game.turn}
+			ply={game.ply}
+			active={!result}
+			{result}
+			lastMove={history.at(-1) ?? null}
+			seat={player}
+			audible={reviewPly === null}
+		/>
+		<GameOverDialog
 			bind:this={resultDialog}
 			{result}
 			side={player === 'w' ? 'white' : 'black'}

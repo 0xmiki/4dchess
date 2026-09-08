@@ -20,6 +20,7 @@
 	} from '$lib/chess/variations';
 	import { remainingTime, timeControlLabel } from '$lib/online/time-controls';
 	import ChessBoard from './ChessBoard.svelte';
+	import GameAudio from './GameAudio.svelte';
 	import PlayerProfile from './PlayerProfile.svelte';
 	import ReconnectNotice from './ReconnectNotice.svelte';
 	import VariationHistory from './VariationHistory.svelte';
@@ -214,6 +215,16 @@
 	{:else if live.error || live.data === null}<p>This game is unavailable.</p>
 		<a href={resolve('/')}>Back to play</a>
 	{:else if game && board && turn}
+		{#if live.data}<GameAudio
+				gameKey={live.data.id}
+				board={live.data.board}
+				turn={live.data.turn}
+				ply={live.data.ply}
+				active={live.data.status === 'active'}
+				result={live.data.result}
+				lastMove={complete && !selection ? (node?.move ?? null) : null}
+				audible={!selection}
+			/>{/if}
 		<div class="match-layout">
 			<div class="match-position board-stage" class:variation>
 				<PlayerProfile

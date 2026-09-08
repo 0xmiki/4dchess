@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest';
-import { flatMotionPoint, motionDuration, spatialMotionPoint, type FlatPoint } from './motion';
+import {
+	flatMotionPoint,
+	motionDuration,
+	spatialMotionPoint,
+	piecePose,
+	type FlatPoint
+} from './motion';
 import { projectCoordinate, DEFAULT_CAMERA } from '$lib/visuals/projection';
 it('bows cross-board moves but leaves ordinary rook travel straight', () => {
 	const a: FlatPoint = {
@@ -14,13 +20,13 @@ it('bows cross-board moves but leaves ordinary rook travel straight', () => {
 	const cross = { from: 0, to: 32 };
 	expect(flatMotionPoint(a, b, cross, rook, 0, 600, 600)).toMatchObject({ x: a.x, y: a.y });
 	expect(flatMotionPoint(a, b, cross, rook, 1, 600, 600).y).toBeCloseTo(b.y);
-	expect(flatMotionPoint(a, b, cross, rook, 0.5, 600, 600).x).not.toBe(a.x);
+	expect(flatMotionPoint(a, b, cross, rook, 0.5, 600, 600).y).toBeLessThan(175);
 	expect(flatMotionPoint(a, b, { from: 0, to: 4 }, rook, 0.5, 600, 600)).toMatchObject({
 		x: 50,
 		y: 175
 	});
-	expect(motionDuration(cross, rook)).toBe(1100);
-	expect(motionDuration({ from: 0, to: 4 }, rook)).toBe(650);
+	expect(motionDuration(cross, rook)).toBe(380);
+	expect(motionDuration({ from: 0, to: 4 }, rook)).toBe(240);
 });
 it('keeps the spatial curve anchored at the original squares', () => {
 	const project = (coordinate: Parameters<typeof projectCoordinate>[0]) =>
@@ -68,7 +74,7 @@ it('animates backward captures and promotions while preserving restored pieces',
 	expect(boardTransition(before, pawn, null, move)).toBeNull();
 });
 
-it('scales spatial arcs with distance and retraces them in reverse', () => {
+it('retraces plain spatial moves in reverse without adding an arc', () => {
 	const project = (coordinate: Parameters<typeof projectCoordinate>[0]) =>
 		projectCoordinate(coordinate, DEFAULT_CAMERA);
 	for (const move of [
@@ -91,5 +97,31 @@ it('scales spatial arcs with distance and retraces them in reverse', () => {
 		scale: 1
 	});
 	const tiny = spatialMotionPoint(simpleProject, { from: 0, to: 16 }, { t: 'r', c: 'w' }, 0.5);
-	expect(Math.abs(tiny.y)).toBeLessThan(2);
+	expect(tiny.y).toBe(0);
+	expect(spatialMotionPoint(simpleProject, { from: 0, to: 16 }, { t: 'n', c: 'w' }, 0.5)).toEqual(
+		tiny
+	);
+});
+
+it('warps only cross-board moves and restores the silhouette at both endpoints', () => {
+	const a = { x: 35, y: 585 },
+		b = { x: 375, y: 245 },
+		piece = { t: 'r', c: 'w' } as const;
+	const move = { from: 0, to: 48, piece, captured: null, progress: 0.5 };
+	expect(piecePose(a, b, move, 70).warp).toBeGreaterThan(0.9);
+	expect(piecePose(a, b, move, 70).warpThin).toBeLessThan(0.15);
+	expect(piecePose(a, b, { ...move, progress: 0 }, 70).warpScale).toBe(1);
+	expect(piecePose(a, b, { ...move, progress: 1 }, 70).warpThin).toBeCloseTo(1);
+	expect(piecePose(a, b, { ...move, to: 3 }, 70).warp).toBe(0);
+});
+
+it('keeps a collapsed or overlapping projection finite', () => {
+	const pose = piecePose(
+		{ x: 0, y: 0 },
+		{ x: 0, y: 0 },
+		{ from: 0, to: 32, piece: { t: 'r', c: 'w' }, captured: null, progress: 0.5 },
+		0
+	);
+	expect(Object.values(pose).every(Number.isFinite)).toBe(true);
+	expect(pose.warp).toBe(0);
 });

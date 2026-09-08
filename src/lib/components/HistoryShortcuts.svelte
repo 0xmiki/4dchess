@@ -19,7 +19,7 @@
 				document.querySelector('dialog[open], [popover]:popover-open') ||
 				(target instanceof Element &&
 					target.closest(
-						'input, textarea, select, [contenteditable="true"], [role="combobox"], [role="listbox"], [role="application"]'
+						'input, textarea, select, [contenteditable="true"], [role="combobox"], [role="listbox"], [role="application"]:not([data-history-navigation])'
 					))
 			)
 				return;

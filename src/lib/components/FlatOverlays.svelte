@@ -1,8 +1,8 @@
 <script lang="ts">
-	import { flatMotionPoint, type FlatPoint, type PieceMotion } from './motion';
+	import { type FlatPoint, type PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
 	import { onMount } from 'svelte';
-	import Piece from './Piece.svelte';
+	import PieceFlight from './PieceFlight.svelte';
 	import type { Board } from '$lib/chess';
 	const id = $props.id();
 	const arrowId = id + '-threat-arrow',
@@ -49,29 +49,6 @@
 		observer.observe(root);
 		return () => observer.disconnect();
 	});
-	const point = $derived.by(() => {
-		if (!motion || !boxes.length) return null;
-		const a = boxes[motion.from],
-			b = boxes[motion.to],
-			t = motion.progress;
-		return flatMotionPoint(a, b, motion, motion.piece, t, width, height);
-	});
-	const route = $derived(
-		motion && boxes.length
-			? Array.from({ length: 21 }, (_, i) => {
-					const p = flatMotionPoint(
-						boxes[motion.from],
-						boxes[motion.to],
-						motion,
-						motion.piece,
-						i / 20,
-						width,
-						height
-					);
-					return (i ? 'L' : 'M') + p.x + ',' + p.y;
-				}).join(' ')
-			: ''
-	);
 	function segment(from: number, to: number) {
 		const a = boxes[from],
 			b = boxes[to],
@@ -126,21 +103,12 @@
 					{/each}{/each}
 			</g>
 		{/if}
-		{#if motion && point}<path
-				d={route}
-				fill="none"
-				stroke="var(--legal-ink)"
-				stroke-width="1.5"
-				opacity=".3"
-			/><g data-animation="piece"
-				><Piece
-					onDark
-					piece={motion.piece}
-					x={point.x - point.size / 2}
-					y={point.y - point.size / 2}
-					size={point.size}
-				/></g
-			>{/if}
+		<PieceFlight
+			{motion}
+			points={boxes}
+			unit={motion ? boxes[motion.from].cellWidth : boxes[0].cellWidth}
+			size={motion ? boxes[motion.from].size : boxes[0].size}
+		/>
 	</svg>
 {/if}
 

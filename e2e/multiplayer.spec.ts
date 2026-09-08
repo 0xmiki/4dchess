@@ -488,9 +488,9 @@ test('touch inspection uses a short long-press hint without an inspection panel'
 test('demo resumes its camera after a minute without interaction', async ({ page }) => {
 	test.setTimeout(90000);
 	await page.goto(process.env.E2E_BASE_URL!);
-	for (let i = 0; i < 12; i++) await page.locator('.space-svg').press('ArrowRight');
+	for (let i = 0; i < 12; i++) await page.locator('.space-svg').press('d');
 	await page.waitForTimeout(3000);
-	await page.locator('.space-svg').press('ArrowLeft');
+	await page.locator('.space-svg').press('a');
 	const point = page.locator('.space-svg [data-node="0"] circle').first();
 	const manualX = await point.getAttribute('cx');
 	await page.waitForTimeout(58000);
@@ -1489,4 +1489,36 @@ test('mobile game controls stay reachable and results can be closed and reopened
 	await expect(result).toBeVisible();
 	await page.keyboard.press('Escape');
 	await expect(result).toBeHidden();
+});
+
+// This case uses only the local computer game; it does not create backend matches.
+test('focused tesseract reserves Left and Right for move history', async ({ page }) => {
+	await page.goto(new URL('/computer?side=w', process.env.E2E_BASE_URL!).href);
+	await move(page, 0, 32);
+	await expect
+		.poll(() =>
+			page.evaluate(() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length)
+		)
+		.toBe(2);
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(0);
+	const tesseract = page.locator('.space-svg');
+	const planes = () =>
+		tesseract.locator('polygon').evaluateAll((nodes) => nodes.map((n) => n.getAttribute('points')));
+	await tesseract.focus();
+	const original = await planes();
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('[data-ply="1"]')).toHaveAttribute('aria-current', 'step');
+	expect(await planes()).toEqual(original);
+	await page.keyboard.press('ArrowRight');
+	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
+	expect(await planes()).toEqual(original);
+	await tesseract.press('a');
+	expect(await planes()).not.toEqual(original);
+	await tesseract.press('Home');
+	expect(await planes()).toEqual(original);
+	await page.getByRole('button', { name: 'Board controls', exact: true }).click();
+	const volume = page.getByLabel('Volume', { exact: true });
+	await volume.focus();
+	await page.keyboard.press('ArrowLeft');
+	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
 });

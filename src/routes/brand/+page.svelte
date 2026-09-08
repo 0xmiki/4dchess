@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
-	import { previewEndSound } from '$lib/end-sound';
+	import { gameSounds, soundCues, soundSettings, type SoundCue } from '$lib/audio/game-sounds';
+	import GameAudio from '$lib/components/GameAudio.svelte';
+	import SoundControls from '$lib/components/SoundControls.svelte';
 	import SpeakerHighIcon from 'phosphor-svelte/lib/SpeakerHighIcon';
 	import Button from '$lib/components/Button.svelte';
 	import Logo from '$lib/components/Logo.svelte';
@@ -18,7 +20,14 @@
 	import BoardControls from '$lib/components/BoardControls.svelte';
 	import Spinner from '$lib/components/Spinner.svelte';
 	import Piece from '$lib/components/Piece.svelte';
-	import { createInitialState, applyMove, type Move } from '$lib/chess';
+	import {
+		createInitialState,
+		applyMove,
+		positionKey,
+		type Move,
+		type Piece as ChessPiece
+	} from '$lib/chess';
+	let boardKey = $state(0);
 	let previewResult = $state<ExportResult>(null);
 	let previewGame = $state(0);
 	let outcomeDialog: GameOverDialog;
@@ -26,6 +35,7 @@
 		previewResult = null;
 		previewGame += 1;
 		await tick();
+		void previewSound(winner ? 'checkmate' : 'end');
 		previewResult = winner
 			? { winner, reason: 'checkmate' }
 			: { winner: null, reason: 'draw', detail: 'stalemate' };
@@ -35,13 +45,44 @@
 	let dialog: Modal;
 	let feedback = $state('');
 	let soundFeedback = $state('');
-	async function previewSound(won: boolean) {
-		const played = await previewEndSound(won);
+	async function previewSound(cue: SoundCue) {
+		await gameSounds.unlock();
+		gameSounds.stop();
+		const played = await gameSounds.play(cue);
 		soundFeedback = played
-			? won
-				? 'Played the win sound.'
-				: 'Played the loss sound.'
-			: 'Audio is unavailable in this browser.';
+			? 'Played ' + soundCues.find(([id]) => id === cue)![1].toLowerCase() + '.'
+			: 'Audio is unavailable or muted.';
+	}
+	async function motionDemo(kind: string) {
+		const board: (ChessPiece | null)[] = Array(64).fill(null);
+		let from = 0,
+			to = 3;
+		board[12] = { t: 'k', c: 'w' };
+		board[63] = { t: 'k', c: 'b' };
+		if (kind === 'Knight hop') {
+			from = 5;
+			to = 14;
+		}
+		if (kind === 'Across boards') to = 32;
+		if (kind === 'Check') {
+			from = 48;
+			to = 51;
+		}
+		board[from] = { t: kind === 'Knight hop' ? 'n' : 'r', c: 'w' };
+		if (kind === 'Capture') board[to] = { t: 'b', c: 'b' };
+		if (kind === 'Checkmate') {
+			board.fill(null);
+			board[0] = { t: 'k', c: 'b' };
+			board[2] = { t: 'k', c: 'w' };
+			board[11] = { t: 'q', c: 'w' };
+			from = 11;
+			to = 1;
+		}
+		boardKey++;
+		last = null;
+		game = { ...createInitialState(), board, positionKeys: [positionKey(board, 'w')] };
+		await tick();
+		move({ from, to });
 	}
 	let game = $state(createInitialState());
 	let last = $state<Move | null>(null);
@@ -279,27 +320,19 @@
 	<section id="sounds">
 		<div class="section-heading">
 			<h2>Game sounds</h2>
-			<p>Sound previews only. Game audio is currently off.</p>
+			<p>The selected batch 2 sounds used in play.</p>
 		</div>
+		<SoundControls />
 		<div class="two">
-			<div class="sample sound-sample">
-				<div>
-					<h3>Win</h3>
-					<p class="muted">Preview of the win cue.</p>
-				</div>
-				<Button aria-label="Play win sound" onclick={() => previewSound(true)}
-					><SpeakerHighIcon size={20} aria-hidden="true" />Play</Button
-				>
-			</div>
-			<div class="sample sound-sample">
-				<div>
-					<h3>Loss</h3>
-					<p class="muted">Preview of the loss cue.</p>
-				</div>
-				<Button aria-label="Play loss sound" onclick={() => previewSound(false)}
-					><SpeakerHighIcon size={20} aria-hidden="true" />Play</Button
-				>
-			</div>
+			{#each soundCues as [cue, label] (cue)}<div class="sample sound-sample">
+					<h3>{label}</h3>
+					<Button
+						aria-label={'Play ' + label.toLowerCase() + ' sound'}
+						disabled={!$soundSettings.enabled}
+						onclick={() => previewSound(cue)}
+						><SpeakerHighIcon size={20} aria-hidden="true" />Play</Button
+					>
+				</div>{/each}
 		</div>
 		<p class="muted sound-feedback" role="status">{soundFeedback}</p>
 	</section>
@@ -307,10 +340,11 @@
 		<div class="section-heading">
 			<div>
 				<h2>Game</h2>
-				<p>A local board for trying selection, moves, and threat inspection.</p>
+				<p>Crisp movement, piece-specific motion, shallow warp arcs, and live game sounds.</p>
 			</div>
 			<Button
 				onclick={() => {
+					boardKey++;
 					game = createInitialState();
 					last = null;
 				}}>Reset position</Button
@@ -323,10 +357,27 @@
 						onDark
 					/>{/each}{/each}
 		</div>
-		<ChessBoard
+		<div class="row motion-demos">
+			{#each ['Rook slide', 'Knight hop', 'Across boards', 'Capture', 'Check', 'Checkmate'] as demo (demo)}<Button
+					onclick={() => motionDemo(demo)}>{demo}</Button
+				>{/each}
+		</div>
+		<GameAudio
+			gameKey={String(boardKey)}
 			board={game.board}
 			turn={game.turn}
-			seat={game.turn === 'w' ? 'white' : 'black'}
+			ply={game.ply}
+			active={!game.result}
+			result={game.result}
+			lastMove={last}
+			seat="w"
+			announceStart={false}
+		/>
+		<ChessBoard
+			gameKey={String(boardKey)}
+			board={game.board}
+			turn={game.turn}
+			seat="white"
 			enabled={!game.result}
 			lastMove={last}
 			onmove={move}
@@ -347,6 +398,10 @@
 >
 
 <style>
+	.motion-demos {
+		flex-wrap: wrap;
+		margin: 20px 0;
+	}
 	.brand-page {
 		max-width: 1280px;
 		padding: 32px 40px 64px;
@@ -506,7 +561,6 @@
 		font-size: 18px;
 		margin-bottom: 4px;
 	}
-	.sound-sample p,
 	.sound-feedback {
 		font-size: 13px;
 	}

@@ -20,6 +20,8 @@
 	import { applyMove, inCheck, type GameState, type Board, type Move } from '$lib/chess';
 	import { errorMessage } from '$lib/multiplayer';
 	import ChessBoard from '$lib/components/ChessBoard.svelte';
+	import GameAudio from './GameAudio.svelte';
+	import { gameSounds } from '$lib/audio/game-sounds';
 	import Button from '$lib/components/Button.svelte';
 	import TurnIndicator from '$lib/components/TurnIndicator.svelte';
 	import CopyIcon from 'phosphor-svelte/lib/CopyIcon';
@@ -425,6 +427,7 @@
 		} catch (cause) {
 			if (gameId === request.gameId) error = errorMessage(cause);
 			if (cause instanceof ConvexError) {
+				void gameSounds.play('illegal');
 				if (optimistic?.gameId === request.gameId) optimistic = null;
 				clearPending();
 			}
@@ -621,6 +624,21 @@
 			<a href={resolve('/')}>Return home</a>
 		</section>
 	{:else if game && match.data}
+		<GameAudio
+			gameKey={gameId}
+			board={game.board}
+			turn={game.turn}
+			ply={game.ply}
+			active={game.status === 'active' && (!game.clock || clockReady)}
+			result={game.result}
+			lastMove={latest.data ?? null}
+			seat={match.data.seat === 'white' ? 'w' : 'b'}
+			audible={!review}
+			remaining={clockSynced ? clockFor(match.data.seat) : null}
+			notification={game.rematchRequestedBy && game.rematchRequestedBy !== match.data.seat
+				? gameId + ':rematch'
+				: null}
+		/>
 		<GameOverDialog
 			bind:this={resultDialog}
 			result={game.result}

@@ -47,7 +47,7 @@
 		inspections?: ThreatInspection[];
 	} = $props();
 
-	let gesture: {
+	let gesture = $state<{
 		id: number;
 		x: number;
 		y: number;
@@ -56,7 +56,7 @@
 		moved: boolean;
 		inspected?: boolean;
 		square: number | null;
-	} | null = null;
+	} | null>(null);
 	let holdTimer: ReturnType<typeof setTimeout> | undefined;
 	onDestroy(() => clearTimeout(holdTimer));
 	const componentId = $props.id();
@@ -99,15 +99,14 @@
 		});
 	});
 	const mover = $derived(
-		motion ? spatialMotionPoint(project, motion, motion.piece, motion.progress) : null
-	);
-	const motionRoute = $derived(
 		motion
-			? Array.from({ length: 25 }, (_, i) => {
-					const p = spatialMotionPoint(project, motion, motion.piece, i / 24);
-					return (i ? 'L' : 'M') + p.x + ',' + p.y;
-				}).join(' ')
-			: ''
+			? spatialMotionPoint(
+					project,
+					motion,
+					motion.piece,
+					motion.progress ** 2 * (3 - 2 * motion.progress)
+				)
+			: null
 	);
 	const focusRoute = $derived(
 		focusMove
@@ -197,6 +196,7 @@
 			onselect(previous.square);
 	}
 	function key(event: KeyboardEvent) {
+		if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
 		if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')) {
 			event.preventDefault();
 			if (selected !== null) oninspect(selected);
@@ -206,12 +206,13 @@
 			event.preventDefault();
 			reset();
 		}
-		if (!event.key.startsWith('Arrow')) return;
+		const key = event.key.toLowerCase();
+		if (!['w', 'a', 's', 'd'].includes(key)) return;
 		event.preventDefault();
-		if (event.key === 'ArrowLeft') yaw -= 0.12;
-		if (event.key === 'ArrowRight') yaw += 0.12;
-		if (event.key === 'ArrowUp') pitch = Math.max(-1.35, pitch - 0.12);
-		if (event.key === 'ArrowDown') pitch = Math.min(1.35, pitch + 0.12);
+		if (key === 'a') yaw -= 0.12;
+		if (key === 'd') yaw += 0.12;
+		if (key === 'w') pitch = Math.max(-1.35, pitch - 0.12);
+		if (key === 's') pitch = Math.min(1.35, pitch + 0.12);
 	}
 </script>
 
@@ -221,8 +222,9 @@
 		class="space-svg"
 		viewBox="0 0 440 440"
 		role="application"
+		data-history-navigation
 		tabindex="0"
-		aria-label="Rotatable tesseract. Drag or use arrow keys to rotate. Home resets the view."
+		aria-label="Rotatable tesseract. Drag or use W A S D to rotate. Left and Right review moves. Home resets the view."
 		onpointerdown={(event) => {
 			down(event);
 		}}
@@ -350,16 +352,6 @@
 				stroke-width="1"
 				pointer-events="none"
 			/>{/if}
-		{#if showMoveTrail && motion && !focusMove}<path
-				class="motion-path"
-				marker-end={`url(#${arrowId})`}
-				d={motionRoute}
-				fill="none"
-				stroke="var(--spatial-last-move)"
-				stroke-width="1"
-				opacity=".7"
-				pointer-events="none"
-			/>{/if}
 		{#each nodes as i (i)}
 			{@const p = board[i]}{@const point = points[i]}{@const legal =
 				inspections.length === 0 && moves.some((m) => m.to === i)}{@const size =
@@ -442,7 +434,7 @@
 						y={point.y - size / 2}
 						{size}
 						opacity={motion?.to === i
-							? 1 - Math.max(0, (motion.progress - 0.8) / 0.2)
+							? 1 - Math.max(0, (motion.progress - 0.65) / 0.35)
 							: inspection?.preview && inspection.target === i
 								? 0.65
 								: 1}
@@ -456,16 +448,12 @@
 					/>{/if}
 			</g>
 		{/each}
-		{#if motion && mover}{@const size = 26 * Math.min(1.15, mover.scale)}<g
-				data-animation="spatial-piece"
-				><Piece
-					onDark
-					piece={motion.piece}
-					x={mover.x - size / 2}
-					y={mover.y - size / 2}
-					{size}
-				/></g
-			>{/if}
+		{#if motion && mover}
+			{@const size = 26 * Math.min(1.15, mover.scale)}
+			<g data-animation="spatial-piece">
+				<Piece onDark piece={motion.piece} x={mover.x - size / 2} y={mover.y - size / 2} {size} />
+			</g>
+		{/if}
 		{#if annotations}<g class="axis-gizmo"><AxisGizmo axes={orientation} x={380} y={395} /></g>{/if}
 	</svg>
 	{#if annotations}<p class="muted caption">
