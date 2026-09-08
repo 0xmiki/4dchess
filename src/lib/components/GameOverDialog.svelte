@@ -3,6 +3,7 @@
 	import type { ExportResult } from '$lib/chess/export';
 	import GameOutcome from './GameOutcome.svelte';
 	import WinFireworks from './WinFireworks.svelte';
+	import { motionAllowed } from '$lib/motion-preferences';
 	import { isUnscoredResult } from '$lib/online/outcomes';
 	import XIcon from 'phosphor-svelte/lib/XIcon';
 	let {
@@ -26,7 +27,8 @@
 		const key = result && result.reason !== 'cancellation' ? gameKey : null;
 		const wasActive = previous?.gameKey === gameKey && !previous.finished;
 		previous = { gameKey, finished: !!result };
-		if (spectator || isUnscoredResult(result) || result?.winner !== side) celebrating = false;
+		if (!$motionAllowed || spectator || isUnscoredResult(result) || result?.winner !== side)
+			celebrating = false;
 		if (!key) {
 			dialog?.close();
 			shown = null;
@@ -35,7 +37,12 @@
 			shown = key;
 			if (dialog.open) dialog.close();
 			dialog.showModal();
-			celebrating = wasActive && !spectator && !isUnscoredResult(result) && result?.winner === side;
+			celebrating =
+				$motionAllowed &&
+				wasActive &&
+				!spectator &&
+				!isUnscoredResult(result) &&
+				result?.winner === side;
 		}
 	});
 	export function show() {
@@ -46,6 +53,7 @@
 <dialog
 	bind:this={dialog}
 	class="result-dialog"
+	class:motion-off={!$motionAllowed}
 	aria-label="Game result"
 	onclose={() => {
 		if (!dialog.open) celebrating = false;
@@ -105,6 +113,10 @@
 		.result-dialog[open]::backdrop {
 			animation: none;
 		}
+	}
+	.result-dialog.motion-off[open],
+	.result-dialog.motion-off[open]::backdrop {
+		animation: none;
 	}
 	.result-dialog::backdrop {
 		background: var(--overlay);

@@ -30,6 +30,7 @@
 	import SelectField from './SelectField.svelte';
 	import Spinner from './Spinner.svelte';
 	import HistoryShortcuts from './HistoryShortcuts.svelte';
+	import { playHistorySound } from '$lib/audio/history-sounds';
 	let { roomId }: { roomId: Id<'games'> } = $props();
 	type PublicGame = NonNullable<FunctionReturnType<typeof api.watch.game>>;
 	type Session = { game: PublicGame; tree: VariationTree; receivedAt: number };
@@ -154,12 +155,16 @@
 			node?.children.map((id) => tree!.nodes.get(id)!).find((n) => n.live) ??
 			(node?.children[0] ? tree?.nodes.get(node.children[0]) : undefined);
 		if (child) {
+			if (child.move) void playHistorySound(child.move, child.state.board);
 			if (child.live && sameRound && complete && child.id === tree?.mainline.at(-1)) returnLive();
 			else choose(child.id);
 		} else if (selection) returnLive();
 	}
 	function previous() {
-		if (node?.parent) choose(node.parent);
+		if (node?.parent) {
+			if (node.move) void playHistorySound(node.move, node.state.board);
+			choose(node.parent);
+		}
 	}
 	function clock(side: 'white' | 'black') {
 		if (!game?.clock) return undefined;
@@ -354,9 +359,7 @@
 							aria-label="Previous move"
 							aria-keyshortcuts="ArrowLeft"
 							disabled={!node?.parent}
-							onclick={() => {
-								if (node?.parent) choose(node.parent);
-							}}>‹</button
+							onclick={previous}>‹</button
 						>
 						<button onclick={returnLive} disabled={!selection}>Live</button>
 						<button

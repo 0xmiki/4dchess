@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
+	import { motionAllowed } from '$lib/motion-preferences';
 	import { SvelteSet } from 'svelte/reactivity';
 	import type { Board, Color } from '$lib/chess';
 	import type { PresentedMove } from './motion';
@@ -53,10 +54,13 @@
 			clearTimeout(moveTimer);
 			if (moveTimer) timers.delete(moveTimer);
 		}
-		const timer = setTimeout(() => {
-			timers.delete(timer);
-			void gameSounds.play(cue);
-		}, delay);
+		const timer = setTimeout(
+			() => {
+				timers.delete(timer);
+				void gameSounds.play(cue);
+			},
+			$motionAllowed ? delay : 0
+		);
 		timers.add(timer);
 		if (['move', 'opponent', 'capture', 'check', 'promote', 'checkmate', 'end'].includes(cue))
 			moveTimer = timer;

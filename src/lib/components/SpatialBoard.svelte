@@ -12,6 +12,7 @@
 	} from '$lib/chess';
 	import { pieceNames } from '$lib/pieces';
 	import Piece from './Piece.svelte';
+	import { motionAllowed } from '$lib/motion-preferences';
 	import AxisGizmo from './AxisGizmo.svelte';
 	import { spatialMotionPoint, type PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
@@ -61,12 +62,7 @@
 	onDestroy(() => clearTimeout(holdTimer));
 	const componentId = $props.id();
 	const arrowId = componentId + '-spatial-threat';
-	const markerFade = () => ({
-		duration:
-			typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
-				? 0
-				: 180
-	});
+	const markerFade = () => ({ duration: $motionAllowed ? 180 : 0 });
 	function project(coordinate: Coordinates) {
 		return projectCoordinate(coordinate, { yaw, pitch });
 	}

@@ -3,6 +3,7 @@
 	import { gameSounds, soundCues, soundSettings, type SoundCue } from '$lib/audio/game-sounds';
 	import GameAudio from '$lib/components/GameAudio.svelte';
 	import SoundControls from '$lib/components/SoundControls.svelte';
+	import MotionControls from '$lib/components/MotionControls.svelte';
 	import SpeakerHighIcon from 'phosphor-svelte/lib/SpeakerHighIcon';
 	import Button from '$lib/components/Button.svelte';
 	import Logo from '$lib/components/Logo.svelte';
@@ -357,6 +358,7 @@
 						onDark
 					/>{/each}{/each}
 		</div>
+		<MotionControls />
 		<div class="row motion-demos">
 			{#each ['Rook slide', 'Knight hop', 'Across boards', 'Capture', 'Check', 'Checkmate'] as demo (demo)}<Button
 					onclick={() => motionDemo(demo)}>{demo}</Button

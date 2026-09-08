@@ -45,13 +45,16 @@ export function motionDuration(move: Move, _piece?: Piece) {
 	void _piece;
 	return crossesBoards(move) ? 380 : 240;
 }
+export const motionStyle = {
+	maxStretch: 1.45,
+	minThickness: 0.82,
+	opacityDrop: 0.04,
+	trailLifetime: 180,
+	trailCells: 1.1
+} as const;
 export function motionProgress(progress: number, move: Move) {
 	const t = Math.max(0, Math.min(1, progress));
-	return crossesBoards(move)
-		? t < 0.5
-			? 4 * t ** 3
-			: 1 - (-2 * t + 2) ** 3 / 2
-		: 1 - (1 - t) ** 3;
+	return crossesBoards(move) ? t * t * (3 - 2 * t) : 1 - (1 - t) ** 3;
 }
 export type Point = { x: number; y: number };
 export type FlatPoint = Point & {
@@ -107,9 +110,8 @@ export function piecePose(a: Point, b: Point, motion: PieceMotion, unit: number)
 		rotation,
 		sx: 1 - stretch * 0.5,
 		sy: 1 + stretch,
-		warpScale: 1 + (Math.max(1, Math.min(4, distance / unit)) - 1) * warp,
-		warpThin: 1 - 0.94 * warp,
-		length: Math.min((unit * 170) / 70, distance * 0.42) * warp
+		warpScale: 1 + (Math.max(1, Math.min(motionStyle.maxStretch, distance / unit)) - 1) * warp,
+		warpThin: 1 - (1 - motionStyle.minThickness) * warp
 	};
 }
 export function flatMotionPoint(

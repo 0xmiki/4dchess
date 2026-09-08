@@ -3,6 +3,7 @@
 	import { matchNavigationKey, type MatchNavigation } from '$lib/match-navigation';
 	const navigation = getContext<MatchNavigation | undefined>(matchNavigationKey);
 	import HistoryShortcuts from './HistoryShortcuts.svelte';
+	import { playHistorySound } from '$lib/audio/history-sounds';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { moveNotation, type HistoryMove } from '$lib/chess/history';
 	import type { Board } from '$lib/chess';
@@ -62,7 +63,11 @@
 	function step(direction: number) {
 		const i = available.indexOf(selectedPly);
 		const next = available[i + direction];
-		if (next !== undefined) onselect(next);
+		if (next !== undefined) {
+			const move = moves.find((move) => move.ply === Math.max(selectedPly, next));
+			onselect(next);
+			if (move) void playHistorySound(move, positions.get(move.ply));
+		}
 	}
 </script>
 

@@ -16,6 +16,7 @@
 	import SpatialBoard from './SpatialBoard.svelte';
 	import Piece from './Piece.svelte';
 	import { gameSounds } from '$lib/audio/game-sounds';
+	import { initMotionPreferences, motionAllowed } from '$lib/motion-preferences';
 	import InspectionHint from './InspectionHint.svelte';
 	import FlatOverlays from './FlatOverlays.svelte';
 	import { analyzeThreats, type ThreatInspection } from '$lib/chess/threats';
@@ -54,8 +55,7 @@
 	let selected = $state<number | null>(null);
 	let pinned = $state<ThreatInspection[]>([]);
 	let inspection = $state<ThreatInspection | null>(null),
-		motion = $state<PieceMotion | null>(null),
-		reduced = $state(false);
+		motion = $state<PieceMotion | null>(null);
 	let gridRoot = $state<HTMLElement>();
 	let animatedPosition: Board | null = null;
 	let previous: Board | null = null,
@@ -77,21 +77,14 @@
 	});
 	onMount(() => {
 		interactiveReady = true;
-		const preference = matchMedia('(prefers-reduced-motion: reduce)');
-		reduced = preference.matches;
-		const changed = () => {
-			reduced = preference.matches;
-			if (reduced) stopMotion();
-		};
+		initMotionPreferences();
 		const visibility = () => {
 			if (document.hidden) stopMotion();
 		};
-		preference.addEventListener('change', changed);
 		document.addEventListener('visibilitychange', visibility);
 		return () => {
 			stopMotion();
 			clearTimeout(holdTimer);
-			preference.removeEventListener('change', changed);
 			document.removeEventListener('visibilitychange', visibility);
 		};
 	});
@@ -101,6 +94,9 @@
 		landedSquare = null;
 		clearTimeout(landingTimer);
 	}
+	$effect(() => {
+		if (!$motionAllowed) untrack(stopMotion);
+	});
 	$effect(() => {
 		if (gameKey !== previousGameKey) {
 			previousGameKey = gameKey;
@@ -113,7 +109,7 @@
 		}
 		const current = board,
 			recent = lastMove,
-			skip = reduced;
+			skip = !$motionAllowed;
 		if (current !== previous) {
 			untrack(() => {
 				if (
@@ -279,6 +275,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions (Blank board clicks dismiss annotations.) -->
 <div
 	class="workspace"
+	class:motion-off={!$motionAllowed}
 	onpointerdown={(event) => {
 		if (event.button === 0 && !(event.target as Element).closest('button,[data-node],.spatial')) {
 			selected = null;
@@ -518,6 +515,9 @@
 	}
 	.cell.threat-target {
 		outline: none;
+	}
+	.workspace.motion-off .cell.legal::after {
+		animation: none;
 	}
 	.cell.legal::after {
 		animation: destination-in 140ms ease-out;

@@ -19,6 +19,7 @@
 	import ChessBoard from './ChessBoard.svelte';
 	import GameAudio from './GameAudio.svelte';
 	import SoundControls from './SoundControls.svelte';
+	import MotionControls from './MotionControls.svelte';
 	let boardKey = $state(0);
 	import Button from './Button.svelte';
 	import SelectField from './SelectField.svelte';
@@ -196,6 +197,7 @@
 				>
 			</div>{/if}
 		<SoundControls />
+		<MotionControls />
 	</aside>
 	<div class="match-position">
 		<GameAudio

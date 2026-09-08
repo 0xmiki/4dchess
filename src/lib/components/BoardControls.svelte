@@ -2,6 +2,7 @@
 	import InfoIcon from 'phosphor-svelte/lib/InfoIcon';
 	import InspectionHint from './InspectionHint.svelte';
 	import SoundControls from './SoundControls.svelte';
+	import MotionControls from './MotionControls.svelte';
 	const id = $props.id();
 	let popup: HTMLDivElement, trigger: HTMLButtonElement;
 	let open = $state(false),
@@ -14,7 +15,7 @@
 		}
 		const bounds = trigger.getBoundingClientRect();
 		left = Math.max(12, Math.min(innerWidth - 292, bounds.right - 280));
-		top = Math.max(12, Math.min(innerHeight - 280, bounds.bottom + 8));
+		top = Math.max(12, Math.min(innerHeight - 360, bounds.bottom + 8));
 		popup.showPopover();
 	}
 </script>
@@ -46,6 +47,7 @@
 	<p>Drag the tesseract or use W A S D to rotate it. Home resets its view.</p>
 	<p>Use ← and → to review moves.</p>
 	<SoundControls />
+	<MotionControls />
 </div>
 
 <style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { get } from 'svelte/store';
+	import { initMotionPreferences, motionAllowed } from '$lib/motion-preferences';
 	import { onMount } from 'svelte';
 	import { cameraForMove, DEFAULT_CAMERA } from '$lib/visuals/projection';
 	import { demoFrame, DEMO_CAMERA_IDLE, DEMO_TIMING } from '$lib/visuals/demo-timeline';
@@ -44,7 +46,8 @@
 		return board;
 	});
 	onMount(() => {
-		const preference = matchMedia('(prefers-reduced-motion: reduce)');
+		initMotionPreferences();
+		let allowMotion = get(motionAllowed);
 		let visible = false,
 			alive = true,
 			frame = 0,
@@ -81,7 +84,7 @@
 					idle = 4000;
 					return;
 				}
-				if (preference.matches) {
+				if (!allowMotion) {
 					game = applied.state;
 					idle = 3600;
 					return;
@@ -137,7 +140,7 @@
 		}
 		const visibility = () => (document.hidden ? halt() : start());
 		const changed = () => {
-			if (preference.matches && sequence) {
+			if (!allowMotion && sequence) {
 				game = sequence.next;
 				sequence = null;
 				idle = 3600;
@@ -145,7 +148,10 @@
 			start();
 		};
 		document.addEventListener('visibilitychange', visibility);
-		preference.addEventListener('change', changed);
+		const unsubscribe = motionAllowed.subscribe((value) => {
+			allowMotion = value;
+			changed();
+		});
 		const observer = new IntersectionObserver(([entry]) => {
 			visible = entry.isIntersecting;
 			start();
@@ -156,7 +162,7 @@
 			halt();
 			observer.disconnect();
 			document.removeEventListener('visibilitychange', visibility);
-			preference.removeEventListener('change', changed);
+			unsubscribe();
 		};
 	});
 	function interact(event: PointerEvent | KeyboardEvent) {

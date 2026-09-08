@@ -103,13 +103,15 @@ it('retraces plain spatial moves in reverse without adding an arc', () => {
 	);
 });
 
-it('warps only cross-board moves and restores the silhouette at both endpoints', () => {
+it('keeps cross-board warps mild and restores the silhouette at both endpoints', () => {
 	const a = { x: 35, y: 585 },
 		b = { x: 375, y: 245 },
 		piece = { t: 'r', c: 'w' } as const;
 	const move = { from: 0, to: 48, piece, captured: null, progress: 0.5 };
 	expect(piecePose(a, b, move, 70).warp).toBeGreaterThan(0.9);
-	expect(piecePose(a, b, move, 70).warpThin).toBeLessThan(0.15);
+	expect(piecePose(a, b, move, 70).warpThin).toBeGreaterThanOrEqual(0.82);
+	expect(piecePose(a, b, move, 70).warpScale).toBeLessThanOrEqual(1.45);
+	expect(piecePose(a, b, move, 70).warpScale).toBeGreaterThan(1);
 	expect(piecePose(a, b, { ...move, progress: 0 }, 70).warpScale).toBe(1);
 	expect(piecePose(a, b, { ...move, progress: 1 }, 70).warpThin).toBeCloseTo(1);
 	expect(piecePose(a, b, { ...move, to: 3 }, 70).warp).toBe(0);

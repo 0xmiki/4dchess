@@ -1522,3 +1522,66 @@ test('focused tesseract reserves Left and Right for move history', async ({ page
 	await page.keyboard.press('ArrowLeft');
 	await expect(page.locator('[data-ply="2"]')).toHaveAttribute('aria-current', 'step');
 });
+
+// Local /brand preview only; no multiplayer backend mutations.
+test('motion effects can be disabled mid-move and stay off after reload', async ({ page }) => {
+	await page.goto(new URL('/brand', process.env.E2E_BASE_URL!).href);
+	const toggle = page.getByRole('checkbox', { name: 'Motion effects', exact: true });
+	await expect(toggle).toBeChecked();
+	await page.getByRole('button', { name: 'Across boards', exact: true }).click();
+	await expect(page.locator('#game [data-animation="piece"]')).toHaveCount(1);
+	await expect(page.locator('#game [data-warp-streak]')).toHaveCount(0);
+	await toggle.uncheck();
+	await expect(page.locator('#game [data-animation], #game [data-wake] line')).toHaveCount(0);
+	await page.reload();
+	await expect(toggle).not.toBeChecked();
+	await page.getByRole('button', { name: 'Across boards', exact: true }).click();
+	await expect(page.locator('#game [data-animation]')).toHaveCount(0);
+	await toggle.check();
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await expect(toggle).toBeDisabled();
+	await expect(toggle).not.toBeChecked();
+	await page.getByRole('button', { name: 'Across boards', exact: true }).click();
+	await expect(page.locator('#game [data-animation]')).toHaveCount(0);
+});
+
+// Local computer history only; no backend matches.
+test('history arrows and buttons play one sound per step and respect mute', async ({ page }) => {
+	await page.goto(new URL('/computer?side=w', process.env.E2E_BASE_URL!).href);
+	await move(page, 0, 32);
+	await expect
+		.poll(() =>
+			page.evaluate(() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length)
+		)
+		.toBe(2);
+	await expect(page.locator('[data-animation="piece"]')).toHaveCount(0);
+	await page.waitForTimeout(500);
+	await page.evaluate(() => {
+		document.documentElement.dataset.replaySounds = '0';
+		const start = AudioBufferSourceNode.prototype.start;
+		AudioBufferSourceNode.prototype.start = function (...args) {
+			document.documentElement.dataset.replaySounds = String(
+				Number(document.documentElement.dataset.replaySounds) + 1
+			);
+			return start.apply(this, args);
+		};
+	});
+	const sounds = () => page.evaluate(() => Number(document.documentElement.dataset.replaySounds));
+	await page.keyboard.press('ArrowLeft');
+	await expect.poll(sounds).toBe(1);
+	await page.keyboard.press('ArrowRight');
+	await expect.poll(sounds).toBe(2);
+	await page.keyboard.press('ArrowRight');
+	await page.waitForTimeout(300);
+	expect(await sounds()).toBe(2);
+	await page.getByRole('button', { name: 'Previous move', exact: true }).first().click();
+	await expect.poll(sounds).toBe(3);
+	await page.getByRole('button', { name: 'Next move', exact: true }).first().click();
+	await expect.poll(sounds).toBe(4);
+	await page.getByRole('button', { name: 'Board controls', exact: true }).click();
+	await page.getByRole('button', { name: 'Mute game sounds', exact: true }).click();
+	await page.keyboard.press('Escape');
+	await page.keyboard.press('ArrowLeft');
+	await page.waitForTimeout(500);
+	expect(await sounds()).toBe(4);
+});

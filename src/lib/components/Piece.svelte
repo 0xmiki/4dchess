@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Piece } from '$lib/chess';
+	import { motionAllowed } from '$lib/motion-preferences';
 	let {
 		piece,
 		size = '76%',
@@ -33,7 +34,10 @@
 	class:selected
 	class:landed
 	class:pressed
-	style:transform={captureProgress > 0 ? `scale(${Math.max(0, 1 - captureProgress)})` : undefined}
+	class:motion-off={!$motionAllowed}
+	style:transform={$motionAllowed && captureProgress > 0
+		? `scale(${Math.max(0, 1 - captureProgress)})`
+		: undefined}
 	style:transition={captureProgress > 0 ? 'none' : undefined}
 	{x}
 	{y}
@@ -85,6 +89,12 @@
 			transition: none;
 			transform: none;
 		}
+	}
+	.motion-off {
+		transform: none !important;
+		transition: none;
+		animation: none;
+		filter: none;
 	}
 	.white {
 		color: var(--piece-white);

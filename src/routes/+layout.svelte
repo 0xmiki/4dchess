@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onMount, setContext } from 'svelte';
 	import { gameSounds } from '$lib/audio/game-sounds';
+	import { initMotionPreferences } from '$lib/motion-preferences';
+	onMount(initMotionPreferences);
 	onMount(() => gameSounds.init());
 	import { historyMotionKey, createHistoryMotion } from '$lib/history-motion';
 	setContext(historyMotionKey, createHistoryMotion());
