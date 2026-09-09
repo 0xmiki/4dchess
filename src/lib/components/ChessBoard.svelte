@@ -70,6 +70,18 @@
 	let held = false,
 		holdTimer: ReturnType<typeof setTimeout> | undefined,
 		holdPoint: { x: number; y: number } | null = null;
+	let drag = $state<{
+		pointerId: number;
+		from: number;
+		startX: number;
+		startY: number;
+		x: number;
+		y: number;
+		size: number;
+		active: boolean;
+	} | null>(null);
+	let droppedMove: { from: number; to: number } | null = null;
+	let suppressClick = false;
 	const shown = $derived.by(() => {
 		if (motion) {
 			const visible = board.slice();
@@ -108,12 +120,14 @@
 			previousMove = null;
 			beforeMove = null;
 			lastAnimation = '';
+			droppedMove = null;
 			untrack(stopMotion);
 		}
 		const current = board,
 			recent = lastMove,
-			skip = !$motionAllowed;
-		if (current !== previous) {
+			skip = !$motionAllowed,
+			positionChanged = current !== previous;
+		if (positionChanged) {
 			untrack(() => {
 				if (
 					animatedPosition &&
@@ -132,12 +146,21 @@
 		const transition = boardTransition(before, current, recent, beforeMove);
 		if (!transition) {
 			lastAnimation = '';
+			if (positionChanged) droppedMove = null;
 			untrack(stopMotion);
 			return;
 		}
 		const key = `${gameKey}:${transition.ply ?? ''}:${transition.from}:${transition.to}:${transition.reverse}`;
 		if (key === lastAnimation) return;
 		lastAnimation = key;
+		if (positionChanged && droppedMove) {
+			const dropped = droppedMove;
+			droppedMove = null;
+			if (!transition.reverse && transition.from === dropped.from && transition.to === dropped.to) {
+				untrack(stopMotion);
+				return;
+			}
+		}
 		const moving = transition.piece,
 			captured = transition.captured;
 		untrack(() => {
@@ -188,6 +211,66 @@
 		if (holdPoint && Math.hypot(event.clientX - holdPoint.x, event.clientY - holdPoint.y) > 8)
 			clearTimeout(holdTimer);
 	}
+	function canDrag(i: number) {
+		return (
+			!onplace &&
+			enabled &&
+			!!board[i] &&
+			(practice || board[i]?.c === turn) &&
+			(!motion || interruptibleMotion)
+		);
+	}
+	function beginDrag(event: PointerEvent, i: number) {
+		hold(event, i);
+		if (event.button !== 0 || !canDrag(i)) return;
+		const cell = event.currentTarget as HTMLButtonElement;
+		cell.setPointerCapture(event.pointerId);
+		drag = {
+			pointerId: event.pointerId,
+			from: i,
+			startX: event.clientX,
+			startY: event.clientY,
+			x: event.clientX,
+			y: event.clientY,
+			size: cell.getBoundingClientRect().width,
+			active: false
+		};
+	}
+	function dragPiece(event: PointerEvent) {
+		moveHold(event);
+		if (!drag || drag.pointerId !== event.pointerId) return;
+		const active =
+			drag.active || Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) > 5;
+		if (active && !drag.active) {
+			clearTimeout(holdTimer);
+			held = false;
+			inspection = null;
+			pinned = [];
+			if (motion) stopMotion();
+			selected = drag.from;
+		}
+		drag = { ...drag, x: event.clientX, y: event.clientY, active };
+	}
+	function endDrag(event: PointerEvent, cancelled = false) {
+		clearTimeout(holdTimer);
+		if (!drag || drag.pointerId !== event.pointerId) return;
+		const finished = drag;
+		drag = null;
+		if (!finished.active) return;
+		event.preventDefault();
+		suppressClick = true;
+		setTimeout(() => (suppressClick = false));
+		if (cancelled) return;
+		const cell = document
+			.elementFromPoint(event.clientX, event.clientY)
+			?.closest<HTMLElement>('.cell[data-square]');
+		const to = Number(cell?.dataset.square);
+		const move = moves.find((candidate) => candidate.from === finished.from && candidate.to === to);
+		if (!move) return;
+		selected = null;
+		droppedMove = { from: move.from, to: move.to };
+		onmove(move);
+	}
 	const moves = $derived(
 		selected !== null && enabled
 			? practice
@@ -210,6 +293,7 @@
 		inspection = next.at(-1) ?? null;
 	});
 	function select(i: number, source: 'board' | 'spatial' = 'board') {
+		if (suppressClick) return;
 		if (held) {
 			held = false;
 			return;
@@ -307,6 +391,8 @@
 											class:lesson-target={goalSquare === i}
 											class:dark={(x + y) % 2 === 0}
 											class:selected={selected === i}
+											class:draggable={canDrag(i)}
+											class:dragging-source={drag?.active && drag.from === i}
 											class:legal
 											class:capture={legal && !!p}
 											class:last={!inspection && (lastMove?.from === i || lastMove?.to === i)}
@@ -327,10 +413,10 @@
 												if (holdPoint) held = true;
 												inspect(i);
 											}}
-											onpointerdown={(e) => hold(e, i)}
-											onpointermove={moveHold}
-											onpointerup={() => clearTimeout(holdTimer)}
-											onpointercancel={() => clearTimeout(holdTimer)}
+											onpointerdown={(e) => beginDrag(e, i)}
+											onpointermove={dragPiece}
+											onpointerup={(e) => endDrag(e)}
+											onpointercancel={(e) => endDrag(e, true)}
 											onclick={() => select(i)}
 											onkeydown={(e) => navigate(e, i)}
 										>
@@ -400,6 +486,16 @@
 				.join('. ')}
 		/>
 	</section>
+	{#if drag?.active && board[drag.from]}<div
+			class="dragged-piece"
+			style:left={`${drag.x}px`}
+			style:top={`${drag.y}px`}
+			style:width={`${drag.size}px`}
+			style:height={`${drag.size}px`}
+			aria-hidden="true"
+		>
+			<Piece piece={board[drag.from]!} />
+		</div>{/if}
 	<SpatialBoard
 		{winner}
 		board={shown}
@@ -484,6 +580,25 @@
 		border-radius: 0;
 		padding: 0;
 		background: var(--board-light);
+	}
+	.cell.draggable {
+		cursor: grab;
+		touch-action: none;
+	}
+	.cell.draggable:active {
+		cursor: grabbing;
+	}
+	.cell.dragging-source :global(.piece) {
+		opacity: 0.25;
+	}
+	.dragged-piece {
+		position: fixed;
+		display: grid;
+		place-items: center;
+		z-index: 100;
+		transform: translate(-50%, -50%);
+		pointer-events: none;
+		filter: drop-shadow(0 8px 5px #0007);
 	}
 	.coordinate {
 		position: absolute;

@@ -1455,6 +1455,31 @@ test('tesseract separates selection and pinned threats with colored one-pixel in
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test('pieces show legal moves while dragging and move when dropped', async ({ page }) => {
+	await page.goto(new URL('/computer?side=w', process.env.E2E_BASE_URL!).href);
+	const source = page.locator('.cell[data-square="0"]');
+	const destination = page.locator('.cell[data-square="32"]');
+	await expect(source).toHaveAttribute('aria-disabled', 'false');
+	const from = (await source.boundingBox())!;
+	const to = (await destination.boundingBox())!;
+	await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(from.x + from.width / 2 + 10, from.y + from.height / 2);
+	await expect(source).toHaveClass(/selected/);
+	await expect(destination).toHaveClass(/legal/);
+	await expect(page.locator('.dragged-piece')).toBeVisible();
+	await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2);
+	await page.mouse.up();
+	await expect
+		.poll(() =>
+			page.evaluate(() => JSON.parse(localStorage.getItem('fourfold-computer-v1')!).moves.length)
+		)
+		.toBe(1);
+	expect(await page.locator('[data-animation="piece"]').count()).toBe(0);
+	await expect(destination).toHaveAttribute('aria-label', /White rook/);
+	await expect(source).toHaveAttribute('aria-label', /empty/);
+});
+
 test('mobile game controls stay reachable and finished kings show the result', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.emulateMedia({ reducedMotion: 'reduce' });
