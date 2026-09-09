@@ -74,12 +74,38 @@ it('publishes anonymous totals across pages, excludes unstarted games, and rebui
 		started: 205,
 		active: 5,
 		completed: 200,
-		checkmates: 100
+		checkmates: 100,
+		participants: { total: 1, newToday: 1 },
+		today: { started: 204, completed: 200 },
+		playingNow: 0,
+		outcomes: { checkmate: 100, resignation: 100, draw: 0, timeout: 0, abandonment: 0 },
+		gameKinds: { friend: 205, matchmaking: 0 },
+		timeControls: { bullet: 0, blitz: 0, rapid: 0, untimed: 205 }
 	});
 	expect(summary?.daily).toHaveLength(7);
-	expect(summary?.daily.at(-1)).toEqual({ date: '2026-09-07', started: 204, players: 0 });
+	expect(summary?.daily.at(-1)).toEqual({
+		date: '2026-09-07',
+		started: 204,
+		completed: 200,
+		newPlayers: 1,
+		players: 0
+	});
 	expect(Object.keys(summary!).sort()).toEqual(
-		['sampledAt', 'started', 'active', 'completed', 'checkmates', 'players', 'daily'].sort()
+		[
+			'sampledAt',
+			'started',
+			'active',
+			'completed',
+			'checkmates',
+			'participants',
+			'today',
+			'playingNow',
+			'outcomes',
+			'gameKinds',
+			'timeControls',
+			'players',
+			'daily'
+		].sort()
 	);
 	expect(JSON.stringify(summary)).not.toMatch(/private|Participant|gameId/);
 	await t.mutation(internal.stats.refresh, {});

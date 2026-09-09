@@ -55,28 +55,48 @@
 					>{refreshing ? 'Checking…' : 'Check again'}</button
 				>
 			</div>{/if}
-		<dl class="totals">
-			<div class="total">
-				<dt>Games started</dt>
-				<dd>{number(stats.started)}</dd>
+		<dl class="headline-grid">
+			<div class="primary-metric">
+				<dt>Player identities</dt>
+				<dd>{stats.participants ? number(stats.participants.total) : 'Pending'}</dd>
+				<p>Created on this service</p>
 			</div>
 			<div>
-				<dt>Completed</dt>
-				<dd>{number(stats.completed)}</dd>
-				<p class="note">
-					{stats.checkmates === undefined
-						? 'Checkmates updating…'
-						: `${number(stats.checkmates)} by checkmate`}
-				</p>
+				<dt>New today</dt>
+				<dd>{stats.participants ? number(stats.participants.newToday) : 'Pending'}</dd>
+				<p>Since 00:00 UTC</p>
 			</div>
 			<div>
-				<dt>Unfinished</dt>
-				<dd>{number(stats.active)}</dd>
+				<dt>Active today</dt>
+				<dd>{stats.players ? number(stats.players.today) : 'Pending'}</dd>
+				<p>Made a move</p>
+			</div>
+			<div>
+				<dt>Games today</dt>
+				<dd>
+					{stats.today ? number(stats.today.started) : number(stats.daily.at(-1)?.started ?? 0)}
+				</dd>
+				<p>{stats.today ? `${number(stats.today.completed)} completed` : 'Started today'}</p>
+			</div>
+			<div>
+				<dt>Live games</dt>
+				<dd>{stats.playingNow === undefined ? 'Pending' : number(stats.playingNow)}</dd>
+				<p>Both players online</p>
+			</div>
+			<div>
+				<dt>Completion rate</dt>
+				<dd>{stats.started ? `${Math.round((stats.completed / stats.started) * 100)}%` : '0%'}</dd>
+				<p>{number(stats.completed)} of {number(stats.started)}</p>
 			</div>
 		</dl>
-		<p class="note">Unfinished games may include abandoned sessions.</p>
 		<section class="activity" aria-labelledby="players-title">
-			<h2 id="players-title">Unique active players</h2>
+			<div class="section-heading">
+				<div>
+					<p class="eyebrow">Reach</p>
+					<h2 id="players-title">Active players</h2>
+				</div>
+				<p>Unique identities that made a move</p>
+			</div>
 			{#if stats.players}<dl class="players">
 					<div>
 						<dt>Today</dt>
@@ -91,49 +111,114 @@
 						<dd>{number(stats.players.month)}</dd>
 					</div>
 				</dl>{:else}<p class="note">Player counts updating…</p>{/if}
-			<p class="note">
-				Made at least one multiplayer move. Each period counts a player once. UTC dates, including
-				today so far.
-			</p>
 		</section>
 		<section class="activity" aria-labelledby="activity-title">
-			<h2 id="activity-title">Daily activity</h2>
-			<table>
-				<thead
-					><tr
-						><th scope="col">Day · UTC</th><th scope="col">Games started</th><th scope="col"
-							>Active players</th
-						></tr
-					></thead
-				><tbody>
-					{#each [...stats.daily].reverse() as day (day.date)}<tr
-							><th scope="row"
-								><time datetime={day.date}
-									>{new Date(day.date + 'T00:00:00Z').toLocaleDateString('en-US', {
-										month: 'short',
-										day: 'numeric',
-										timeZone: 'UTC'
-									})}</time
-								>{#if day.date === stats.daily.at(-1)?.date}
-									<span class="note"> · so far</span>{/if}</th
-							><td>{number(day.started)}</td><td
-								>{day.players === undefined ? 'Pending' : number(day.players)}</td
-							></tr
-						>{/each}
-				</tbody>
-			</table>
+			<div class="section-heading">
+				<div>
+					<p class="eyebrow">Last 7 days</p>
+					<h2 id="activity-title">Daily activity</h2>
+				</div>
+				<p>UTC, newest first</p>
+			</div>
+			<div class="table-wrap">
+				<table>
+					<thead
+						><tr
+							><th scope="col">Day</th><th scope="col">New players</th><th scope="col">Active</th
+							><th scope="col">Started</th><th scope="col">Completed</th></tr
+						></thead
+					><tbody>
+						{#each [...stats.daily].reverse() as day (day.date)}<tr
+								><th scope="row"
+									><time datetime={day.date}
+										>{new Date(day.date + 'T00:00:00Z').toLocaleDateString('en-US', {
+											month: 'short',
+											day: 'numeric',
+											timeZone: 'UTC'
+										})}</time
+									>{#if day.date === stats.daily.at(-1)?.date}<span class="note">
+											· so far</span
+										>{/if}</th
+								><td>{day.newPlayers === undefined ? 'Pending' : number(day.newPlayers)}</td><td
+									>{day.players === undefined ? 'Pending' : number(day.players)}</td
+								><td>{number(day.started)}</td><td
+									>{day.completed === undefined ? 'Pending' : number(day.completed)}</td
+								></tr
+							>{/each}
+					</tbody>
+				</table>
+			</div>
 		</section>
+		<div class="breakdowns">
+			<section class="activity" aria-labelledby="outcomes-title">
+				<p class="eyebrow">Completed games</p>
+				<h2 id="outcomes-title">How games end</h2>
+				{#if stats.outcomes}<dl class="breakdown-list">
+						<div>
+							<dt>Checkmate</dt>
+							<dd>{number(stats.outcomes.checkmate)}</dd>
+						</div>
+						<div>
+							<dt>Resignation</dt>
+							<dd>{number(stats.outcomes.resignation)}</dd>
+						</div>
+						<div>
+							<dt>Draw</dt>
+							<dd>{number(stats.outcomes.draw)}</dd>
+						</div>
+						<div>
+							<dt>Timeout</dt>
+							<dd>{number(stats.outcomes.timeout)}</dd>
+						</div>
+						<div>
+							<dt>Disconnect</dt>
+							<dd>{number(stats.outcomes.abandonment)}</dd>
+						</div>
+					</dl>{:else}<p class="note">Outcome counts updating…</p>{/if}
+			</section>
+			<section class="activity" aria-labelledby="formats-title">
+				<p class="eyebrow">All games</p>
+				<h2 id="formats-title">What people play</h2>
+				{#if stats.gameKinds && stats.timeControls}<dl class="breakdown-list">
+						<div>
+							<dt>Friend games</dt>
+							<dd>{number(stats.gameKinds.friend)}</dd>
+						</div>
+						<div>
+							<dt>Matchmaking</dt>
+							<dd>{number(stats.gameKinds.matchmaking)}</dd>
+						</div>
+						<div>
+							<dt>3 + 2</dt>
+							<dd>{number(stats.timeControls.bullet)}</dd>
+						</div>
+						<div>
+							<dt>5 + 3</dt>
+							<dd>{number(stats.timeControls.blitz)}</dd>
+						</div>
+						<div>
+							<dt>10 + 5</dt>
+							<dd>{number(stats.timeControls.rapid)}</dd>
+						</div>
+						<div>
+							<dt>Untimed</dt>
+							<dd>{number(stats.timeControls.untimed)}</dd>
+						</div>
+					</dl>{:else}<p class="note">Game format counts updating…</p>{/if}
+			</section>
+		</div>
 		<details>
 			<summary>How are these counted?</summary>
 			<p>
-				Recorded multiplayer games, including rematches. Unused invitations, cancelled and aborted
-				games, and games against the computer are excluded. Unfinished means no result has been
-				recorded; it is not a count of people online. Counts are collected over a short interval and
-				may lag behind play. No player identities or room links are published. Active players are
-				distinct player identities that made a move during the period, including moves in games
-				later aborted. Page visits and computer games do not count. Guests using different browsers
-				or clearing their session may count separately. Seven-day and 30-day totals count distinct
-				players across the whole period; they are not sums of the daily counts.
+				Player identities are browser or account records, not verified individual people. A guest
+				using another browser or clearing their session can count again. Recorded multiplayer games
+				include rematches. Unused invitations, cancelled and aborted games, and games against the
+				computer are excluded. A live game has both players currently connected. Counts are
+				collected over a short interval and may lag behind play. No player identities or room links
+				are published. Active players are distinct player identities that made a move during the
+				period, including moves in games later aborted. Page visits and computer games do not count.
+				Seven-day and 30-day totals count distinct players across the whole period; they are not
+				sums of the daily counts.
 			</p>
 		</details>
 	{:else}
@@ -153,7 +238,7 @@
 
 <style>
 	main {
-		max-width: 760px;
+		max-width: 1040px;
 		margin: 0 auto;
 		padding: 40px 24px;
 	}
@@ -170,6 +255,7 @@
 	}
 	h2 {
 		font-size: 18px;
+		margin: 0;
 	}
 	a {
 		color: var(--text);
@@ -179,8 +265,7 @@
 		line-height: 1.5;
 	}
 	.scope,
-	dt,
-	.totals .note {
+	dt {
 		margin: 8px 0 0;
 	}
 	.note,
@@ -193,23 +278,54 @@
 	.players {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 16px;
+		gap: 1px;
+		margin-top: 20px;
+		border: 1px solid var(--line);
+		border-radius: 12px;
+		overflow: hidden;
+		background: var(--line);
+	}
+	.players > div {
+		padding: 18px;
+		background: var(--page);
 	}
 	.players dt {
 		font-size: 13px;
 	}
-	.totals {
+	.headline-grid {
 		display: grid;
-		grid-template-columns: 2fr 1fr 1fr;
-		gap: 24px;
-		align-items: start;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1px;
+		margin-top: 28px;
+		border: 1px solid var(--line);
+		border-radius: 14px;
+		overflow: hidden;
+		background: var(--line);
+	}
+	.headline-grid > div {
+		min-height: 150px;
+		padding: 20px;
+		background: var(--page);
+	}
+	.headline-grid dt,
+	.eyebrow {
+		margin: 0 0 5px;
+		color: var(--muted);
+		font-size: 12px;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+	.headline-grid p,
+	.section-heading > p {
+		color: var(--muted);
+		font-size: 13px;
 	}
 	dd {
 		font-family: var(--font-data);
 		font-size: 28px;
-		margin: 12px 0 0;
+		margin: 8px 0 0;
 	}
-	.total dd {
+	.primary-metric dd {
 		font-size: 48px;
 	}
 	.note,
@@ -223,10 +339,21 @@
 		margin: 0 0 28px;
 	}
 	.activity {
-		margin-top: 32px;
+		margin-top: 48px;
+	}
+	.section-heading {
+		display: flex;
+		align-items: end;
+		justify-content: space-between;
+		gap: 20px;
+		margin-bottom: 16px;
+	}
+	.table-wrap {
+		overflow-x: auto;
 	}
 	table {
 		width: 100%;
+		min-width: 620px;
 		border-collapse: collapse;
 	}
 	th,
@@ -248,6 +375,30 @@
 	}
 	td {
 		font-family: var(--font-data);
+	}
+	.breakdowns {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 48px;
+	}
+	.breakdown-list {
+		margin-top: 16px;
+		border-top: 1px solid var(--line);
+	}
+	.breakdown-list > div {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 16px;
+		padding: 9px 0;
+		border-bottom: 1px solid var(--line);
+	}
+	.breakdown-list dt,
+	.breakdown-list dd {
+		margin: 0;
+	}
+	.breakdown-list dd {
+		font-size: 16px;
 	}
 	details {
 		margin-top: 24px;
@@ -274,7 +425,7 @@
 		opacity: 0.6;
 		cursor: wait;
 	}
-	@media (max-width: 480px) {
+	@media (max-width: 700px) {
 		main {
 			padding: 24px 20px;
 		}
@@ -284,11 +435,29 @@
 		header a {
 			font-size: 14px;
 		}
-		.totals {
+		.headline-grid {
 			grid-template-columns: 1fr 1fr;
 		}
-		.total {
+		.primary-metric {
 			grid-column: 1/-1;
+		}
+		.breakdowns {
+			grid-template-columns: 1fr;
+			gap: 0;
+		}
+	}
+	@media (max-width: 480px) {
+		.headline-grid > div {
+			min-height: 132px;
+			padding: 16px;
+		}
+		.players {
+			grid-template-columns: 1fr;
+		}
+		.section-heading {
+			align-items: start;
+			flex-direction: column;
+			gap: 4px;
 		}
 	}
 </style>

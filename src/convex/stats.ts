@@ -40,10 +40,18 @@ export const refresh = internalMutation({
 			active: 0,
 			completed: 0,
 			checkmates: 0,
+			participants: { total: 0, newToday: 0 },
+			today: { started: 0, completed: 0 },
+			playingNow: 0,
+			outcomes: { checkmate: 0, resignation: 0, draw: 0, timeout: 0, abandonment: 0 },
+			gameKinds: { friend: 0, matchmaking: 0 },
+			timeControls: { bullet: 0, blitz: 0, rapid: 0, untimed: 0 },
 			players: { today: 0, week: 0, month: 0 },
 			daily: Array.from({ length: 7 }, (_, i) => ({
 				date: new Date(today - (6 - i) * 86400000).toISOString().slice(0, 10),
 				started: 0,
+				completed: 0,
+				newPlayers: 0,
 				players: 0
 			}))
 		};
@@ -59,6 +67,7 @@ export const scan = internalMutation({
 		const build = await ctx.db.get(buildId);
 		if (!build || build.value.players === undefined) return null;
 		const value = build.value;
+		const today = Math.floor(value.sampledAt / 86400000) * 86400000;
 		const page = await ctx.db
 			.query('games')
 			.withIndex('by_creation_time', (q) => q.lte('_creationTime', value.sampledAt))
@@ -72,15 +81,46 @@ export const scan = internalMutation({
 			)
 				continue;
 			value.started++;
-			if (game.status === 'active') value.active++;
+			if (game.startedAt >= today) value.today!.started++;
+			value.gameKinds![game.kind === 'matchmaking' ? 'matchmaking' : 'friend']++;
+			const control = game.timeControl ?? 'untimed';
+			value.timeControls![
+				control === '3+2'
+					? 'bullet'
+					: control === '5+3'
+						? 'blitz'
+						: control === '10+5'
+							? 'rapid'
+							: 'untimed'
+			]++;
+			if (game.status === 'active') {
+				value.active++;
+				const presence = await ctx.db
+					.query('gamePresence')
+					.withIndex('by_game', (q) => q.eq('gameId', game._id))
+					.unique();
+				if (presence?.whiteOnline && presence.blackOnline) value.playingNow!++;
+			}
 			if (game.status === 'finished') {
 				value.completed++;
-				if (game.result?.reason === 'checkmate') value.checkmates = (value.checkmates ?? 0) + 1;
+				if (game.finishedAt && game.finishedAt >= today) value.today!.completed++;
+				if (game.result?.reason === 'checkmate') {
+					value.checkmates = (value.checkmates ?? 0) + 1;
+					value.outcomes!.checkmate++;
+				} else if (game.result?.reason === 'resignation') value.outcomes!.resignation++;
+				else if (game.result?.reason === 'draw') value.outcomes!.draw++;
+				else if (game.result?.reason === 'timeout') value.outcomes!.timeout++;
+				else if (game.result?.reason === 'abandonment') value.outcomes!.abandonment++;
 			}
 			const day = value.daily.find(
 				(d) => d.date === new Date(game.startedAt!).toISOString().slice(0, 10)
 			);
 			if (day) day.started++;
+			const finishedDay = game.finishedAt
+				? value.daily.find((d) => d.date === new Date(game.finishedAt!).toISOString().slice(0, 10))
+				: undefined;
+			if (finishedDay && game.status === 'finished')
+				finishedDay.completed = (finishedDay.completed ?? 0) + 1;
 		}
 		if (!page.isDone) {
 			await ctx.db.patch(buildId, { value });
@@ -90,8 +130,41 @@ export const scan = internalMutation({
 			});
 		} else {
 			await ctx.db.patch(buildId, { value });
-			await ctx.scheduler.runAfter(0, internal.stats.scanPlayers, { buildId, cursor: null });
+			await ctx.scheduler.runAfter(0, internal.stats.scanParticipants, { buildId, cursor: null });
 		}
+		return null;
+	}
+});
+
+export const scanParticipants = internalMutation({
+	args: { buildId: v.id('statsBuild'), cursor: v.union(v.string(), v.null()) },
+	returns: v.null(),
+	handler: async (ctx, { buildId, cursor }) => {
+		const build = await ctx.db.get(buildId);
+		if (!build) return null;
+		const value = build.value;
+		const participants = value.participants;
+		if (!participants) return null;
+		const today = Math.floor(value.sampledAt / 86400000) * 86400000;
+		const page = await ctx.db
+			.query('participants')
+			.withIndex('by_creation_time', (q) => q.lte('_creationTime', value.sampledAt))
+			.paginate({ cursor, numItems: 100, maximumBytesRead: 1000000 });
+		for (const participant of page.page) {
+			participants.total++;
+			if (participant._creationTime >= today) participants.newToday++;
+			const day = value.daily.find(
+				(d) => d.date === new Date(participant._creationTime).toISOString().slice(0, 10)
+			);
+			if (day) day.newPlayers = (day.newPlayers ?? 0) + 1;
+		}
+		await ctx.db.patch(buildId, { value });
+		if (!page.isDone)
+			await ctx.scheduler.runAfter(0, internal.stats.scanParticipants, {
+				buildId,
+				cursor: page.continueCursor
+			});
+		else await ctx.scheduler.runAfter(0, internal.stats.scanPlayers, { buildId, cursor: null });
 		return null;
 	}
 });
