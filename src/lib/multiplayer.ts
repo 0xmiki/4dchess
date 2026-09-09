@@ -33,6 +33,11 @@ export async function guestClient() {
 }
 
 const messages: Record<string, string> = {
+	CHAT_INVALID: 'Write a message between 1 and 500 characters.',
+	CHAT_MUTED: 'Chat is muted in this room.',
+	CHAT_CLOSED: 'Chat is available during play and for 24 hours after the game.',
+	CHAT_DUPLICATE: 'You just sent that message. Give your opponent time to reply.',
+	CHAT_RATE_LIMITED: 'Chat limit reached. Please wait before trying again.',
 	CLIENT_UPDATE_REQUIRED: 'Reload the page to use the latest online game rules.',
 	MATCHMAKING_PAUSED: 'Matchmaking is temporarily paused. Please try again later.',
 	PRESENCE_REQUIRED: 'Connecting this playing tab. Please retry in a moment.',

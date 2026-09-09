@@ -10,6 +10,7 @@
 
 import type * as abuse from "../abuse.js";
 import type * as auth from "../auth.js";
+import type * as chat from "../chat.js";
 import type * as clocks from "../clocks.js";
 import type * as crons from "../crons.js";
 import type * as games from "../games.js";
@@ -44,6 +45,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   abuse: typeof abuse;
   auth: typeof auth;
+  chat: typeof chat;
   clocks: typeof clocks;
   crons: typeof crons;
   games: typeof games;

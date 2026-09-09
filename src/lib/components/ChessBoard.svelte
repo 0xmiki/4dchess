@@ -15,6 +15,7 @@
 	import { pieceNames } from '$lib/pieces';
 	import SpatialBoard from './SpatialBoard.svelte';
 	import Piece from './Piece.svelte';
+	import KingResultBadge from './KingResultBadge.svelte';
 	import { gameSounds } from '$lib/audio/game-sounds';
 	import { initMotionPreferences, motionAllowed } from '$lib/motion-preferences';
 	import InspectionHint from './InspectionHint.svelte';
@@ -23,6 +24,7 @@
 	import { boardTransition, motionDuration, type PresentedMove, type PieceMotion } from './motion';
 	let {
 		gameKey = '',
+		winner = null,
 		showHint = true,
 		interruptibleMotion = false,
 		practice = false,
@@ -36,6 +38,7 @@
 		onmove
 	}: {
 		gameKey?: string;
+		winner?: 'white' | 'black' | null;
 		showHint?: boolean;
 		interruptibleMotion?: boolean;
 		practice?: boolean;
@@ -351,6 +354,12 @@
 															? 0.65
 															: 1}
 												/>{/if}
+											{#if p?.t === 'k' && winner && !motion}<span class="king-result"
+													><KingResultBadge
+														side={p.c}
+														won={(p.c === 'w' ? 'white' : 'black') === winner}
+													/></span
+												>{/if}
 										</button>
 									{/each}{/each}
 							</div>
@@ -392,6 +401,7 @@
 		/>
 	</section>
 	<SpatialBoard
+		{winner}
 		board={shown}
 		{selected}
 		moves={inspection ? [] : moves}
@@ -405,6 +415,16 @@
 </div>
 
 <style>
+	.king-result {
+		position: absolute;
+		right: -3px;
+		top: -5px;
+		width: clamp(18px, 2.5vw, 26px);
+		height: clamp(18px, 2.5vw, 26px);
+		z-index: 3;
+		pointer-events: none;
+	}
+
 	.cell.lesson-target {
 		outline: 3px dashed var(--piece-black);
 		outline-offset: -5px;

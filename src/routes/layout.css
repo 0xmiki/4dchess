@@ -145,13 +145,14 @@ select:focus {
 }
 
 .match-shell {
+	--match-bottom-space: max(var(--space-5), calc(var(--play-space) - var(--space-5)));
 	min-height: 100svh;
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
 	max-width: 1800px;
 	padding-top: max(var(--play-space), 72px);
-	padding-bottom: var(--play-space);
+	padding-bottom: var(--match-bottom-space);
 }
 .match-layout {
 	display: grid;

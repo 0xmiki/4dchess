@@ -1,7 +1,7 @@
 <script lang="ts">
+	import { isUnscoredResult } from '$lib/online/outcomes';
 	import MatchSidebar from './MatchSidebar.svelte';
 	import GameOverDialog from './GameOverDialog.svelte';
-	let resultDialog = $state<GameOverDialog>();
 	import { onMount, untrack } from 'svelte';
 	import { SvelteMap } from 'svelte/reactivity';
 	import { resolve } from '$app/paths';
@@ -249,6 +249,7 @@
 							/>{/if}{/snippet}</PlayerProfile
 				>
 				<ChessBoard
+					winner={!selection && !isUnscoredResult(game.result) ? game.result?.winner : null}
 					gameKey={`${roomId}:${viewedId}`}
 					showHint={false}
 					interruptibleMotion
@@ -281,15 +282,14 @@
 				>
 			</div>
 			<GameOverDialog
-				bind:this={resultDialog}
 				result={live.data?.result ?? null}
 				side="white"
 				spectator
 				gameKey={live.data?.id ?? ''}
 			/>
 			<MatchSidebar
+				finished={!!live.data?.result}
 				label="Spectator controls"
-				onresult={live.data?.result ? () => resultDialog?.show() : undefined}
 				navigation={{
 					previous: node?.parent ? previous : null,
 					next: hasNext || selection ? next : null,

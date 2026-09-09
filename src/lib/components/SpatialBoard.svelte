@@ -12,12 +12,14 @@
 	} from '$lib/chess';
 	import { pieceNames } from '$lib/pieces';
 	import Piece from './Piece.svelte';
+	import KingResultBadge from './KingResultBadge.svelte';
 	import { motionAllowed } from '$lib/motion-preferences';
 	import AxisGizmo from './AxisGizmo.svelte';
 	import { spatialMotionPoint, type PieceMotion } from './motion';
 	import type { ThreatInspection } from '$lib/chess/threats';
 	let {
 		annotations = true,
+		winner = null,
 		showMoveTrail = true,
 		focusMove = null,
 		yaw = $bindable(DEFAULT_CAMERA.yaw),
@@ -33,6 +35,7 @@
 		inspections = []
 	}: {
 		annotations?: boolean;
+		winner?: 'white' | 'black' | null;
 		showMoveTrail?: boolean;
 		focusMove?: (Move & { knight?: boolean }) | null;
 		yaw?: number;
@@ -441,6 +444,13 @@
 						r="2"
 						fill="var(--grid)"
 						pointer-events="none"
+					/>{/if}
+				{#if p?.t === 'k' && winner && !motion}<KingResultBadge
+						side={p.c}
+						won={(p.c === 'w' ? 'white' : 'black') === winner}
+						x={point.x + size / 2 - 6}
+						y={point.y - size / 2 - 8}
+						size={16}
 					/>{/if}
 			</g>
 		{/each}

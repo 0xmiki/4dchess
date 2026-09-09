@@ -1,23 +1,35 @@
 <script lang="ts">
-	import { onMount, setContext, type Snippet } from 'svelte';
+	import { onMount, tick, setContext, type Snippet } from 'svelte';
 	import { matchNavigationKey, type MatchNavigation } from '$lib/match-navigation';
 	import CaretLeftIcon from 'phosphor-svelte/lib/CaretLeftIcon';
 	import CaretRightIcon from 'phosphor-svelte/lib/CaretRightIcon';
 	import SlidersHorizontalIcon from 'phosphor-svelte/lib/SlidersHorizontalIcon';
 	import XIcon from 'phosphor-svelte/lib/XIcon';
+	import ChatCircleIcon from 'phosphor-svelte/lib/ChatCircleIcon';
+	import SkipForwardIcon from 'phosphor-svelte/lib/SkipForwardIcon';
 	let {
 		children,
 		navigation,
-		onresult,
+		chat,
+		chatOpen = $bindable(false),
+		chatUnread = false,
 		label = 'Game options',
 		waiting = false,
+		finished = false,
+		fullHeight = false,
+		onchatvisibilitychange,
 		notice = ''
 	}: {
 		children: Snippet;
 		navigation?: MatchNavigation;
-		onresult?: () => void;
+		chat?: Snippet<[(() => void)?]>;
+		chatOpen?: boolean;
+		chatUnread?: boolean;
 		label?: string;
 		waiting?: boolean;
+		finished?: boolean;
+		fullHeight?: boolean;
+		onchatvisibilitychange?: (visible: boolean) => void;
 		notice?: string;
 	} = $props();
 	const registered = $state<MatchNavigation>({
@@ -31,22 +43,61 @@
 	let open = $state(false),
 		mobile = $state(false);
 	let trigger: HTMLButtonElement, closeButton: HTMLButtonElement;
+	let chatTrigger = $state<HTMLButtonElement>();
+	let chatDialog = $state<HTMLDialogElement>();
+	let mobileChatOpen = $state(false),
+		viewportHeight = $state(0),
+		viewportTop = $state(0);
+	async function showChat() {
+		open = false;
+		mobileChatOpen = true;
+		await tick();
+		chatDialog?.showModal();
+		chatDialog?.querySelector<HTMLButtonElement>('[aria-label="Close chat"]')?.focus();
+	}
+	$effect(() => {
+		if (!mobileChatOpen) return;
+		const previous = document.body.style.overflow;
+		document.body.style.overflow = 'hidden';
+		return () => {
+			document.body.style.overflow = previous;
+		};
+	});
 	const id = $props.id();
+	$effect(() => {
+		onchatvisibilitychange?.(mobile ? mobileChatOpen : chatOpen);
+	});
 	$effect(() => {
 		if (mobile) open = waiting;
 	});
 	$effect(() => {
-		if (onresult) open = false;
+		if (finished) open = false;
 	});
+
 	onMount(() => {
 		const media = matchMedia('(max-width: 850px)');
 		const update = () => {
 			mobile = media.matches;
-			if (!mobile) open = false;
+			if (!mobile) {
+				open = false;
+				chatDialog?.close();
+			} else chatOpen = false;
 		};
+		const viewport = window.visualViewport;
+		const resizeChat = () => {
+			viewportHeight = viewport?.height ?? innerHeight;
+			viewportTop = viewport?.offsetTop ?? 0;
+		};
+		resizeChat();
+		viewport?.addEventListener('resize', resizeChat);
+		viewport?.addEventListener('scroll', resizeChat);
 		update();
 		media.addEventListener('change', update);
-		return () => media.removeEventListener('change', update);
+		return () => {
+			media.removeEventListener('change', update);
+			viewport?.removeEventListener('resize', resizeChat);
+			viewport?.removeEventListener('scroll', resizeChat);
+		};
 	});
 	function close() {
 		open = false;
@@ -64,7 +115,14 @@
 />
 {#if open && mobile}<button class="options-backdrop" aria-label="Close game options" onclick={close}
 	></button>{/if}
-<aside class="game-info match-sidebar" class:open {id} aria-label={label} inert={mobile && !open}>
+<aside
+	class="game-info match-sidebar"
+	class:open
+	class:full-height={fullHeight && !mobile}
+	{id}
+	aria-label={label}
+	inert={mobile && !open}
+>
 	<div class="sheet-heading">
 		<h2>{label}</h2>
 		<button bind:this={closeButton} aria-label="Close options" onclick={close}
@@ -90,25 +148,114 @@
 			if (open) requestAnimationFrame(() => closeButton?.focus());
 		}}><SlidersHorizontalIcon size={22} /><span>Options</span></button
 	>
-	{#if onresult}<button onclick={onresult}>Result</button>{/if}
+	{#if chat}<button
+			bind:this={chatTrigger}
+			class="mobile-chat-trigger"
+			aria-label={chatUnread ? 'Open chat, unread messages' : 'Open chat'}
+			aria-expanded={mobileChatOpen}
+			aria-controls={id + '-chat'}
+			onclick={showChat}
+			><span class="chat-icon"
+				><ChatCircleIcon size={22} />{#if chatUnread}<span class="unread-dot" aria-hidden="true"
+					></span>{/if}</span
+			><span>Chat</span></button
+		>{/if}
 	<button aria-label="Previous move" disabled={!nav.previous} onclick={() => nav.previous?.()}
 		><CaretLeftIcon size={24} /><span>Back</span></button
 	>
-	<button onclick={() => nav.live?.()} disabled={!nav.live} aria-label="Return to live game"
-		>{nav.label}</button
-	>
+	{#if nav.live}<button
+			onclick={() => nav.live?.()}
+			aria-label="Return to live game"
+			title="Return to current position"><SkipForwardIcon size={22} /></button
+		>{/if}
 	<button aria-label="Next move" disabled={!nav.next} onclick={() => nav.next?.()}
 		><CaretRightIcon size={24} /><span>Forward</span></button
 	>
 </nav>
 
+{#if chat}<dialog
+		bind:this={chatDialog}
+		id={id + '-chat'}
+		class="mobile-chat"
+		aria-label="Player chat"
+		style:height={viewportHeight ? viewportHeight + 'px' : undefined}
+		style:top={viewportTop + 'px'}
+		onclose={() => {
+			mobileChatOpen = false;
+			chatTrigger?.focus();
+		}}
+	>
+		<div class="mobile-chat-content">
+			{#if mobileChatOpen}{@render chat(() => chatDialog?.close())}{/if}
+		</div>
+	</dialog>{/if}
+
 <style>
+	.mobile-chat {
+		position: fixed;
+		margin: 0;
+		inset: 0;
+		width: 100%;
+		max-width: none;
+		height: 100dvh;
+		max-height: none;
+		padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
+		border: 0;
+		border-radius: 0;
+		background: var(--page);
+		color: var(--text);
+		overflow: hidden;
+	}
+	.mobile-chat[open] {
+		display: flex;
+		flex-direction: column;
+	}
+	.mobile-chat-content {
+		display: flex;
+		flex: 1;
+		flex-direction: column;
+		min-height: 0;
+	}
+	.chat-icon {
+		position: relative;
+		display: flex;
+	}
+	.unread-dot {
+		position: absolute;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: #ef5350;
+		top: -2px;
+		right: -3px;
+		box-shadow: 0 0 0 2px var(--surface);
+	}
+
+	.match-sidebar.full-height {
+		display: flex;
+		flex-direction: column;
+		height: calc(100dvh - max(var(--play-space), 72px) - var(--match-bottom-space));
+		min-height: 0;
+	}
+	.full-height > :global(*) {
+		flex-shrink: 0;
+	}
+	.full-height > :global(.chat-panel) {
+		flex: 1;
+		min-height: 0;
+	}
+
 	.sheet-heading,
 	.mobile-notice,
 	.mobile-game-controls {
 		display: none;
 	}
 	@media (max-width: 850px) {
+		.match-sidebar.full-height {
+			height: calc(100dvh - 84px - env(safe-area-inset-bottom));
+			max-height: calc(100dvh - 84px - env(safe-area-inset-bottom));
+		}
+
 		.mobile-notice {
 			display: block;
 			position: fixed;

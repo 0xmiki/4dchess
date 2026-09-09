@@ -5,6 +5,20 @@ import { gameFields, moveFields, timedControl } from './lib/validators';
 import { coverage, candidate } from './lib/presence_validators';
 
 export default defineSchema({
+	chatMessages: defineTable({
+		roomId: v.id('games'),
+		senderId: v.id('participants'),
+		text: v.string(),
+		requestId: v.string(),
+		expiresAt: v.number()
+	})
+		.index('by_room', ['roomId'])
+		.index('by_expiry', ['expiresAt'])
+		.index('by_request', ['roomId', 'senderId', 'requestId']),
+	chatMutes: defineTable({ roomId: v.id('games'), participantId: v.id('participants') }).index(
+		'by_room',
+		['roomId']
+	),
 	publicStats: defineTable({ name: v.string(), value: statsValue }).index('by_name', ['name']),
 	statsBuild: defineTable({ value: statsValue }),
 	statsPlayerDays: defineTable({

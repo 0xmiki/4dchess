@@ -33,6 +33,15 @@ test('lessons teach one move at a time and free practice supports either side an
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+async function copyInvitation(page: Page) {
+	await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+	await page.getByRole('button', { name: 'Copy invitation', exact: true }).click();
+	await expect(page.getByRole('status').filter({ hasText: 'Invitation copied' })).toHaveText(
+		'Invitation copied'
+	);
+	return page.evaluate(() => navigator.clipboard.readText());
+}
+
 async function friends(browser: Browser, setup?: (page: Page) => Promise<void>) {
 	const whiteContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
 	const blackContext = await browser.newContext({
@@ -43,13 +52,14 @@ async function friends(browser: Browser, setup?: (page: Page) => Promise<void>) 
 	const white = await whiteContext.newPage(),
 		black = await blackContext.newPage();
 	await setup?.(white);
-	await white.goto(process.env.E2E_BASE_URL!);
+	const homeResponse = await white.goto(process.env.E2E_BASE_URL!);
+	expect(homeResponse?.status(), 'Home page must load before creating a guest match').toBe(200);
 	await white.getByRole('radio', { name: 'White', exact: true }).check();
 	await white.getByRole('combobox', { name: 'Time', exact: true }).click();
 	await white.getByRole('option', { name: 'Untimed', exact: true }).click();
 	await white.getByRole('button', { name: 'Play with friend', exact: true }).click();
 	await expect(white.getByLabel('Waiting for your friend', { exact: true })).toBeVisible();
-	const invitation = await white.getByRole('textbox', { name: 'Invitation link' }).inputValue();
+	const invitation = await copyInvitation(white);
 	await black.goto(invitation);
 	await expect(black.getByRole('heading', { name: 'Accept challenge' })).toBeVisible();
 	const challenger = await white.locator('.player-profile').last().locator('strong').innerText();
@@ -59,7 +69,8 @@ async function friends(browser: Browser, setup?: (page: Page) => Promise<void>) 
 	await black.screenshot({ path: '/tmp/challenge-desktop.png' });
 	await black.setViewportSize({ width: 390, height: 844 });
 	await black.getByRole('button', { name: 'Accept challenge', exact: true }).click();
-	await expect(black.getByLabel('White to move', { exact: true })).toBeVisible();
+	await expect(black.getByLabel('White to move', { exact: true })).toBeAttached();
+	await expect(black.locator('.cell').first()).toBeVisible();
 	await expect(white.getByLabel('White to move', { exact: true })).toBeVisible();
 	await white.screenshot({ path: '/tmp/player-frame-desktop.png' });
 	return { white, black, whiteContext, blackContext };
@@ -265,7 +276,7 @@ test('waiting rooms persist, copy without relabeling, and delete cleanly', async
 	await page.getByRole('button', { name: 'Play with friend', exact: true }).click();
 	await expect(page.getByLabel('Waiting for your friend', { exact: true })).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Back to play', exact: true })).toHaveCount(0);
-	await expect(page.getByRole('textbox', { name: 'Invitation link' })).not.toHaveValue('');
+	await expect(page.getByRole('textbox', { name: 'Invitation link' })).toHaveCount(0);
 	const roomUrl = page.url();
 	const guestName = await page.evaluate(async () => {
 		const response = await fetch('/api/auth/get-session');
@@ -273,7 +284,6 @@ test('waiting rooms persist, copy without relabeling, and delete cleanly', async
 	});
 	expect(guestName).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+ [1-9]\d{3}$/);
 	await expect(page.locator('.player-profile').last().locator('strong')).toHaveText(guestName);
-	const invite = await page.getByRole('textbox', { name: 'Invitation link' }).inputValue();
 	await context.grantPermissions(['clipboard-read', 'clipboard-write']);
 	const copy = page.getByRole('button', { name: 'Copy invitation', exact: true });
 	await copy.click();
@@ -281,12 +291,13 @@ test('waiting rooms persist, copy without relabeling, and delete cleanly', async
 		'Invitation copied'
 	);
 	await expect(copy).toHaveText('Copy invitation');
-	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(invite);
+	const invite = await page.evaluate(() => navigator.clipboard.readText());
+	expect(invite).toMatch(/\/join#/);
 	await expect(page.getByRole('status').filter({ hasText: 'Invitation copied' })).toHaveCount(0);
 	await page.goto(process.env.E2E_BASE_URL!);
 	await expect(page).toHaveURL(roomUrl);
 	await expect(page.locator('.player-profile').last().locator('strong')).toHaveText(guestName);
-	await expect(page.getByRole('textbox', { name: 'Invitation link' })).toHaveValue(invite);
+	expect(await copyInvitation(page)).toBe(invite);
 	await page.screenshot({ path: '/tmp/waiting-room-refined.png' });
 	await expect(page.locator('.home-link.corner')).toHaveText('');
 	await context.setOffline(true);
@@ -627,7 +638,8 @@ test('online moves display immediately, roll back rejection, and reconcile witho
 		await expect(white).toHaveURL(url);
 		await white.getByRole('button', { name: 'Resign', exact: true }).click();
 		await expect(white.getByLabel('Black wins', { exact: true })).toBeVisible();
-		await white.getByRole('button', { name: 'Back to play', exact: true }).click();
+		await expect(white.getByRole('button', { name: 'Back to play', exact: true })).toHaveCount(0);
+		await white.goto(process.env.E2E_BASE_URL!);
 		await expect(
 			white.getByRole('button', { name: 'Play with friend', exact: true })
 		).toBeVisible();
@@ -698,7 +710,7 @@ test('friends replay in the same room and recover a second-round move after relo
 		await expect(black.getByLabel('Black to move', { exact: true })).toBeVisible();
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
-		await expect(white.getByRole('button', { name: 'Back to play', exact: true })).toBeVisible();
+		await expect(white.getByRole('button', { name: 'Back to play', exact: true })).toHaveCount(0);
 		await expect(white.locator('.player-profile').last().locator('.series-score')).toHaveText(
 			'1.0'
 		);
@@ -767,7 +779,8 @@ test('friends replay in the same room and recover a second-round move after relo
 		await expect(black.locator('[data-ply]')).toHaveCount(1);
 		await black.getByRole('button', { name: 'Resign', exact: true }).click();
 		await expect(white.getByRole('heading', { name: 'You won!', exact: true })).toBeVisible();
-		await white.getByRole('button', { name: 'Back to play', exact: true }).click();
+		await expect(white.getByRole('button', { name: 'Back to play', exact: true })).toHaveCount(0);
+		await white.goto(process.env.E2E_BASE_URL!);
 		await expect(
 			white.getByRole('button', { name: 'Play with friend', exact: true })
 		).toBeVisible();
@@ -891,7 +904,7 @@ test('friend challenges can remain untimed while matchmaking requires a clock', 
 		await a.getByRole('option', { name: 'Untimed', exact: true }).click();
 		await expect(a.getByRole('button', { name: 'Find opponent', exact: true })).toBeDisabled();
 		await a.getByRole('button', { name: 'Play with friend', exact: true }).click();
-		const url = await a.getByRole('textbox', { name: 'Invitation link' }).inputValue();
+		const url = await copyInvitation(a);
 		await b.goto(url);
 		await expect(b.locator('.challenge-details')).toContainText('Untimed');
 		await b.getByRole('button', { name: 'Accept challenge', exact: true }).click();
@@ -1442,9 +1455,7 @@ test('tesseract separates selection and pinned threats with colored one-pixel in
 	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('mobile game controls stay reachable and results can be closed and reopened', async ({
-	page
-}) => {
+test('mobile game controls stay reachable and finished kings show the result', async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await page.emulateMedia({ reducedMotion: 'reduce' });
 	await page.goto(new URL('/computer', process.env.E2E_BASE_URL!).href);
@@ -1469,9 +1480,13 @@ test('mobile game controls stay reachable and results can be closed and reopened
 		'aria-expanded',
 		'false'
 	);
-	await page.getByRole('button', { name: 'Result', exact: true }).click();
-	await expect(result).toBeVisible();
-	await result.getByRole('button', { name: 'New game', exact: true }).click();
+	await expect(page.getByRole('button', { name: 'Result', exact: true })).toHaveCount(0);
+	await expect(page.getByRole('button', { name: 'Game result', exact: true })).toHaveCount(0);
+	await expect(page.locator('.mobile-game-controls')).not.toContainText('Live');
+	await expect(page.locator('.king-result .king-result-badge.won')).toHaveCount(1);
+	await expect(page.locator('.king-result .king-result-badge:not(.won)')).toHaveCount(1);
+	await page.getByRole('button', { name: 'Options', exact: true }).click();
+	await page.getByRole('button', { name: 'New game', exact: true }).click();
 	await expect(result).toBeHidden();
 	const layout = await page.evaluate(() => {
 		const own = document.querySelector('.player-profile:last-of-type')!.getBoundingClientRect();
@@ -1592,4 +1607,42 @@ test('history arrows and buttons play one sound per step and respect mute', asyn
 	await page.keyboard.press('ArrowLeft');
 	await page.waitForTimeout(500);
 	expect(await sounds()).toBe(4);
+});
+
+test('mobile chat has its own full-screen view and keeps unread messages until opened', async ({
+	browser
+}) => {
+	const { white, black, whiteContext, blackContext } = await friends(browser);
+	try {
+		await expect(black.getByRole('button', { name: 'Result', exact: true })).toHaveCount(0);
+		await expect(black.locator('.mobile-game-controls')).not.toContainText('Live');
+		await white.getByRole('button', { name: 'Open player chat', exact: true }).click();
+		await white.getByRole('textbox', { name: 'Chat message' }).fill('Good luck!');
+		await white.getByRole('button', { name: 'Send message', exact: true }).click();
+		await expect(black.locator('.mobile-chat-trigger .unread-dot')).toBeVisible();
+		await black.getByRole('button', { name: 'Open chat, unread messages', exact: true }).click();
+		const chat = black.getByRole('dialog', { name: 'Player chat', exact: true });
+		await expect(chat).toBeVisible();
+		await expect(chat.getByRole('log')).toContainText('Good luck!');
+		await expect(black.locator('.mobile-chat-trigger .unread-dot')).toHaveCount(0);
+		const bounds = await chat.boundingBox();
+		expect(bounds).toMatchObject({ x: 0, y: 0, width: 390, height: 844 });
+		await chat.getByRole('textbox', { name: 'Chat message' }).fill('You too!');
+		await chat.getByRole('button', { name: 'Send message', exact: true }).click();
+		await expect(white.getByRole('log')).toContainText('You too!');
+		await expect(chat.locator('.message.mine')).toContainText('You too!');
+		await black.screenshot({ path: '/tmp/chat-live-mobile.png' });
+		await chat.getByRole('button', { name: 'Close chat', exact: true }).click();
+		await expect(chat).toBeHidden();
+		await expect(black.getByRole('button', { name: 'Open chat', exact: true })).toBeFocused();
+		await black.getByRole('button', { name: 'Options', exact: true }).click();
+		await expect(black.getByRole('textbox', { name: 'Chat message' })).toBeHidden();
+		await black.getByRole('button', { name: 'Close options', exact: true }).click();
+		await black.getByRole('button', { name: 'Open chat', exact: true }).click();
+		await black.keyboard.press('Escape');
+		await expect(chat).toBeHidden();
+	} finally {
+		await whiteContext.close();
+		await blackContext.close();
+	}
 });

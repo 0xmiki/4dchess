@@ -10,7 +10,6 @@
 	import MatchSidebar from '$lib/components/MatchSidebar.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 	import BoardControls from '$lib/components/BoardControls.svelte';
-	let resultDialog = $state<GameOverDialog>();
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { onMount, untrack } from 'svelte';
 	import {
@@ -285,11 +284,7 @@
 			seat={player}
 			audible={reviewPly === null}
 		/>
-		<GameOverDialog
-			bind:this={resultDialog}
-			{result}
-			side={player === 'w' ? 'white' : 'black'}
-			gameKey={String(startedAt)}
+		<GameOverDialog {result} side={player === 'w' ? 'white' : 'black'} gameKey={String(startedAt)}
 			><Button variant="primary" onclick={start}>New game</Button></GameOverDialog
 		>
 		<div class="match-layout">
@@ -300,6 +295,7 @@
 					active={game.turn !== player && !result}
 				/>
 				<ChessBoard
+					winner={reviewPly === null || reviewPly === game.ply ? result?.winner : null}
 					showHint={false}
 					gameKey={String(startedAt)}
 					board={reviewPly === null ? game.board : positions.get(reviewPly)!}
@@ -318,7 +314,7 @@
 					active={game.turn === player && !result}
 				/>
 			</div>
-			<MatchSidebar notice={error} onresult={result ? () => resultDialog?.show() : undefined}>
+			<MatchSidebar finished={!!result} notice={error}>
 				{#if error}<div class="notice row" role="alert">
 						<p class="error">{error}</p>
 						{#if game.turn !== player && !result && !thinking}<Button
@@ -327,9 +323,7 @@
 								}}>Retry computer</Button
 							>{/if}
 					</div>{/if}
-				<BoardControls />{#if result}<Button onclick={() => resultDialog?.show()}
-						>Game result</Button
-					>{/if}
+				<BoardControls />
 				{@render computerActions()}
 				<MovesPanel
 					onexport={() => {

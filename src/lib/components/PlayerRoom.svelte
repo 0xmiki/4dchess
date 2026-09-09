@@ -5,7 +5,6 @@
 	import MovesPanel from '$lib/components/MovesPanel.svelte';
 	import GameOverDialog from '$lib/components/GameOverDialog.svelte';
 	import MatchSidebar from '$lib/components/MatchSidebar.svelte';
-	let resultDialog = $state<GameOverDialog>();
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import { page } from '$app/state';
 	import { resolve } from '$app/paths';
@@ -36,6 +35,11 @@
 	import ReconnectNotice from './ReconnectNotice.svelte';
 	import { HEARTBEAT_MS, PRESENCE_VERSION } from '$lib/online/disconnect';
 	import BoardControls from './BoardControls.svelte';
+	import RoomChat from './RoomChat.svelte';
+	import ChatCircleIcon from 'phosphor-svelte/lib/ChatCircleIcon';
+	import XIcon from 'phosphor-svelte/lib/XIcon';
+	let chatOpen = $state(false);
+	const chatPanelId = $props.id();
 	import { isUnscoredResult } from '$lib/online/outcomes';
 	import {
 		remainingTime,
@@ -49,6 +53,48 @@
 	const roomId = $derived((page.params.roomId ?? page.params.gameId) as Id<'games'>);
 	const match = useQuery(api.games.get, () => (auth.isAuthenticated ? { gameId: roomId } : 'skip'));
 	const gameId = $derived(match.data?.game._id ?? roomId);
+	// Share one subscription between the unread indicator and the chat panel.
+	const chat = useQuery(api.chat.list, () => (match.data ? { roomId } : 'skip'));
+	let chatVisible = $state(false),
+		pageVisible = $state(true);
+	let readMessages = $state<Record<string, string>>({});
+	const chatScope = $derived(
+		match.data
+			? `${match.data.game.roomRootId ?? roomId}:${match.data.seat === 'white' ? match.data.game.whiteParticipantId : match.data.game.blackParticipantId}`
+			: ''
+	);
+	const incoming = $derived(chat.data?.messages.filter((message) => !message.mine).at(-1));
+	const readingChat = $derived(chatVisible && pageVisible);
+	const chatUnread = $derived(
+		!readingChat && !chat.data?.muted && !!incoming && readMessages[chatScope] !== incoming.id
+	);
+	onMount(() => {
+		const update = () => {
+			pageVisible = document.visibilityState === 'visible';
+		};
+		update();
+		document.addEventListener('visibilitychange', update);
+		return () => document.removeEventListener('visibilitychange', update);
+	});
+	$effect(() => {
+		const scope = chatScope;
+		if (!scope) return;
+		try {
+			const saved = localStorage.getItem(`fourfold-chat-read:${scope}`);
+			if (saved) readMessages[scope] = saved;
+		} catch {
+			/* Reading still works when browser storage is unavailable. */
+		}
+	});
+	$effect(() => {
+		if (!readingChat || !incoming || !chatScope || chat.data?.muted) return;
+		readMessages[chatScope] = incoming.id;
+		try {
+			localStorage.setItem(`fourfold-chat-read:${chatScope}`, incoming.id);
+		} catch {
+			/* Keep the read marker for this page. */
+		}
+	});
 	const presence = useQuery(api.presence.status, () => (match.data ? { gameId } : 'skip'));
 	let playingSession = $state<string>(),
 		presenceReady = $state(false),
@@ -512,7 +558,7 @@
 			await navigator.clipboard.writeText(invitationUrl);
 			copied = true;
 		} catch {
-			error = 'Select and copy the invitation link below.';
+			error = 'Could not copy the invitation. Allow clipboard access and try again.';
 		}
 	}
 	async function cancel() {
@@ -565,6 +611,17 @@
 </script>
 
 <svelte:head><title>{status || 'Room'} · 4D chess</title></svelte:head>
+{#snippet roomChat(onclose?: () => void)}
+	{#if match.data}{#key roomId}<RoomChat
+				{onclose}
+				{chat}
+				{roomId}
+				{online}
+				opponentName={match.data.players[match.data.seat === 'white' ? 'black' : 'white'] ??
+					'Opponent'}
+			/>{/key}{/if}
+{/snippet}
+
 {#snippet roundActions()}{#if game && match.data}
 		{#if game.kind === 'matchmaking' && game.status === 'finished'}
 			<Button
@@ -639,11 +696,8 @@
 				? gameId + ':rematch'
 				: null}
 		/>
-		<GameOverDialog
-			bind:this={resultDialog}
-			result={game.result}
-			side={match.data.seat}
-			gameKey={gameId}>{@render roundActions()}</GameOverDialog
+		<GameOverDialog result={game.result} side={match.data.seat} gameKey={gameId}
+			>{@render roundActions()}</GameOverDialog
 		>
 		<div class="match-layout">
 			<div class="match-position board-stage">
@@ -671,6 +725,9 @@
 							/>{/if}{/snippet}</PlayerProfile
 				>
 				<ChessBoard
+					winner={(!review || review.ply === livePly) && !isUnscoredResult(game.result)
+						? game.result?.winner
+						: null}
 					interruptibleMotion={!!game.clock}
 					showHint={false}
 					gameKey={gameId}
@@ -722,15 +779,42 @@
 				>
 			</div>
 			<MatchSidebar
+				finished={!!game.result}
+				chat={roomChat}
+				bind:chatOpen
+				{chatUnread}
+				onchatvisibilitychange={(visible) => {
+					chatVisible = visible;
+				}}
+				fullHeight={chatOpen}
 				waiting={game.status === 'waiting'}
 				notice={error || (!online ? 'Reconnecting to the game…' : '')}
-				onresult={game.result ? () => resultDialog?.show() : undefined}
 			>
 				<div class="game-heading">
 					<p class="time-control">
 						{timeControlLabel(game.timeControl)}{game.kind === 'matchmaking' ? ' · Unrated' : ''}
 					</p>
-					<BoardControls />
+					<div class="heading-controls">
+						<button
+							class="chat-toggle"
+							class:active={chatOpen}
+							aria-label={chatOpen
+								? 'Close player chat'
+								: chatUnread
+									? 'Open player chat, unread messages'
+									: 'Open player chat'}
+							title={chatOpen ? 'Close chat' : chatUnread ? 'Unread messages' : 'Player chat'}
+							aria-expanded={chatOpen}
+							aria-controls={chatPanelId}
+							onclick={() => {
+								chatOpen = !chatOpen;
+							}}
+							>{#if chatOpen}<XIcon size={20} />{:else}<ChatCircleIcon
+									size={20}
+								/>{#if chatUnread}<span class="chat-unread" aria-hidden="true"
+									></span>{/if}{/if}</button
+						><BoardControls />
+					</div>
 				</div>
 				{#if game.status === 'active' && game.clock && (!clockSynced || countdown > 0)}<p
 						role="status"
@@ -746,12 +830,6 @@
 								Copy invitation
 							</Button>
 							<span class="sr-only" role="status">{copied ? 'Invitation copied' : ''}</span>
-							<input
-								aria-label="Invitation link"
-								readonly
-								value={invitationUrl}
-								onclick={(e) => e.currentTarget.select()}
-							/>
 							<p class="invite-expiry">
 								Expires {new Date(game.expiresAt).toLocaleString(undefined, {
 									month: 'short',
@@ -780,41 +858,43 @@
 						{#if pending && !sending}<Button onclick={submitPending}>Retry move</Button>{/if}
 					</div>{/if}
 				{#if presenceError}<p class="error" role="alert">{presenceError}</p>{/if}
-				{#if game.result}<Button onclick={() => resultDialog?.show()}>Game result</Button>{/if}
+
 				{@render roundActions()}
-				{#if game.status !== 'waiting'}<MovesPanel
-						onexport={() => {
-							showExport = true;
-							exportDialog.showModal();
-						}}
-						>{#snippet indicator()}<TurnIndicator
-								label={status}
-								turn={displayTurn}
-								text={review
-									? `Move ${review.ply}`
-									: game.status === 'waiting'
-										? 'Waiting for friend'
-										: game.status === 'finished'
-											? 'Game over'
-											: displayTurn === (match.data.seat === 'white' ? 'w' : 'b')
-												? 'Your turn'
-												: game.kind === 'matchmaking'
-													? 'Opponent’s turn'
-													: 'Friend’s turn'}
-							/>{/snippet}<MoveHistory
-							{gameId}
-							board={liveBoard!}
-							ply={livePly}
-							selectedPly={review?.ply ?? livePly}
-							pendingMove={provisional?.move ?? null}
-							onreview={(value) => {
-								review = value;
+				<div class="chat-panel" id={chatPanelId} hidden={!chatOpen}>
+					{#if chatOpen}{@render roomChat()}{/if}
+				</div>
+				<div hidden={chatOpen}>
+					{#if game.status !== 'waiting'}<MovesPanel
+							onexport={() => {
+								showExport = true;
+								exportDialog.showModal();
 							}}
-						/></MovesPanel
-					>{/if}
-				{#if game.status === 'finished'}<button class="leave-match" onclick={leave}
-						>Back to play</button
-					>{/if}
+							>{#snippet indicator()}<TurnIndicator
+									label={status}
+									turn={displayTurn}
+									text={review
+										? `Move ${review.ply}`
+										: game.status === 'waiting'
+											? 'Waiting for friend'
+											: game.status === 'finished'
+												? status
+												: displayTurn === (match.data.seat === 'white' ? 'w' : 'b')
+													? 'Your turn'
+													: game.kind === 'matchmaking'
+														? 'Opponent’s turn'
+														: 'Friend’s turn'}
+								/>{/snippet}<MoveHistory
+								{gameId}
+								board={liveBoard!}
+								ply={livePly}
+								selectedPly={review?.ply ?? livePly}
+								pendingMove={provisional?.move ?? null}
+								onreview={(value) => {
+									review = value;
+								}}
+							/></MovesPanel
+						>{/if}
+				</div>
 			</MatchSidebar>
 		</div>
 	{/if}
@@ -841,6 +921,47 @@
 </Modal>
 
 <style>
+	@media (max-width: 850px) {
+		.heading-controls .chat-toggle {
+			display: none;
+		}
+	}
+	.chat-panel:not([hidden]) {
+		display: flex;
+		flex-direction: column;
+	}
+
+	.heading-controls {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+	}
+	.chat-toggle {
+		position: relative;
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		border-radius: 6px;
+		color: var(--muted);
+		cursor: pointer;
+	}
+	.chat-unread {
+		position: absolute;
+		top: 3px;
+		right: 3px;
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: #ef5350;
+		box-shadow: 0 0 0 2px var(--page);
+	}
+	.chat-toggle:hover,
+	.chat-toggle.active {
+		color: var(--text);
+		background: var(--surface-raised);
+	}
+
 	.game-heading {
 		display: flex;
 		align-items: center;
@@ -902,14 +1023,6 @@
 	.invite-panel {
 		max-width: 640px;
 		margin-bottom: 24px;
-	}
-	.invite-panel input {
-		width: 100%;
-		border: 1px solid var(--line);
-		border-radius: var(--radius-control);
-		background: var(--surface);
-		padding: 10px;
-		font-size: 12px;
 	}
 	.notice {
 		margin-bottom: 16px;
