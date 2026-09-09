@@ -9,6 +9,7 @@
 <p align="center">
   <a href="https://4dchess.lol"><img alt="Play online" src="https://img.shields.io/badge/play-4dchess.lol-7c8a6e" /></a>
   <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-7c8a6e" /></a>
+  <a href="https://discord.gg/3hxrqHPfxE"><img alt="Join our Discord" src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&amp;logoColor=white" /></a>
 </p>
 
 ![The starting position across four boards and an interactive tesseract.](docs/images/game.png)
