@@ -7,6 +7,8 @@
 	let refreshing = $state(false);
 	let refreshFailed = $state(false);
 	const number = (n: number) => n.toLocaleString('en-US');
+	const computerGames = (date: string) =>
+		data.stats?.computer?.find((day) => day.date === date)?.games ?? 0;
 	async function refresh() {
 		if (refreshing) return;
 		refreshing = true;
@@ -43,37 +45,7 @@
 	</header>
 	{#if data.stats}
 		{@const stats = data.stats}
-		<section class="activity" aria-labelledby="computer-title">
-			<h2 id="computer-title">Computer play</h2>
-			<dl class="players">
-				<div>
-					<dt>Reported today</dt>
-					<dd>
-						{stats.computer
-							? number(
-									stats.computer.find(
-										(d) => d.date === new Date(stats.sampledAt).toISOString().slice(0, 10)
-									)?.games ?? 0
-								)
-							: 'Pending'}
-					</dd>
-				</div>
-				<div>
-					<dt>Last 7 days</dt>
-					<dd>
-						{stats.computer
-							? number(stats.computer.reduce((total, day) => total + day.games, 0))
-							: 'Pending'}
-					</dd>
-				</div>
-			</dl>
-			<p class="note">
-				Games reported after a human move with optional statistics enabled. Includes resumed games;
-				each saved game reports once. These approximate counts exclude unreported and offline play,
-				start when reporting launches, and do not measure unique people or live games.
-			</p>
-		</section>
-		<p class="scope">Online multiplayer games</p>
+		<p class="scope">Online multiplayer and reported computer games</p>
 		<p class="updated">
 			Updated <time datetime={new Date(stats.sampledAt).toISOString()}
 				>{new Date(stats.sampledAt).toISOString().slice(0, 16).replace('T', ' ')} UTC</time
@@ -112,6 +84,19 @@
 				<dt>Live games</dt>
 				<dd>{stats.playingNow === undefined ? 'Pending' : number(stats.playingNow)}</dd>
 				<p>Both players online</p>
+			</div>
+			<div>
+				<dt>Computer games</dt>
+				<dd>
+					{stats.computer
+						? number(computerGames(new Date(stats.sampledAt).toISOString().slice(0, 10)))
+						: 'Pending'}
+				</dd>
+				<p>
+					{stats.computer
+						? `${number(stats.computer.reduce((total, day) => total + day.games, 0))} in 7 days`
+						: 'Reported with permission'}
+				</p>
 			</div>
 			<div>
 				<dt>Completion rate</dt>
@@ -155,7 +140,8 @@
 					<thead
 						><tr
 							><th scope="col">Day</th><th scope="col">New players</th><th scope="col">Active</th
-							><th scope="col">Started</th><th scope="col">Completed</th></tr
+							><th scope="col">Online</th><th scope="col">Computer</th><th scope="col">Completed</th
+							></tr
 						></thead
 					><tbody>
 						{#each [...stats.daily].reverse() as day (day.date)}<tr
@@ -172,8 +158,8 @@
 								><td>{day.newPlayers === undefined ? 'Pending' : number(day.newPlayers)}</td><td
 									>{day.players === undefined ? 'Pending' : number(day.players)}</td
 								><td>{number(day.started)}</td><td
-									>{day.completed === undefined ? 'Pending' : number(day.completed)}</td
-								></tr
+									>{stats.computer ? number(computerGames(day.date)) : 'Pending'}</td
+								><td>{day.completed === undefined ? 'Pending' : number(day.completed)}</td></tr
 							>{/each}
 					</tbody>
 				</table>
@@ -243,10 +229,12 @@
 				Player identities are browser or account records, not verified individual people. A guest
 				using another browser or clearing their session can count again. Recorded multiplayer games
 				include rematches. Unused invitations, cancelled and aborted games, and games against the
-				computer are excluded. A live game has both players currently connected. Counts are
-				collected over a short interval and may lag behind play. No player identities or room links
-				are published. Active players are distinct player identities that made a move during the
-				period, including moves in games later aborted. Page visits and computer games do not count.
+				computer are excluded from online counts. A live game has both players currently connected.
+				Computer games are reported once after a human move when optional statistics are enabled;
+				they do not measure unique people or current live play. Counts are collected over a short
+				interval and may lag behind play. No player identities or room links are published. Active
+				players are distinct player identities that made a move during the period, including moves
+				in games later aborted. Page visits and computer games do not count toward active players.
 				Seven-day and 30-day totals count distinct players across the whole period; they are not
 				sums of the daily counts.
 			</p>
