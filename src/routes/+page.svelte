@@ -239,7 +239,7 @@
 			<nav class="row" aria-label="Legal">
 				<a href={resolve('/privacy')}>Privacy policy</a>
 				<a href={resolve('/terms')}>Terms of service</a>
-				<a href={resolve('/privacy') + '#privacy-settings'} onclick={openPrivacySettings}
+				<a href={resolve('/privacy#privacy-settings')} onclick={openPrivacySettings}
 					>Privacy settings</a
 				>
 			</nav>

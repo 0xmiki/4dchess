@@ -3,6 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { replaceState } from '$app/navigation';
+	import type { ResolvedPathname } from '$app/types';
 	import Button from './Button.svelte';
 	import { consentKey, readConsent, saveConsent } from '$lib/privacy';
 	let storageFailed = $state(false);
@@ -47,7 +48,8 @@
 		storageFailed = !saveConsent(statistics);
 		if (!storageFailed || !statistics) {
 			if (page.url.hash === '#privacy-settings') {
-				replaceState(page.url.pathname + page.url.search, page.state);
+				// The current URL already includes the app base path.
+				replaceState((page.url.pathname + page.url.search) as ResolvedPathname, page.state);
 			}
 			open = false;
 			await tick();
