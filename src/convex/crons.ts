@@ -10,4 +10,5 @@ crons.interval(
 	internal.operations.maintenance
 );
 crons.interval('public game statistics', { minutes: 5 }, internal.stats.refresh);
+crons.interval('computer report cleanup', { hours: 24 }, internal.stats.cleanupComputer);
 export default crons;

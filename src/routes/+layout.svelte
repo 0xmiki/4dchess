@@ -16,6 +16,7 @@
 	import { page } from '$app/state';
 	import AuthProvider from '$lib/components/AuthProvider.svelte';
 	import HomeLink from '$lib/components/HomeLink.svelte';
+	import PrivacyConsent from '$lib/components/PrivacyConsent.svelte';
 
 	let { children } = $props();
 </script>
@@ -56,7 +57,9 @@
 		content="4D chess. Play with your friends. A tesseract on a dark background."
 	/>
 </svelte:head>
-{#if page.route.id !== '/stats'}<HomeLink corner />{/if}
+{#if page.route.id !== '/stats' && !page.route.id?.startsWith('/(legal)/')}<HomeLink corner />{/if}
 {#if page.route.id?.startsWith('/game/') || page.route.id?.startsWith('/room/') || page.route.id === '/join' || page.route.id === '/match'}<AuthProvider
 		>{@render children()}</AuthProvider
 	>{:else}{@render children()}{/if}
+
+<PrivacyConsent />

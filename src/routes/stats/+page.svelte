@@ -31,7 +31,7 @@
 	<title>Game stats · 4D chess</title>
 	<meta
 		name="description"
-		content="Total multiplayer games, completed games, and recent activity on 4D chess."
+		content="Online multiplayer activity and optional computer-game counts on 4D chess."
 	/>
 	<link rel="canonical" href="https://4dchess.lol/stats" />
 </svelte:head>
@@ -43,6 +43,36 @@
 	</header>
 	{#if data.stats}
 		{@const stats = data.stats}
+		<section class="activity" aria-labelledby="computer-title">
+			<h2 id="computer-title">Computer play</h2>
+			<dl class="players">
+				<div>
+					<dt>Reported today</dt>
+					<dd>
+						{stats.computer
+							? number(
+									stats.computer.find(
+										(d) => d.date === new Date(stats.sampledAt).toISOString().slice(0, 10)
+									)?.games ?? 0
+								)
+							: 'Pending'}
+					</dd>
+				</div>
+				<div>
+					<dt>Last 7 days</dt>
+					<dd>
+						{stats.computer
+							? number(stats.computer.reduce((total, day) => total + day.games, 0))
+							: 'Pending'}
+					</dd>
+				</div>
+			</dl>
+			<p class="note">
+				Games reported after a human move with optional statistics enabled. Includes resumed games;
+				each saved game reports once. These approximate counts exclude unreported and offline play,
+				start when reporting launches, and do not measure unique people or live games.
+			</p>
+		</section>
 		<p class="scope">Online multiplayer games</p>
 		<p class="updated">
 			Updated <time datetime={new Date(stats.sampledAt).toISOString()}

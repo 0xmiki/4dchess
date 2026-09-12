@@ -1,15 +1,21 @@
 <script lang="ts">
+	import { openPrivacySettings } from '$lib/privacy';
 	import { resolve } from '$app/paths';
+	import HomeLink from '$lib/components/HomeLink.svelte';
 	let { children } = $props();
 </script>
 
 <main class="shell legal">
+	<header><HomeLink /></header>
 	<article class="stack">{@render children()}</article>
 	<footer>
 		<nav class="row" aria-label="Legal">
 			<a href={resolve('/')}>Play 4D chess</a>
 			<a href={resolve('/privacy')}>Privacy policy</a>
 			<a href={resolve('/terms')}>Terms of service</a>
+			<a href={resolve('/privacy') + '#privacy-settings'} onclick={openPrivacySettings}
+				>Privacy settings</a
+			>
 		</nav>
 	</footer>
 </main>
@@ -17,8 +23,11 @@
 <style>
 	.legal {
 		max-width: 800px;
-		padding-top: 100px;
+		padding-top: var(--space-6);
 		padding-bottom: var(--space-8);
+	}
+	header {
+		margin-bottom: var(--space-5);
 	}
 	article :global(h1) {
 		font-size: 32px;

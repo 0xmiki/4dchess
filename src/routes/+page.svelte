@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { openPrivacySettings } from '$lib/privacy';
 	import { activeMatch, leaveMatch, rememberMatch } from '$lib/active-match';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -238,6 +239,9 @@
 			<nav class="row" aria-label="Legal">
 				<a href={resolve('/privacy')}>Privacy policy</a>
 				<a href={resolve('/terms')}>Terms of service</a>
+				<a href={resolve('/privacy') + '#privacy-settings'} onclick={openPrivacySettings}
+					>Privacy settings</a
+				>
 			</nav>
 			<a
 				href="https://x.com/miki_code"

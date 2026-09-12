@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 export const statsFields = {
 	sampledAt: v.number(),
+	computer: v.optional(v.array(v.object({ date: v.string(), games: v.number() }))),
 	started: v.number(),
 	active: v.number(),
 	completed: v.number(),

@@ -1,7 +1,8 @@
 import { v } from 'convex/values';
-import { internalMutation, query } from './_generated/server';
+import { internalMutation, mutation, query } from './_generated/server';
 import { internal } from './_generated/api';
 import { statsValue } from './lib/stats';
+import { consume } from './lib/limits';
 
 // Public reads touch one aggregate document, never game or participant records.
 export const publicSummary = query({
@@ -34,7 +35,14 @@ export const refresh = internalMutation({
 		}
 		const sampledAt = Date.now();
 		const today = Math.floor(sampledAt / 86400000) * 86400000;
+		const computer = await ctx.db
+			.query('computerDays')
+			.withIndex('by_date', (q) =>
+				q.gte('date', new Date(today - 6 * 86400000).toISOString().slice(0, 10))
+			)
+			.take(7);
 		const value = {
+			computer: computer.map(({ date, games }) => ({ date, games })),
 			sampledAt,
 			started: 0,
 			active: 0,
@@ -243,6 +251,53 @@ export const cleanupPlayers = internalMutation({
 		for (const row of rows) await ctx.db.delete(row._id);
 		if (rows.length === 100)
 			await ctx.scheduler.runAfter(0, internal.stats.cleanupPlayers, { buildId });
+		return null;
+	}
+});
+
+// Client-reported activity is approximate, not verified games or unique people.
+export const reportComputer = mutation({
+	args: { token: v.string(), consentVersion: v.literal(1) },
+	returns: v.boolean(),
+	handler: async (ctx, { token }) => {
+		const now = Date.now();
+		const date = new Date(now).toISOString().slice(0, 10);
+		if (
+			!/^[0-9]{4}-[0-9]{2}-[0-9]{2}:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(
+				token
+			) ||
+			!token.startsWith(date + ':')
+		)
+			return false;
+		if (
+			await ctx.db
+				.query('computerReports')
+				.withIndex('by_token', (q) => q.eq('token', token))
+				.unique()
+		)
+			return true;
+		// ponytail: global 120/minute cap bounds anonymous writes; use gateway abuse controls if traffic outgrows it.
+		if (!(await consume(ctx, 'computer-reports', 120, 60000)).ok) return false;
+		await ctx.db.insert('computerReports', { token, expiresAt: now + 2 * 86400000 });
+		const day = await ctx.db
+			.query('computerDays')
+			.withIndex('by_date', (q) => q.eq('date', date))
+			.unique();
+		if (day) await ctx.db.patch(day._id, { games: day.games + 1 });
+		else await ctx.db.insert('computerDays', { date, games: 1 });
+		return true;
+	}
+});
+export const cleanupComputer = internalMutation({
+	args: {},
+	returns: v.null(),
+	handler: async (ctx) => {
+		const rows = await ctx.db
+			.query('computerReports')
+			.withIndex('by_expiry', (q) => q.lte('expiresAt', Date.now()))
+			.take(100);
+		for (const row of rows) await ctx.db.delete(row._id);
+		if (rows.length === 100) await ctx.scheduler.runAfter(0, internal.stats.cleanupComputer, {});
 		return null;
 	}
 });

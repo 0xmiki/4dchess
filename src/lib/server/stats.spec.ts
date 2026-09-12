@@ -93,6 +93,7 @@ it('publishes anonymous totals across pages, excludes unstarted games, and rebui
 	expect(Object.keys(summary!).sort()).toEqual(
 		[
 			'sampledAt',
+			'computer',
 			'started',
 			'active',
 			'completed',
@@ -193,4 +194,26 @@ it('deduplicates active players across pages and UTC dates, with independent 7 a
 	await t.mutation(internal.stats.refresh, {});
 	await t.finishAllScheduledFunctions(vi.runAllTimers);
 	expect((await t.query(api.stats.publicSummary, {}))?.players).toEqual(summary?.players);
+});
+
+it('counts computer reports once, rejects stale tokens, publishes only totals, and cleans receipts', async () => {
+	const t = setup();
+	const token = '2026-09-07:12345678-1234-4123-8123-123456789abc';
+	expect(await t.mutation(api.stats.reportComputer, { token, consentVersion: 1 })).toBe(true);
+	expect(await t.mutation(api.stats.reportComputer, { token, consentVersion: 1 })).toBe(true);
+	for (const invalid of ['bad', token.replace('09-07', '09-06')]) {
+		expect(await t.mutation(api.stats.reportComputer, { token: invalid, consentVersion: 1 })).toBe(
+			false
+		);
+	}
+	await t.mutation(internal.stats.refresh, {});
+	await t.finishAllScheduledFunctions(vi.runAllTimers);
+	const stats = await t.query(api.stats.publicSummary, {});
+	expect(stats?.computer).toEqual([{ date: '2026-09-07', games: 1 }]);
+	expect(JSON.stringify(stats)).not.toContain(token);
+	vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
+	await t.mutation(internal.stats.cleanupComputer, {});
+	expect(await t.run((ctx) => ctx.db.query('computerReports').collect())).toEqual([]);
+	expect(await t.mutation(api.stats.reportComputer, { token, consentVersion: 1 })).toBe(false);
+	expect(await t.run((ctx) => ctx.db.query('computerDays').first())).toMatchObject({ games: 1 });
 });

@@ -1,4 +1,33 @@
 <script lang="ts">
+	import { ConvexHttpClient } from 'convex/browser';
+	import { PUBLIC_CONVEX_URL } from '$env/static/public';
+	import { api } from '../../convex/_generated/api';
+	import { statisticsAllowed } from '$lib/privacy';
+	let reportToken: string | null = null;
+	let reported = false;
+	let reporting = false;
+	async function reportGame() {
+		if (reported || reporting || !statisticsAllowed()) return;
+		reportToken ??= new Date().toISOString().slice(0, 10) + ':' + crypto.randomUUID();
+		const token = reportToken;
+		save();
+		reporting = true;
+		try {
+			const accepted = await new ConvexHttpClient(PUBLIC_CONVEX_URL, {
+				fetch: (input, init) =>
+					fetch(input, { ...init, credentials: 'omit', signal: AbortSignal.timeout(5000) })
+			}).mutation(api.stats.reportComputer, { token, consentVersion: 1 });
+			if (token === reportToken && accepted) {
+				reported = true;
+				save();
+			}
+		} catch {
+			/* Reporting never interrupts play or queues offline activity. */
+		} finally {
+			reporting = false;
+		}
+	}
+
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { rememberMatch, leaveMatch } from '$lib/active-match';
@@ -97,6 +126,8 @@
 					});
 					state = applied.state;
 				}
+				reportToken = typeof saved.reportToken === 'string' ? saved.reportToken : null;
+				reported = saved.reported === true;
 				player = saved.player;
 				difficulty = saved.difficulty;
 				setupSide = player;
@@ -131,6 +162,7 @@
 				'fourfold-computer-v1',
 				JSON.stringify({
 					version: 1,
+					...(reportToken ? { reportToken, reported } : {}),
 					resigned,
 					player,
 					difficulty,
@@ -143,6 +175,8 @@
 		}
 	}
 	function start() {
+		reportToken = null;
+		reported = false;
 		resigned = false;
 		reviewPly = null;
 		rememberMatch({ kind: 'computer' });
@@ -174,6 +208,7 @@
 		];
 		game = applied.state;
 		save();
+		if (before.turn === player) void reportGame();
 	}
 	$effect(() => {
 		const position = game,

@@ -19,6 +19,10 @@ export default defineSchema({
 		'by_room',
 		['roomId']
 	),
+	computerReports: defineTable({ token: v.string(), expiresAt: v.number() })
+		.index('by_token', ['token'])
+		.index('by_expiry', ['expiresAt']),
+	computerDays: defineTable({ date: v.string(), games: v.number() }).index('by_date', ['date']),
 	publicStats: defineTable({ name: v.string(), value: statsValue }).index('by_name', ['name']),
 	statsBuild: defineTable({ value: statsValue }),
 	statsPlayerDays: defineTable({
