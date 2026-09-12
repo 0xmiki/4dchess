@@ -235,6 +235,10 @@
 			<a href="https://github.com/0xmiki/4dchess" target="_blank" rel="noopener noreferrer">
 				<GithubLogoIcon size={20} weight="fill" aria-hidden="true" />GitHub
 			</a>
+			<nav class="row" aria-label="Legal">
+				<a href={resolve('/privacy')}>Privacy policy</a>
+				<a href={resolve('/terms')}>Terms of service</a>
+			</nav>
 			<a
 				href="https://x.com/miki_code"
 				target="_blank"
@@ -262,6 +266,7 @@
 		flex-direction: column;
 	}
 	.home-footer {
+		flex-wrap: wrap;
 		position: relative;
 		left: 50%;
 		transform: translateX(-50%);
