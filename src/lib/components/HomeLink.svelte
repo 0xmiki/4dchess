@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onlineMaintenance } from '$lib/online/maintenance';
 	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
@@ -40,6 +41,10 @@
 	async function home(event: MouseEvent) {
 		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
 		event.preventDefault();
+		if (onlineMaintenance || page.route.id === '/match') {
+			void goto(resolve('/'));
+			return;
+		}
 		if (busy || checking) return;
 		if (
 			homeRoom.spectatingRoomId &&
@@ -158,7 +163,7 @@
 					dialog.close();
 					await goto(resolve('/'));
 				}}>Go home</Button
-			>{/if}
+			>{:else if error}<Button onclick={goHome}>Go home</Button>{/if}
 	</div>
 </Modal>
 

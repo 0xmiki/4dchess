@@ -43,6 +43,6 @@ bun run deploy:frontend
 
 The demo is at [4dchess.lol](https://4dchess.lol). Its Worker route uses the existing proxied apex DNS record. The optional redirect Worker under `infrastructure/legacy-domain/` preserves older links to the demo. Forks do not need to deploy that Worker.
 
-The demo's production backend is `gregarious-parrot-749`; `tough-sardine-116` is development only. Production was migrated with the released application code, game records, and Better Auth component records. Development uses separate secrets and test data. Never run browser tests against the public site.
+The demo uses the `mikiyas/4dchess-v2` Convex project. Its production backend is `rugged-hamster-952`; `exuberant-dotterel-426` is development only. Production was migrated with the released application code, game records, and Better Auth component records. Development uses separate secrets and test data. Never run browser tests against the public site.
 
 Browser saves and guest cookies belong to their site origin and do not automatically move when changing domains. Keep auth and invitation secrets stable across releases.

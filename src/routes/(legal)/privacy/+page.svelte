@@ -41,10 +41,10 @@
 <h2>Why we use it</h2>
 <p>
 	We use this information to provide games, authenticate guests, match opponents, deliver chat,
-	restore sessions, prevent abuse, fix errors, and produce aggregate game statistics. Where data
-	protection law requires a legal basis, providing the service relies on performing our agreement
-	with you; security, diagnostics, and service statistics rely on our legitimate interests in
-	running a reliable service. We may also process information to meet legal obligations.
+	restore sessions, prevent abuse, and fix errors. Where data protection law requires a legal basis,
+	providing the service relies on performing our agreement with you; security and diagnostics rely
+	on our legitimate interests in running a reliable service. We may also process information to meet
+	legal obligations.
 </p>
 
 <h2>Cookies and browser storage</h2>
@@ -56,36 +56,22 @@
 	access to your guest identity. Clearing browser data does not delete server records.
 </p>
 
-<h2>Optional computer-game statistics</h2>
+<h2>Game statistics</h2>
 <p>
-	If you choose Accept in our privacy panel, a human move in a computer game can send a random
-	per-game reporting token and consent version to Convex. We use these to count reported games and
-	prevent duplicate reports; we do not send your moves, board, display name, or account identifier
-	with the report. These requests still involve the technical connection information described
-	above. Computer play works without reporting. This optional processing relies on your consent.
-</p>
-<p>
-	Essential only disables optional reporting. Privacy settings in the footer lets you change your
-	choice at any time. We remember acceptance and refusal in this browser for 180 days, together with
-	the choice date and consent version. Another browser or clearing site data means choosing again. A
-	reporting token and acknowledgement are saved with the game after consent, so resuming does not
-	count it again. Withdrawing consent stops future reports; already published aggregate counts
-	remain.
-</p>
-<p>
-	Reporting tokens become eligible for deletion after two days and are removed by daily cleanup,
-	which may be delayed. Daily aggregate counts have no automatic deletion period. We do not publish
-	reporting tokens or use them to identify players across games.
+	Public game statistics have been retired. The current site no longer sends optional computer-game
+	reports. Previously collected reporting tokens remain eligible for deletion after two days through
+	daily cleanup, which may be delayed. Historical aggregate counts have no automatic deletion
+	period. Saved privacy choices and reporting tokens from earlier versions may remain in your
+	browser until you clear site data.
 </p>
 
 <h2>Who can see information</h2>
 <p>
 	People with a room link can watch the game, including player display names, moves, and results.
-	Room chat is available to the room's players. Public statistics show aggregate activity.
-	Cloudflare hosts the website and Convex provides the backend, database, and authentication
-	infrastructure. These providers process information needed to operate the service and may process
-	it outside your country. Information may also be disclosed when required by law or necessary to
-	protect the service and its users.
+	Room chat is available to the room's players. Cloudflare hosts the website and Convex provides the
+	backend, database, and authentication infrastructure. These providers process information needed
+	to operate the service and may process it outside your country. Information may also be disclosed
+	when required by law or necessary to protect the service and its users.
 </p>
 <p>
 	The site does not include advertising trackers or sell personal information. Links to GitHub,

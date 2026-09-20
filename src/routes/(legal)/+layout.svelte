@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { openPrivacySettings } from '$lib/privacy';
 	import { resolve } from '$app/paths';
 	import HomeLink from '$lib/components/HomeLink.svelte';
 	let { children } = $props();
@@ -13,9 +12,6 @@
 			<a href={resolve('/')}>Play 4D chess</a>
 			<a href={resolve('/privacy')}>Privacy policy</a>
 			<a href={resolve('/terms')}>Terms of service</a>
-			<a href={resolve('/privacy#privacy-settings')} onclick={openPrivacySettings}
-				>Privacy settings</a
-			>
 		</nav>
 	</footer>
 </main>

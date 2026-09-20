@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { openPrivacySettings } from '$lib/privacy';
+	import { onlineMaintenance, maintenanceMessage } from '$lib/online/maintenance';
 	import { activeMatch, leaveMatch, rememberMatch } from '$lib/active-match';
 	import LoadingScreen from '$lib/components/LoadingScreen.svelte';
 	import Button from '$lib/components/Button.svelte';
@@ -51,18 +51,20 @@
 		resumeError = $state(false);
 	let alive = true;
 	async function resumeMatch() {
+		if (onlineMaintenance) {
+			try {
+				localStorage.removeItem('fourfold-search');
+			} catch {
+				/* Storage is optional. */
+			}
+			resuming = false;
+			ready = true;
+			return;
+		}
 		resuming = true;
 		resumeError = false;
 		const active = activeMatch();
 		if (!active || active.kind === 'computer') {
-			try {
-				if (localStorage.getItem('fourfold-search')) {
-					await goto(resolve('/match'), { replaceState: true });
-					return;
-				}
-			} catch {
-				/* Storage is optional. */
-			}
 			resuming = false;
 			ready = true;
 			return;
@@ -99,7 +101,7 @@
 		};
 	});
 	async function create() {
-		if (busy) return;
+		if (onlineMaintenance || busy) return;
 		busy = true;
 		error = '';
 		try {
@@ -172,6 +174,12 @@
 				<Button variant="primary" onclick={resumeMatch}>Retry</Button>
 			</div>{:else}<div class="home-play">
 				<div class="play-column">
+					{#if onlineMaintenance}
+						<div class="maintenance" role="status">
+							<strong>Server under maintenance</strong>
+							<p>{maintenanceMessage}</p>
+						</div>
+					{/if}
 					<div class="play-settings">
 						<SideToggle
 							allowRandom
@@ -188,24 +196,29 @@
 							hideLabel
 							options={timeOptions}
 							bind:value={selectedTime}
-							disabled={!ready || busy}
+							disabled={onlineMaintenance || !ready || busy}
 						/>
 					</div>
 					<section class="play-options" aria-label="Choose how to play">
 						<PlayOption
 							mode="matchmaking"
 							primary
-							disabled={!ready || busy || selectedTime === 'untimed'}
-							description={selectedTime === 'untimed'
-								? 'Choose a clock to find an opponent.'
-								: 'Play someone online.'}
+							disabled={onlineMaintenance || !ready || busy || selectedTime === 'untimed'}
+							description={onlineMaintenance
+								? 'Temporarily unavailable during maintenance.'
+								: selectedTime === 'untimed'
+									? 'Choose a clock to find an opponent.'
+									: 'Play someone online.'}
 							onclick={() => goto(resolve(`/match?time=${encodeURIComponent(selectedTime)}`))}
 						/>
 						<PlayOption
 							mode="friend"
 							primary={false}
 							{busy}
-							disabled={!ready || busy}
+							disabled={onlineMaintenance || !ready || busy}
+							description={onlineMaintenance
+								? 'Temporarily unavailable during maintenance.'
+								: undefined}
 							onclick={create}
 						/>
 
@@ -239,9 +252,6 @@
 			<nav class="row" aria-label="Legal">
 				<a href={resolve('/privacy')}>Privacy policy</a>
 				<a href={resolve('/terms')}>Terms of service</a>
-				<a href={resolve('/privacy#privacy-settings')} onclick={openPrivacySettings}
-					>Privacy settings</a
-				>
 			</nav>
 			<a
 				href="https://x.com/miki_code"
@@ -255,6 +265,18 @@
 	</main>{/if}
 
 <style>
+	.maintenance {
+		padding: var(--space-4);
+		border: 1px solid var(--line);
+		border-radius: var(--radius-panel);
+		background: var(--surface);
+	}
+	.maintenance p {
+		margin-top: var(--space-2);
+		color: var(--muted);
+		font-size: 14px;
+		line-height: 1.5;
+	}
 	.play-settings {
 		display: flex;
 		flex-wrap: wrap;
@@ -264,6 +286,7 @@
 	}
 	.home-shell {
 		max-width: 1800px;
+		padding-top: 80px;
 		padding-bottom: 16px;
 		min-height: 100svh;
 		display: flex;

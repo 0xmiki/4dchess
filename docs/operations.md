@@ -17,9 +17,11 @@ Only the website can authorize anonymous signup. Its server derives a pseudonymo
 
 ## Retention
 
-Waiting matches expire after 24 hours. A maintenance job runs every 15 minutes and recovers expired waiting matches whose scheduled expiry has not run.
+All recurring crons are disabled following the account migration. The cleanup behavior below describes retained functions that currently run only when invoked explicitly. The maintenance heartbeat remains stale while its cron is disabled. Game-triggered timeout jobs are separate from recurring crons.
 
-Cancelled or expired matches that never started are deleted seven days after cancellation or expiry. The job checks `startedAt`, `ply`, result, and move/command records before deleting the match and its invitations. Active matches and played games are retained, including completed games. Authentication accounts and participants are not automatically deleted by this policy.
+Waiting matches expire after 24 hours. The maintenance function recovers expired waiting matches whose scheduled expiry has not run.
+
+Cancelled or expired matches that never started become eligible for deletion seven days after cancellation or expiry. The job checks `startedAt`, `ply`, result, and move/command records before deleting the match and its invitations. Active matches and played games are retained, including completed games. Authentication accounts and participants are not automatically deleted by this policy.
 
 Each maintenance run handles at most 50 expiry recoveries, 50 match deletions, and 100 expired rate-limit buckets. Subsequent runs continue draining any backlog. Creation idempotency is retained while its game record exists; an old invitation is no longer recoverable after retention cleanup.
 

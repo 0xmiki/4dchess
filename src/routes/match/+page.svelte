@@ -47,6 +47,7 @@
 		error = '';
 		try {
 			client ??= await guestClient();
+			if (!alive || leaving) return;
 			receive(
 				await client.mutation(api.matchmaking.join, {
 					requestId,
@@ -58,30 +59,31 @@
 			if (alive) error = errorMessage(cause);
 		}
 	}
-	async function cancelSearch() {
-		if (cancelling || leaving) return;
-		cancelling = true;
-		error = '';
-		try {
-			client ??= await guestClient();
-			receive(
-				await client.mutation(api.matchmaking.cancel, {
+	function abandonSearch() {
+		if (leaving) return;
+		leaving = true;
+		clearSaved();
+		// Leaving must work offline. A failed cancellation expires with the queue lease.
+		if (client) {
+			void client
+				.mutation(api.matchmaking.cancel, {
 					id: search?.id,
 					requestId,
 					timeControl: control
 				})
-			);
-		} catch (cause) {
-			if (alive) error = errorMessage(cause);
-		} finally {
-			cancelling = false;
+				.catch(() => {
+					/* Best effort; do not block navigation. */
+				});
 		}
 	}
-	beforeNavigate(({ to, cancel }) => {
-		if (to && !leaving) {
-			cancel();
-			void cancelSearch();
-		}
+	async function cancelSearch() {
+		if (cancelling || leaving) return;
+		cancelling = true;
+		abandonSearch();
+		await goto(resolve('/'), { replaceState: true });
+	}
+	beforeNavigate(() => {
+		abandonSearch();
 	});
 	onMount(() => {
 		const selected = new URL(location.href).searchParams.get('time');

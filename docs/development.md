@@ -4,7 +4,7 @@ Install Bun, then run `bun install`. Create or select your own Convex project wi
 
 `bun run dev:all` starts the frontend and syncs backend code to the selected development deployment. The development scripts reject production deployments, deploy keys, and mismatched frontend URLs. Keep `CONVEX_DEPLOY_KEY` out of local environment files. Development has its own database and authentication secrets; never copy production sessions into it for testing.
 
-The hosted project's development deployment is `tough-sardine-116`. The public site uses the separate production deployment `gregarious-parrot-749`. No `DEVELOPMENT=true` flag is needed: `.env.local` selects development, while CI selects production with a deployment-scoped key. Restart the frontend after changing these environment variables.
+The hosted project's development deployment is `exuberant-dotterel-426`. The public site uses the separate production deployment `rugged-hamster-952`. No `DEVELOPMENT=true` flag is needed: `.env.local` selects development, while CI selects production with a deployment-scoped key. Restart the frontend after changing these environment variables.
 
 ## Authentication setup
 
@@ -74,14 +74,8 @@ node scripts/capture-images.mjs
 
 Install TeX Gyre Pagella to reproduce the social card's serif title. Set `CAPTURE_URL` or `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use a different local preview or browser. The capture does not create a guest session or multiplayer room.
 
-## Game stats preview
+## Retired statistics and maintenance
 
-After `bun run convex:push`, run `bunx convex run stats:refresh '{}'` to prepare the first development summary. Open `/stats` on the local frontend. Production deployment remains owned by CI.
+The public stats page redirects to the home page and computer-game reporting is removed. All recurring jobs in `src/convex/crons.ts` are disabled. Do not schedule `stats:refresh`: it rereads historical games, participants, and moves, creating database I/O even when nobody is playing.
 
-The stats cron refreshes every five minutes. Visitors read one anonymous summary; collection scans retained games in pages of at most 100 and publishes only after completion. Interrupted builds are replaced after 15 minutes, and the page labels old summaries as delayed. Collection cost grows with game history; replace periodic scans with incremental counters if scans become expensive or approach the refresh interval.
-
-Totals cover started multiplayer games and rematches, excluding cancelled and aborted games. Local computer games are not counted. Unfinished games may include abandoned sessions without a recorded result. Daily counts cover seven UTC dates, including the current partial day. Counts are periodic observations rather than a transactionally consistent snapshot. No player identities or room links are returned.
-
-Unique active players means distinct participant identities with at least one recorded multiplayer move. The snapshot scans the last 30 UTC dates through its cutoff time using the move timestamp index. Daily, seven-day, and 30-day counts deduplicate independently; the longer totals never sum daily counts. The current UTC date is partial. Moves still count when a game is later aborted. Guests can count separately after clearing a session or switching browsers.
-
-Temporary per-build player/day masks keep deduplication bounded per transaction. They stay private and are deleted in batches after publishing or replacing an interrupted build. The public summary contains only counts. The activity scan adds work proportional to moves in the last 30 days, independent of dashboard visitor traffic.
+Online play is temporarily disabled by `src/lib/online/maintenance.ts`. Computer play remains available. Review cleanup retention before restoring online play; expired records are retained while cleanup crons are disabled.
