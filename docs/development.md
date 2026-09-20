@@ -78,4 +78,4 @@ Install TeX Gyre Pagella to reproduce the social card's serif title. Set `CAPTUR
 
 The public stats page redirects to the home page and computer-game reporting is removed. All recurring jobs in `src/convex/crons.ts` are disabled. Do not schedule `stats:refresh`: it rereads historical games, participants, and moves, creating database I/O even when nobody is playing.
 
-Online play is temporarily disabled by `src/lib/online/maintenance.ts`. Computer play remains available. Review cleanup retention before restoring online play; expired records are retained while cleanup crons are disabled.
+Online play is enabled. The flag in `src/lib/online/maintenance.ts` can temporarily disable it while keeping computer play available. Expired records are retained while cleanup crons are disabled.
