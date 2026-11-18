@@ -55,7 +55,7 @@
 		"typescript-eslint": "^8.60.1",
 		"vite": "^8.0.16",
 		"vitest": "^4.1.8",
-		"wrangler": "^4.97.0"
+		"wrangler": "4.129.0"
 	},
 	"dependencies": {
 		"@convex-dev/better-auth": "^0.12.5",
